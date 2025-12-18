@@ -236,9 +236,18 @@ export class FriendsService {
     });
   }
 
-  async remove(clerkUserId: string, friendClerkId: string) {
+  async remove(clerkUserId: string, friendIdOrClerkId: string) {
     const user = await this.getOrCreateUser(clerkUserId);
-    const friend = await this.getOrCreateUser(friendClerkId);
+    
+    // friendIdOrClerkId can be either database ID or Clerk ID
+    let friend = await this.prisma.user.findUnique({
+      where: { id: friendIdOrClerkId },
+    });
+    
+    // If not found by database ID, try Clerk ID
+    if (!friend) {
+      friend = await this.getOrCreateUser(friendIdOrClerkId);
+    }
 
     // Delete friendship in either direction
     const result = await this.prisma.friendship.deleteMany({
