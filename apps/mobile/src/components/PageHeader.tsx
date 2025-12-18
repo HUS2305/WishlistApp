@@ -79,7 +79,7 @@ export function HeaderButton({
       style={[styles.headerButton, disabled && styles.headerButtonDisabled, style]}
     >
       {icon ? (
-        <Feather name={icon} size={20} color={disabled ? theme.colors.textSecondary : theme.colors.textPrimary} />
+        <Feather name={icon} size={24} color={disabled ? theme.colors.textSecondary : theme.colors.textPrimary} />
       ) : (
         children
       )}
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 10, // Match main content padding
   },
   headerButton: {
     padding: 0,

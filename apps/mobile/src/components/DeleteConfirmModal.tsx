@@ -70,6 +70,10 @@ export function DeleteConfirmModal({
           <Text style={[styles.message, { color: theme.colors.textPrimary }]}>
             {type === "notifications" 
               ? "Are you sure you want to delete all notifications? This action cannot be undone."
+              : modalTitle === "Block User"
+              ? `Are you sure you want to block ${title}? You won't be able to see their profile or send them friend requests.`
+              : modalTitle === "Remove Friend"
+              ? `Are you sure you want to remove ${title}? This action cannot be undone.`
               : `Are you sure you want to delete "${title}"? This action cannot be undone.`
             }
           </Text>
@@ -110,7 +114,9 @@ export function DeleteConfirmModal({
               {isDeleting ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.deleteButtonText}>Delete</Text>
+                <Text style={styles.deleteButtonText}>
+                  {modalTitle === "Block User" ? "Block" : modalTitle === "Remove Friend" ? "Remove" : "Delete"}
+                </Text>
               )}
             </TouchableOpacity>
           </View>

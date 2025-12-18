@@ -185,6 +185,7 @@ export class UsersService {
     // For each user, check if they're friends, pending, or blocked
     const enrichedUsers = await Promise.all(
       users.map(async (user) => {
+        // Check friendships in both directions
         const friendships = await this.prisma.friendship.findMany({
           where: {
             OR: [
@@ -196,8 +197,16 @@ export class UsersService {
 
         const accepted = friendships.find(f => f.status === "ACCEPTED");
         const pending = friendships.find(f => f.status === "PENDING");
-        const blockedByMe = friendships.find(f => f.status === "BLOCKED" && f.userId === requestingUser.id);
-        const blockedByThem = friendships.find(f => f.status === "BLOCKED" && f.userId === user.id);
+        // Check if YOU blocked them (userId is you, friendId is them)
+        const blockedByMe = friendships.find(f => 
+          f.status === "BLOCKED" && 
+          ((f.userId === requestingUser.id && f.friendId === user.id))
+        );
+        // Check if THEY blocked you (userId is them, friendId is you)
+        const blockedByThem = friendships.find(f => 
+          f.status === "BLOCKED" && 
+          ((f.userId === user.id && f.friendId === requestingUser.id))
+        );
 
         // Get pending request ID if exists
         let pendingRequestId: string | undefined;

@@ -1,5 +1,9 @@
 # Todo List
 
+##notifications
+* Maybe delete notifactions older than 30days to better the database?
+
+
 ## Recent Fixes (Dec 2025)
 * ✅ Fixed displayName to firstName/lastName migration - Database schema updated, all backend services and frontend components updated
 * ✅ Restored friends feature functionality - Friends list, search, and requests now working correctly

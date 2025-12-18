@@ -46,22 +46,11 @@ export function FriendMenu({
   };
 
   const handleBlockUser = () => {
-    onClose();
-    setTimeout(() => {
-      if (onBlockUser) {
-        try {
-          const result = onBlockUser();
-          // If it's a promise, catch errors
-          if (result && typeof result.then === 'function') {
-            result.catch((error: any) => {
-              console.error("Error in onBlockUser callback:", error);
-            });
-          }
-        } catch (error: any) {
-          console.error("Error calling onBlockUser:", error);
-        }
-      }
-    }, 100);
+    if (onBlockUser) {
+      onBlockUser();
+      // Don't call onClose here - let the parent handle closing the menu
+      // The parent's handleBlockUser will close the menu and open the confirmation modal
+    }
   };
 
   const handleUnblockUser = () => {
@@ -176,13 +165,13 @@ export function FriendMenu({
                 <Feather 
                   name="unlock" 
                   size={20} 
-                  color={theme.colors.primary} 
+                  color={theme.colors.textPrimary} 
                   style={styles.optionIcon}
                 />
                 <Text
                   style={[
                     styles.optionText,
-                    { color: theme.colors.primary },
+                    { color: theme.colors.textPrimary },
                   ]}
                 >
                   Unblock User

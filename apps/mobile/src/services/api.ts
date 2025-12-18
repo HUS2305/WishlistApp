@@ -31,11 +31,13 @@ api.interceptors.request.use(
           config.headers.Authorization = `Bearer ${token}`;
           console.log("✅ Auth token added to request");
         } else {
-          console.warn("⚠️ No auth token available");
+          console.warn("⚠️ No auth token available - request may fail with 401");
         }
       } catch (error) {
-        console.error("Error getting auth token:", error);
+        console.error("❌ Error getting auth token:", error);
       }
+    } else {
+      console.warn("⚠️ Auth token getter not configured - request may fail with 401");
     }
     return config;
   },

@@ -344,11 +344,27 @@ export class FriendsService {
     });
 
     if (existing) {
-      // Update existing record to BLOCKED
-      return this.prisma.friendship.update({
-        where: { id: existing.id },
-        data: { status: "BLOCKED" },
-      });
+      // Update existing record to BLOCKED, ensuring userId is the blocker
+      // If the existing record has the opposite order, we need to handle it
+      if (existing.userId === user.id) {
+        // Already in correct order - just update status
+        return this.prisma.friendship.update({
+          where: { id: existing.id },
+          data: { status: "BLOCKED" },
+        });
+      } else {
+        // Wrong order - delete and recreate with correct order
+        await this.prisma.friendship.delete({
+          where: { id: existing.id },
+        });
+        return this.prisma.friendship.create({
+          data: {
+            userId: user.id,
+            friendId: targetUser.id,
+            status: "BLOCKED",
+          },
+        });
+      }
     } else {
       // Create new BLOCKED record
       return this.prisma.friendship.create({

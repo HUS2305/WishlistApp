@@ -277,10 +277,11 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
           style={[
             styles.backdrop,
             {
-              opacity,
-              backgroundColor: theme.isDark 
-                ? 'rgba(0, 0, 0, 0.7)' 
-                : 'rgba(0, 0, 0, 0.5)',
+              opacity: opacity.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.4],
+              }),
+              backgroundColor: 'rgba(0, 0, 0, 1)',
             },
           ]}
           pointerEvents="auto"
