@@ -1,0 +1,21 @@
+{
+  "extends": "@wishlistapp/config/typescript/react-native.json",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "rootDir": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "nativewind-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

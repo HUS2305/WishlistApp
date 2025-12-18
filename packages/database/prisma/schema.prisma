@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                     String                 @id @default(cuid())
+  clerkId                String                 @unique
+  email                  String                 @unique
+  phone                  String?
+  username               String?                @unique
+  avatar                 String?
+  bio                    String?
+  privacyLevel           PrivacyLevel           @default(FRIENDS_ONLY)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  role                   UserRole               @default(USER)
+  firstName              String?
+  lastName               String?
+  affiliateClicks        AffiliateClick[]
+  comments               Comment[]
+  friendOf               Friendship[]           @relation("FriendOf")
+  friendships            Friendship[]           @relation("UserFriendships")
+  items                  Item[]
+  itemReservations       ItemReservation[]
+  notifications          Notification[]
+  wishlists              Wishlist[]
+  wishlistCollaborations WishlistCollaborator[]
+}
+
+model Wishlist {
+  id                String                 @id @default(cuid())
+  title             String
+  description       String?
+  coverImage        String?
+  privacyLevel      PrivacyLevel           @default(PRIVATE)
+  shareToken        String?                @unique
+  viewCount         Int                    @default(0)
+  allowComments     Boolean                @default(true)
+  allowReservations Boolean                @default(true)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  ownerId           String
+  comments          Comment[]
+  items             Item[]
+  owner             User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  collaborators     WishlistCollaborator[]
+}
+
+model Item {
+  id              String            @id @default(cuid())
+  title           String
+  description     String?
+  price           Float?
+  currency        String            @default("USD")
+  url             String?
+  imageUrl        String?
+  priority        Priority          @default(NICE_TO_HAVE)
+  status          ItemStatus        @default(WANTED)
+  category        String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  wishlistId      String
+  addedById       String?
+  quantity        Int?
+  affiliateClicks AffiliateClick[]
+  comments        Comment[]
+  addedBy         User?             @relation(fields: [addedById], references: [id])
+  wishlist        Wishlist          @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  reservations    ItemReservation[]
+}
+
+model Friendship {
+  id        String           @id @default(cuid())
+  status    FriendshipStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  userId    String
+  friendId  String
+  friend    User             @relation("FriendOf", fields: [friendId], references: [id], onDelete: Cascade)
+  user      User             @relation("UserFriendships", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@index([userId])
+  @@index([friendId])
+}
+
+model WishlistCollaborator {
+  id         String           @id @default(cuid())
+  role       CollaboratorRole @default(EDITOR)
+  createdAt  DateTime         @default(now())
+  wishlistId String
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wishlist   Wishlist         @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+
+  @@unique([wishlistId, userId])
+  @@index([wishlistId])
+  @@index([userId])
+}
+
+model ItemReservation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  itemId    String
+  userId    String
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, userId])
+  @@index([itemId])
+  @@index([userId])
+}
+
+model Comment {
+  id         String    @id @default(cuid())
+  content    String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  itemId     String?
+  wishlistId String?
+  userId     String
+  item       Item?     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wishlist   Wishlist? @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([wishlistId])
+  @@index([userId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId])
+}
+
+model AffiliateClick {
+  id        String   @id @default(cuid())
+  itemId    String
+  userId    String?
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([itemId])
+  @@index([userId])
+  @@index([timestamp])
+}
+
+enum PrivacyLevel {
+  PRIVATE
+  FRIENDS_ONLY
+  PUBLIC
+}
+
+enum Priority {
+  MUST_HAVE
+  NICE_TO_HAVE
+}
+
+enum ItemStatus {
+  WANTED
+  RESERVED
+  PURCHASED
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+enum CollaboratorRole {
+  VIEWER
+  EDITOR
+  ADMIN
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum NotificationType {
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
+  WISHLIST_SHARED
+  ITEM_RESERVED
+  ITEM_PURCHASED
+  COMMENT_ADDED
+}

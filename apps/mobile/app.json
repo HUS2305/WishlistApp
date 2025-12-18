@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "WishlistApp",
+    "slug": "wishlistapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.wishlistapp.mobile"
+    },
+    "android": {
+      "package": "com.wishlistapp.mobile"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-notifications"
+    ],
+    "scheme": "wishlistapp",
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
+    }
+  }
+}
+

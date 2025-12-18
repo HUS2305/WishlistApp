@@ -1,0 +1,159 @@
+import { Platform } from "react-native";
+import { SignUp } from "@clerk/clerk-expo/web";
+import { useSignUp } from "@clerk/clerk-expo";
+import { useState } from "react";
+import { router } from "expo-router";
+import { View, StyleSheet, KeyboardAvoidingView } from "react-native";
+import { Text } from "@/components/Text";
+import { Button, Input, SafeAreaView } from "@/components/ui";
+
+// Check if running in web browser (works for mobile browsers too)
+// In Expo, Platform.OS === "web" when running in any browser (desktop or mobile)
+const isWeb = Platform.OS === "web";
+
+export default function SignUpScreen() {
+  // IMPORTANT: Clerk's SignIn/SignUp components are WEB-ONLY
+  // They don't work on native iOS/Android apps
+  // If you're testing on actual native mobile (Expo Go, iOS Simulator, Android Emulator),
+  // you'll see the custom components below, which is correct!
+  // 
+  // Clerk components only work when testing in a web browser (desktop or mobile browser)
+  if (isWeb) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 20 }}>
+        <SignUp
+          routing="hash"
+          signInUrl="#/login"
+          fallbackRedirectUrl="/(auth)/create-profile"
+        />
+      </View>
+    );
+  }
+
+  // Custom implementation for native (iOS/Android)
+  const signUpHook = useSignUp();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const onSignUpPress = async () => {
+    if (!signUpHook.isLoaded) {
+      setError("Authentication is not ready. Please try again.");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+
+    try {
+      await signUpHook.signUp.create({
+        emailAddress: email,
+        password,
+      });
+
+      await signUpHook.signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      router.push("/(auth)/verify");
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "Failed to create account");
+      console.error("Error signing up:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaView>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
+      >
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>
+              Join WishlistApp and start sharing your wishes
+            </Text>
+          </View>
+
+          <View style={styles.form}>
+            <Input
+              label="Email"
+              placeholder="Enter your email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+
+            <Input
+              label="Password"
+              placeholder="Create a password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+            />
+
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <Button
+              title="Create Account"
+              onPress={onSignUpPress}
+              loading={loading}
+              disabled={!email || !password || !signUpHook.isLoaded}
+              style={styles.button}
+            />
+
+            <Button
+              title="Already have an account? Sign In"
+              onPress={() => router.back()}
+              variant="ghost"
+              style={styles.button}
+            />
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    padding: 24,
+    justifyContent: "center",
+  },
+  header: {
+    marginBottom: 32,
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#1D1D1F",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#86868B",
+    textAlign: "center",
+  },
+  form: {
+    width: "100%",
+  },
+  button: {
+    marginTop: 8,
+  },
+  errorText: {
+    color: "#FF3B30",
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+});
+

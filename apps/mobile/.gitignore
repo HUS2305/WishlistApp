@@ -1,0 +1,15 @@
+# Expo
+.expo/
+.expo-shared/
+dist/
+web-build/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+

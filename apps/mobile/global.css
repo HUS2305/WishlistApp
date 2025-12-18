@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global font application - Using Playwrite CZ to verify font changes work (distinctive handwriting style) */
+* {
+  font-family: 'PlaywriteCZ_400Regular', 'Inter_400Regular', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
