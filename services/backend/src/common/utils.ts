@@ -11,3 +11,4 @@ export function getDisplayName(firstName: string | null | undefined, lastName: s
   return firstName || lastName || null;
 }
 
+

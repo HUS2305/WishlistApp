@@ -1,6 +1,6 @@
 import React from "react";
 import { View, TouchableOpacity, StyleSheet, ViewStyle } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Text } from "./Text";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -60,12 +60,14 @@ export function PageHeader({
 export function HeaderButton({
   onPress,
   icon,
+  materialCommunityIcon,
   disabled,
   children,
   style,
 }: {
   onPress: () => void;
   icon?: keyof typeof Feather.glyphMap;
+  materialCommunityIcon?: keyof typeof MaterialCommunityIcons.glyphMap;
   disabled?: boolean;
   children?: React.ReactNode;
   style?: ViewStyle;
@@ -78,7 +80,13 @@ export function HeaderButton({
       disabled={disabled}
       style={[styles.headerButton, disabled && styles.headerButtonDisabled, style]}
     >
-      {icon ? (
+      {materialCommunityIcon ? (
+        <MaterialCommunityIcons 
+          name={materialCommunityIcon} 
+          size={24} 
+          color={disabled ? theme.colors.textSecondary : theme.colors.textPrimary} 
+        />
+      ) : icon ? (
         <Feather name={icon} size={24} color={disabled ? theme.colors.textSecondary : theme.colors.textPrimary} />
       ) : (
         children

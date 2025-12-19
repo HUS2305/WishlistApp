@@ -12,7 +12,6 @@ import { useNotificationContext } from "@/contexts/NotificationContext";
 import { Badge } from "@/components/Badge";
 import { SortWishlistSheet, type SortOption } from "@/components/SortWishlistSheet";
 import { loadSortPreference, saveSortPreference, sortWishlists } from "@/utils/sortPreferences";
-import { loadViewModePreference, saveViewModePreference, type ViewMode } from "@/utils/viewPreferences";
 import { useAuth } from "@clerk/clerk-expo";
 import { wishlistEvents } from "@/utils/wishlistEvents";
 
@@ -26,7 +25,6 @@ export default function WishlistsScreen() {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [sortModalVisible, setSortModalVisible] = useState(false);
   const [currentSort, setCurrentSort] = useState<SortOption>("last_added");
-  const [viewMode, setViewMode] = useState<ViewMode>("normal");
 
   // Reset hasLoadedOnce when auth state changes (e.g., after login)
   useEffect(() => {
@@ -132,15 +130,6 @@ export default function WishlistsScreen() {
     loadSort();
   }, [userId]);
 
-  // Load view mode preference on mount
-  useEffect(() => {
-    const loadViewMode = async () => {
-      const savedMode = await loadViewModePreference(userId || undefined);
-      setViewMode(savedMode);
-    };
-    loadViewMode();
-  }, [userId]);
-
   // Sort wishlists based on current sort option
   const sortedWishlists = useMemo(() => {
     return sortWishlists(wishlists, currentSort);
@@ -151,13 +140,6 @@ export default function WishlistsScreen() {
     setCurrentSort(sort);
     await saveSortPreference(sort, userId || undefined);
   }, [userId]);
-
-  // Handle view mode toggle
-  const handleViewModeToggle = useCallback(async () => {
-    const newMode: ViewMode = viewMode === 'normal' ? 'compact' : 'normal';
-    setViewMode(newMode);
-    await saveViewModePreference(newMode, userId || undefined);
-  }, [viewMode, userId]);
 
   // Calculate metrics for a wishlist
   const getWishlistMetrics = (wishlist: Wishlist) => {
@@ -179,13 +161,13 @@ export default function WishlistsScreen() {
   const getPrivacyInfo = (privacyLevel: string) => {
     switch (privacyLevel) {
       case "PUBLIC":
-        return { icon: "globe", label: "Public", color: "#10B981" };
+        return { icon: "globe", label: "Public" };
       case "FRIENDS_ONLY":
-        return { icon: "users", label: "Friends Only", color: "#3B82F6" };
+        return { icon: "users", label: "Friends Only" };
       case "PRIVATE":
-        return { icon: "lock", label: "Private", color: "#6B7280" };
+        return { icon: "lock", label: "Private" };
       default:
-        return { icon: "lock", label: "Private", color: "#6B7280" };
+        return { icon: "lock", label: "Private" };
     }
   };
 
@@ -198,10 +180,6 @@ export default function WishlistsScreen() {
         rightActions={
           <>
             <HeaderButton materialCommunityIcon="swap-vertical" onPress={() => setSortModalVisible(true)} />
-            <HeaderButton 
-              materialCommunityIcon={viewMode === 'normal' ? 'view-list' : 'view-grid'} 
-              onPress={handleViewModeToggle} 
-            />
             <View style={{ position: 'relative' }}>
               <HeaderButton icon="bell" onPress={() => router.push("/notifications")} />
               {unreadNotificationsCount > 0 && (
@@ -234,92 +212,57 @@ export default function WishlistsScreen() {
         <FlatList
           data={sortedWishlists}
           keyExtractor={(item) => item.id}
-          key={`wishlist-list-${currentSort}-${viewMode}`}
-          extraData={currentSort + viewMode}
+          key={`wishlist-list-${currentSort}`}
+          extraData={currentSort}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={["#4A90E2"]} />
           }
-          renderItem={({ item }) => {
+          renderItem={({ item, index }) => {
             const { activeWishes, totalPrice, currency } = getWishlistMetrics(item);
             const privacyInfo = getPrivacyInfo(item.privacyLevel);
             
-            // Compact view - only title and smaller image
-            if (viewMode === 'compact') {
-              return (
+            return (
+              <View>
                 <TouchableOpacity
                   onPress={() => router.push(`/wishlist/${item.id}`)}
                   activeOpacity={0.7}
-                  style={[
-                    styles.compactCard,
-                    { backgroundColor: theme.isDark ? '#2E2E2E' : '#D3D3D3' }
-                  ]}
+                  style={styles.card}
                 >
-                  <View style={styles.compactCardContent}>
-                    <Text 
-                      style={[styles.cardTitle, styles.compactCardTitle, { color: theme.colors.textPrimary }]}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {item.title}
-                    </Text>
-                    <View style={styles.compactImagePlaceholder}>
-                      <Feather name="image" size={24} color={theme.colors.textSecondary} />
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            }
-            
-            // Normal view - full card with all details
-            return (
-              <TouchableOpacity
-                onPress={() => router.push(`/wishlist/${item.id}`)}
-                activeOpacity={0.7}
-                style={[
-                  styles.card,
-                  { backgroundColor: theme.isDark ? '#2E2E2E' : '#D3D3D3' }
-                ]}
-              >
-                <View style={styles.cardContent}>
-                  <View style={styles.cardLeft}>
-                    <View style={styles.titleRow}>
-                      <Text 
-                        style={[styles.cardTitle, { color: theme.colors.textPrimary }]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        {item.title}
-                      </Text>
-                    </View>
-                    <View style={styles.privacyBadge}>
-                      <Feather 
-                        name={privacyInfo.icon as any} 
-                        size={14} 
-                        color={privacyInfo.color} 
-                      />
-                      <Text style={[styles.privacyText, { color: privacyInfo.color }]}>
-                        {privacyInfo.label}
-                      </Text>
-                    </View>
-                    <View style={styles.metricsContainer}>
-                      <View style={styles.metricRow}>
+                  <View style={styles.cardContent}>
+                    <View style={styles.cardLeft}>
+                      <View style={styles.titleRow}>
+                        <Text 
+                          style={[styles.cardTitle, { color: theme.colors.textPrimary }]}
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
+                          {item.title}
+                        </Text>
+                        <Feather 
+                          name={privacyInfo.icon as any} 
+                          size={16} 
+                          color={theme.colors.primary} 
+                        />
+                      </View>
+                      <View style={styles.metricsContainer}>
                         <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>Active wishes</Text>
                         <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>{activeWishes}</Text>
-                      </View>
-                      <View style={styles.metricRow}>
-                        <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>Total value</Text>
+                        <View style={[styles.metricDivider, { backgroundColor: theme.colors.textSecondary + '40' }]} />
                         <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>
                           {currency} {totalPrice.toFixed(2)}
                         </Text>
                       </View>
                     </View>
+                    <View style={styles.imagePlaceholder}>
+                      <Feather name="image" size={24} color={theme.colors.textSecondary} />
+                    </View>
                   </View>
-                  <View style={styles.imagePlaceholder}>
-                    <Feather name="image" size={32} color={theme.colors.textSecondary} />
-                  </View>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+                {index < sortedWishlists.length - 1 && (
+                  <View style={[styles.cardDivider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
+                )}
+              </View>
             );
           }}
         />
@@ -363,82 +306,59 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   card: {
-    borderRadius: 12,
-    marginBottom: 12,
-    overflow: "hidden",
+    paddingVertical: 16,
   },
   cardContent: {
     flexDirection: "row",
-    padding: 16,
+    paddingHorizontal: 16,
     alignItems: "center",
+  },
+  cardDivider: {
+    height: 1,
+    width: "95%",
+    alignSelf: "center",
+    marginVertical: 12,
   },
   cardLeft: {
     flex: 1,
     marginRight: 16,
   },
   titleRow: {
-    marginBottom: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 6,
+    flexWrap: "wrap",
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: "700",
   },
   metricsContainer: {
-    marginBottom: 0,
-  },
-  metricRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 0,
+    gap: 8,
   },
   metricLabel: {
     fontSize: 14,
-    marginRight: 8,
+    marginRight: 4,
   },
   metricValue: {
     fontSize: 14,
     fontWeight: "600",
   },
-  privacyBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  privacyText: {
-    fontSize: 12,
-    fontWeight: "500",
-    marginLeft: 6,
+  metricDivider: {
+    width: 1,
+    height: 16,
+    marginHorizontal: 8,
   },
   imagePlaceholder: {
-    width: 100,
-    height: 100,
+    width: 70,
+    height: 70,
     borderRadius: 12,
     backgroundColor: "#4B5563",
     alignItems: "center",
     justifyContent: "center",
-  },
-  compactCard: {
-    borderRadius: 12,
-    marginBottom: 12,
-    overflow: "hidden",
-  },
-  compactCardContent: {
-    flexDirection: "row",
-    padding: 12,
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  compactCardTitle: {
-    flex: 1,
-    marginRight: 12,
-  },
-  compactImagePlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    backgroundColor: "#4B5563",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
   },
 });

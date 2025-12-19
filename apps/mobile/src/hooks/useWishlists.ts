@@ -25,6 +25,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { wishlistsService } from "@/services/wishlists";
 import { Alert } from "react-native";
+import { useAuth } from "@clerk/clerk-expo";
 
 // Query keys
 export const wishlistKeys = {
@@ -38,27 +39,31 @@ export const wishlistKeys = {
 
 // Get all wishlists
 export function useWishlists() {
+  const { isLoaded: isAuthLoaded } = useAuth();
   return useQuery({
     queryKey: wishlistKeys.lists(),
     queryFn: () => wishlistsService.getWishlists(),
+    enabled: isAuthLoaded,
   });
 }
 
 // Get single wishlist
 export function useWishlist(id: string) {
+  const { isLoaded: isAuthLoaded } = useAuth();
   return useQuery({
     queryKey: wishlistKeys.detail(id),
     queryFn: () => wishlistsService.getWishlist(id),
-    enabled: !!id,
+    enabled: !!id && isAuthLoaded,
   });
 }
 
 // Get wishlist items
 export function useWishlistItems(wishlistId: string) {
+  const { isLoaded: isAuthLoaded } = useAuth();
   return useQuery({
     queryKey: wishlistKeys.items(wishlistId),
     queryFn: () => wishlistsService.getWishlistItems(wishlistId),
-    enabled: !!wishlistId,
+    enabled: !!wishlistId && isAuthLoaded,
   });
 }
 

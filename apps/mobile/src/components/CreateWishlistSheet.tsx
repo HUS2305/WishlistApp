@@ -300,24 +300,24 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess }: CreateWishl
             <View style={styles.section}>
               <View style={styles.sectionContent}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>Share with</Text>
-                <TouchableOpacity
-                  style={[
-                    styles.addPersonButton,
-                    {
-                      backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
-                      borderColor: theme.colors.textSecondary + '40',
-                    },
-                  ]}
-                  onPress={() => {
-                    // TODO: Implement add person functionality
-                    console.log("Add person pressed");
-                  }}
-                >
-                  <Feather name="plus" size={20} color={theme.colors.primary} />
-                  <Text style={[styles.addPersonText, { color: theme.colors.primary }]}>
-                    Add person
-                  </Text>
-                </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.addPersonButton,
+                  {
+                    backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
+                    borderColor: theme.colors.textSecondary + '40',
+                  },
+                ]}
+                onPress={() => {
+                  // TODO: Implement add person functionality
+                  console.log("Add person pressed");
+                }}
+              >
+                <Feather name="plus" size={20} color={theme.colors.primary} />
+                <Text style={[styles.addPersonText, { color: theme.colors.primary }]}>
+                  Add person
+                </Text>
+              </TouchableOpacity>
               </View>
             </View>
 
@@ -326,43 +326,43 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess }: CreateWishl
               <View style={styles.sectionContent}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>Settings</Text>
 
-                <View style={styles.settingRow}>
-                  <View style={styles.settingLeft}>
-                    <Feather name="message-circle" size={24} color={theme.colors.primary} />
-                    <View style={styles.settingText}>
-                      <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
-                        Allow Comments
-                      </Text>
-                      <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                        Let others comment on items
-                      </Text>
-                    </View>
+              <View style={styles.settingRow}>
+                <View style={styles.settingLeft}>
+                  <Feather name="message-circle" size={24} color={theme.colors.primary} />
+                  <View style={styles.settingText}>
+                    <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
+                      Allow Comments
+                    </Text>
+                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                      Let others comment on items
+                    </Text>
                   </View>
-                  <ThemedSwitch 
-                    value={allowComments} 
-                    onValueChange={setAllowComments}
-                  />
                 </View>
+                <ThemedSwitch 
+                  value={allowComments} 
+                  onValueChange={setAllowComments}
+                />
+              </View>
 
-                <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '40' }]} />
+              <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '40' }]} />
 
-                <View style={styles.settingRow}>
-                  <View style={styles.settingLeft}>
-                    <Feather name="bookmark" size={24} color={theme.colors.primary} />
-                    <View style={styles.settingText}>
-                      <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
-                        Allow Reservations
-                      </Text>
-                      <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                        Let others reserve items
-                      </Text>
-                    </View>
+              <View style={styles.settingRow}>
+                <View style={styles.settingLeft}>
+                  <Feather name="bookmark" size={24} color={theme.colors.primary} />
+                  <View style={styles.settingText}>
+                    <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
+                      Allow Reservations
+                    </Text>
+                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                      Let others reserve items
+                    </Text>
                   </View>
-                  <ThemedSwitch 
-                    value={allowReservations} 
-                    onValueChange={setAllowReservations}
-                  />
                 </View>
+                <ThemedSwitch 
+                  value={allowReservations} 
+                  onValueChange={setAllowReservations}
+                />
+              </View>
               </View>
             </View>
 
@@ -411,8 +411,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0, 0, 0, 0.1)",
     position: "relative",
   },
   headerTitle: {
@@ -439,7 +437,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     alignItems: "center",
     marginBottom: 24,
-    marginTop: 8,
+    marginTop: -4,
   },
   imageWrapper: {
     width: 120,
@@ -476,7 +474,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   section: {
-    marginBottom: 16,
+    marginBottom: 0,
   },
   sectionContent: {
     padding: 16,

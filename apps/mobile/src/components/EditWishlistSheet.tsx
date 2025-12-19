@@ -414,8 +414,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0, 0, 0, 0.1)",
     position: "relative",
   },
   headerTitle: {
@@ -442,7 +440,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     alignItems: "center",
     marginBottom: 24,
-    marginTop: 8,
+    marginTop: -4,
   },
   imageWrapper: {
     width: 120,
@@ -479,7 +477,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   section: {
-    marginBottom: 16,
+    marginBottom: 0,
   },
   sectionContent: {
     padding: 16,

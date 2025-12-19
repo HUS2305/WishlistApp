@@ -87,7 +87,7 @@ export const wishlistsService = {
   },
 
   async updateItem(payload: UpdateItemPayload): Promise<Item> {
-    const { id, wishlistId, ...data } = payload; // Remove wishlistId as backend doesn't accept it
+    const { id, ...data } = payload; // Include wishlistId if provided (to move item between wishlists)
     const response = await api.patch(`/items/${id}`, data);
     return response.data;
   },

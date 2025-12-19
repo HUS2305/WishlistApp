@@ -237,9 +237,7 @@ export default function NotificationsScreen() {
         </View>
       ) : notifications.length === 0 ? (
         <View style={styles.emptyState}>
-          <View style={styles.emptyIconContainer}>
-            <Feather name="bell" size={48} color={theme.colors.textSecondary} />
-          </View>
+          <Feather name="bell" size={64} color={theme.colors.primary} />
           <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No notifications</Text>
           <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
             You're all caught up! We'll notify you when something new happens.
@@ -277,21 +275,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 40,
-  },
-  emptyIconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 60,
   },
   emptyTitle: {
     fontSize: 20,
     fontWeight: "600",
+    marginTop: 16,
     marginBottom: 8,
+    textAlign: "center",
   },
   emptySubtitle: {
     fontSize: 14,

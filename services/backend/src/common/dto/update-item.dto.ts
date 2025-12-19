@@ -50,5 +50,9 @@ export class UpdateItemDto {
   @IsOptional()
   @IsEnum(ItemStatus)
   status?: ItemStatus;
+
+  @IsOptional()
+  @IsString()
+  wishlistId?: string;
 }
 

@@ -168,6 +168,22 @@ export class ItemsService {
       throw new ForbiddenException("You can only update your own items");
     }
 
+    // If wishlistId is being changed, verify user owns the target wishlist
+    if (data.wishlistId !== undefined && data.wishlistId !== item.wishlistId) {
+      const targetWishlist = await this.prisma.wishlist.findUnique({
+        where: { id: data.wishlistId },
+        select: { ownerId: true },
+      });
+
+      if (!targetWishlist) {
+        throw new NotFoundException("Target wishlist not found");
+      }
+
+      if (targetWishlist.ownerId !== user.id) {
+        throw new ForbiddenException("You can only move items to your own wishlists");
+      }
+    }
+
     // Build update data object, handling optional fields properly
     const updateData: any = {};
     if (data.title !== undefined) updateData.title = data.title;
@@ -185,6 +201,9 @@ export class ItemsService {
     if (data.priority !== undefined) updateData.priority = data.priority;
     if (data.quantity !== undefined) updateData.quantity = data.quantity;
     if (data.status !== undefined) updateData.status = data.status;
+    if (data.wishlistId !== undefined && data.wishlistId !== item.wishlistId) {
+      updateData.wishlistId = data.wishlistId;
+    }
 
     return this.prisma.item.update({
       where: { id },

@@ -13,20 +13,24 @@ interface ItemMenuProps {
   visible: boolean;
   onClose: () => void;
   onEdit?: () => void;
+  onGoToLink?: () => void;
   onAddToWishlist?: () => void;
   onRestoreToWanted?: () => void;
   onDelete: () => void;
   isPurchased?: boolean;
+  itemUrl?: string | null;
 }
 
 export function ItemMenu({ 
   visible, 
   onClose, 
   onEdit, 
+  onGoToLink,
   onAddToWishlist, 
   onRestoreToWanted,
   onDelete,
-  isPurchased = false 
+  isPurchased = false,
+  itemUrl
 }: ItemMenuProps) {
   const { theme } = useTheme();
 
@@ -34,6 +38,13 @@ export function ItemMenu({
     onClose();
     setTimeout(() => {
       onEdit?.();
+    }, 100);
+  };
+
+  const handleGoToLink = () => {
+    onClose();
+    setTimeout(() => {
+      onGoToLink?.();
     }, 100);
   };
 
@@ -101,6 +112,41 @@ export function ItemMenu({
                   ]}
                 >
                   Edit Item
+                </Text>
+              </View>
+              <Feather
+                name="chevron-right"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
+
+          {itemUrl && onGoToLink && (
+            <TouchableOpacity
+              style={[
+                styles.optionRow,
+                {
+                  borderBottomColor: theme.colors.textSecondary + '20',
+                },
+              ]}
+              onPress={handleGoToLink}
+              activeOpacity={0.7}
+            >
+              <View style={styles.optionLeft}>
+                <Feather 
+                  name="external-link" 
+                  size={20} 
+                  color={theme.colors.textPrimary} 
+                  style={styles.optionIcon}
+                />
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Go to Link
                 </Text>
               </View>
               <Feather

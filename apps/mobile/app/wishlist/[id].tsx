@@ -57,19 +57,31 @@ export default function WishlistDetailScreen() {
   const [itemToAdd, setItemToAdd] = useState<Item | null>(null);
   const [reservedItems, setReservedItems] = useState<Set<string>>(new Set());
   const [reservingItemId, setReservingItemId] = useState<string | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
 
   // Check if current user is the owner of the wishlist
-  const isOwner = wishlist && currentUser ? wishlist.ownerId === currentUser.id : false;
+  // Only determine ownership when we have both wishlist and currentUser
+  // Use undefined to indicate "unknown" - don't show non-owner UI until we know for sure
+  const isOwner = wishlist && currentUser !== null 
+    ? wishlist.ownerId === currentUser.id 
+    : undefined;
 
   // Fetch current user to check ownership
   useEffect(() => {
     const fetchCurrentUser = async () => {
-      if (!isAuthLoaded || !clerkUserId) return;
+      if (!isAuthLoaded || !clerkUserId) {
+        setIsLoadingUser(false);
+        return;
+      }
+      setIsLoadingUser(true);
       try {
         const response = await api.get<User>("/users/me");
         setCurrentUser(response.data);
       } catch (error) {
         console.error("Error fetching current user:", error);
+        setCurrentUser(null); // Set to null to indicate we tried but failed
+      } finally {
+        setIsLoadingUser(false);
       }
     };
     fetchCurrentUser();
@@ -160,8 +172,9 @@ export default function WishlistDetailScreen() {
 
 
   // For non-owners, only show wanted items. For owners, respect the sortFilter
-  const filteredItems = items.filter((item) => {
-    if (!isOwner) {
+  // Only filter when we know ownership status (isOwner !== undefined)
+  const filteredItems = isOwner !== undefined ? items.filter((item) => {
+    if (isOwner === false) {
       // Non-owners only see wanted items
       return item.status !== "PURCHASED";
     }
@@ -171,7 +184,7 @@ export default function WishlistDetailScreen() {
     } else {
       return item.status === "PURCHASED";
     }
-  });
+  }) : [];
 
   // Calculate stats - only count wanted items (not purchased)
   const wantedItems = items.filter((item) => item.status !== "PURCHASED");
@@ -217,7 +230,7 @@ export default function WishlistDetailScreen() {
 
   const handleItemPress = (item: Item) => {
     // Non-owners can't interact with items (no menu, no status toggle)
-    if (!isOwner) {
+    if (isOwner === false) {
       // Just open the item URL if available
       if (item.url) {
         Linking.openURL(item.url);
@@ -246,6 +259,27 @@ export default function WishlistDetailScreen() {
     setTimeout(() => {
       setEditItemSheetVisible(true);
     }, 150);
+  };
+
+  const handleGoToLink = async () => {
+    if (!selectedItem?.url) {
+      return;
+    }
+    try {
+      let url = selectedItem.url.trim();
+      // Ensure URL has a protocol
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+      }
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("Error", `Cannot open URL: ${url}`);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to open link");
+    }
   };
 
   const handleAddToWishlist = () => {
@@ -353,7 +387,7 @@ export default function WishlistDetailScreen() {
 
   // Initialize reserved items from backend data
   useEffect(() => {
-    if (!currentUser || !items.length || isOwner) return;
+    if (!currentUser || !items.length || isOwner === true) return;
     
     // Initialize reservedItems from items that have isReservedByCurrentUser flag
     const reserved = new Set<string>();
@@ -363,7 +397,7 @@ export default function WishlistDetailScreen() {
       }
     });
     setReservedItems(reserved);
-  }, [items, currentUser, isOwner]);
+  }, [items, currentUser]);
 
   // Check if item is reserved (by anyone - if status is RESERVED or if we've reserved it)
   const isItemReserved = (item: Item) => {
@@ -490,7 +524,7 @@ export default function WishlistDetailScreen() {
           disabled={isLoading}
         >
           {/* Radio Button - Only show if not purchased AND user is owner */}
-          {!isPurchased && isOwner && (
+          {!isPurchased && isOwner === true && (
             <TouchableOpacity
               style={styles.itemCheckbox}
               onPress={() => handleToggleItemStatus(item)}
@@ -509,7 +543,7 @@ export default function WishlistDetailScreen() {
           )}
           
           {/* Loading indicator when purchased item is being toggled - Only for owner */}
-          {isPurchased && isLoading && isOwner && (
+          {isPurchased && isLoading && isOwner === true && (
             <View style={styles.itemCheckbox}>
               <ActivityIndicator size="small" color={theme.colors.primary} />
             </View>
@@ -633,28 +667,64 @@ export default function WishlistDetailScreen() {
             </View>
           </View>
           
-          {/* Menu Button - Vertically Centered - Only show for owner */}
-          {isOwner && (
-            <TouchableOpacity
-              style={styles.itemMenuButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                setSelectedItem(item);
-                setItemMenuVisible(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <Feather 
-                name="more-horizontal" 
-                size={20} 
-                color={theme.colors.textSecondary} 
-              />
-            </TouchableOpacity>
+          {/* Action Buttons - Only show for owner */}
+          {isOwner === true && (
+            <View style={styles.itemOwnerActions}>
+              {/* Link Button - only show if item has URL */}
+              {hasUrl && (
+                <TouchableOpacity
+                  style={styles.itemLinkIconButton}
+                  onPress={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      let url = item.url?.trim();
+                      if (url) {
+                        // Ensure URL has a protocol
+                        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                          url = 'https://' + url;
+                        }
+                        const supported = await Linking.canOpenURL(url);
+                        if (supported) {
+                          await Linking.openURL(url);
+                        } else {
+                          Alert.alert("Error", `Cannot open URL: ${url}`);
+                        }
+                      }
+                    } catch (error) {
+                      Alert.alert("Error", "Failed to open link");
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Feather 
+                    name="external-link" 
+                    size={24} 
+                    color={theme.colors.primary} 
+                  />
+                </TouchableOpacity>
+              )}
+              {/* Menu Button */}
+              <TouchableOpacity
+                style={styles.itemMenuButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setSelectedItem(item);
+                  setItemMenuVisible(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Feather 
+                  name="more-horizontal" 
+                  size={20} 
+                  color={theme.colors.textSecondary} 
+                />
+              </TouchableOpacity>
+            </View>
           )}
         </TouchableOpacity>
 
-        {/* Action Buttons - Only show for non-owners */}
-        {!isOwner && (
+        {/* Action Buttons - Only show for non-owners (when we know for sure they're not the owner) */}
+        {isOwner === false && (
           <View style={styles.itemActionButtons}>
             {/* Heart Button - Add to Wishlist */}
             <TouchableOpacity
@@ -779,7 +849,10 @@ export default function WishlistDetailScreen() {
     );
   };
 
-  if (isLoadingWishlist || isLoadingItems) {
+  // Show loading if we're still determining ownership
+  const isLoadingOwnership = isLoadingUser || (wishlist && currentUser === null && isAuthLoaded);
+  
+  if (isLoadingWishlist || isLoadingItems || isLoadingOwnership) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
@@ -879,7 +952,7 @@ export default function WishlistDetailScreen() {
             </Text>
           </View>
           
-          {isOwner && (
+          {isOwner === true && (
             <View style={styles.headerRight}>
               <TouchableOpacity 
                 onPress={handleShareWishlist} 
@@ -908,25 +981,28 @@ export default function WishlistDetailScreen() {
 
       {/* Stats Section */}
       <View style={[styles.statsSection, { backgroundColor: theme.colors.background }]}>
-        <View style={[styles.imagePlaceholder, { backgroundColor: cardBackgroundColor }]}>
-          <Feather name="image" size={32} color={theme.colors.textSecondary} />
-        </View>
-        
-        <View style={styles.statsContent}>
-          <View style={styles.statRow}>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Active wishes</Text>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{activeWishes}</Text>
+        <View style={styles.statsContentColumn}>
+          <View style={[styles.imagePlaceholder, { backgroundColor: cardBackgroundColor }]}>
+            <Feather name="image" size={48} color={theme.colors.textSecondary} />
           </View>
+          
           <View style={styles.statRow}>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total value</Text>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
-              {currency} {totalPrice.toFixed(2)}
-            </Text>
+            <View style={styles.statItem}>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Active wishes</Text>
+              <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{activeWishes}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total value</Text>
+              <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
+                {currency} {totalPrice.toFixed(2)}
+              </Text>
+            </View>
           </View>
-          {isOwner && (
+          
+          {isOwner === true && (
             <View style={styles.privacyBadgeInline}>
-              <Feather name={getPrivacyInfo(wishlist.privacyLevel).icon as any} size={14} color={getPrivacyInfo(wishlist.privacyLevel).color} />
-              <Text style={[styles.privacyText, { color: getPrivacyInfo(wishlist.privacyLevel).color }]}>
+              <Feather name={getPrivacyInfo(wishlist.privacyLevel).icon as any} size={14} color={theme.colors.primary} />
+              <Text style={[styles.privacyText, { color: theme.colors.primary }]}>
                 {getPrivacyInfo(wishlist.privacyLevel).label}
               </Text>
             </View>
@@ -937,7 +1013,7 @@ export default function WishlistDetailScreen() {
       {/* Card Container with rounded top corners */}
       <View style={[styles.cardContainer, { backgroundColor: cardBackgroundColor }]}>
         {/* Filter/Sort Bar (Tabs) - Only show tabs for owner */}
-        {isOwner && (
+        {isOwner === true && (
           <View style={styles.filterBar}>
             <TouchableOpacity
               style={[styles.filterSegment, sortFilter === "wanted" && { backgroundColor: theme.colors.primary + '20' }]}
@@ -1001,10 +1077,12 @@ export default function WishlistDetailScreen() {
           // The modals will clear it when they close
         }}
         onEdit={selectedItem && sortFilter === "wanted" ? handleEditItem : undefined}
+        onGoToLink={selectedItem?.url ? handleGoToLink : undefined}
         onAddToWishlist={selectedItem && sortFilter === "wanted" ? handleAddToWishlist : undefined}
         onRestoreToWanted={selectedItem && sortFilter === "purchased" ? handleRestoreToWanted : undefined}
         onDelete={handleDeleteItem}
         isPurchased={selectedItem?.status === "PURCHASED"}
+        itemUrl={selectedItem?.url || null}
       />
 
       {/* Wishlist Selector BottomSheet for Duplicating Item */}
@@ -1072,6 +1150,7 @@ export default function WishlistDetailScreen() {
 
       {/* Edit Item Sheet */}
       <AddItemSheet
+        key={selectedItem?.id || 'edit-item'}
         visible={editItemSheetVisible}
         wishlistId={wishlistId}
         item={selectedItem || undefined}
@@ -1153,16 +1232,16 @@ export default function WishlistDetailScreen() {
             <View style={styles.emptyState}>
               <Feather name="gift" size={64} color={theme.colors.primary} />
               <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
-                {!isOwner 
+                {isOwner === false
                   ? "No items yet" 
-                  : sortFilter === "purchased" 
+                  : isOwner === true && sortFilter === "purchased" 
                     ? "No items purchased yet" 
                     : "No items yet"}
               </Text>
               <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
-                {!isOwner
+                {isOwner === false
                   ? "This wishlist doesn't have any items yet"
-                  : sortFilter === "purchased" 
+                  : isOwner === true && sortFilter === "purchased" 
                     ? "Items you mark as purchased will appear here" 
                     : "Start adding items to your wishlist"}
               </Text>
@@ -1172,7 +1251,7 @@ export default function WishlistDetailScreen() {
       </View>
 
       {/* FAB Menu - positioned on the right for add item - Only show for owner */}
-      {isOwner && (
+      {isOwner === true && (
         <FABMenu
           visible={fabMenuVisible}
           onToggle={() => setFabMenuVisible(!fabMenuVisible)}
@@ -1224,23 +1303,27 @@ const styles = StyleSheet.create({
   privacyBadgeInline: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     marginTop: 8,
   },
   statsSection: {
-    flexDirection: "row",
     paddingHorizontal: 16,
     paddingTop: 24,
     paddingBottom: 20,
     marginTop: 8,
     marginBottom: 45,
   },
+  statsContentColumn: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
   imagePlaceholder: {
-    width: 80,
-    height: 80,
+    width: 120,
+    height: 120,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
+    marginBottom: 16,
   },
   statsContent: {
     flex: 1,
@@ -1250,6 +1333,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 8,
+    justifyContent: "center",
+    gap: 24,
+  },
+  statItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  statDivider: {
+    width: 1,
+    height: 20,
+    marginHorizontal: 16,
   },
   statLabel: {
     fontSize: 14,
@@ -1412,6 +1506,19 @@ const styles = StyleSheet.create({
   itemLinkButtonText: {
     fontSize: 14,
     fontWeight: "700",
+  },
+  itemOwnerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  itemLinkIconButton: {
+    padding: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 42,
+    minHeight: 42,
+    alignSelf: "center",
   },
   itemMenuButton: {
     padding: 8,

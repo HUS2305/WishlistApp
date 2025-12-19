@@ -25,6 +25,7 @@ export default function FriendsScreen() {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const hasInitialFetchRef = useRef(false);
   const fetchDataRef = useRef<typeof fetchData | null>(null);
+  const wasSearchActiveOnBlurRef = useRef(false);
   const [friendMenuVisible, setFriendMenuVisible] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
   const [selectedFriendBlockStatus, setSelectedFriendBlockStatus] = useState<{ isBlockedByMe?: boolean; isBlockedByThem?: boolean }>({});
@@ -37,6 +38,7 @@ export default function FriendsScreen() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
+  const isSearchActiveRef = useRef(false);
   
   // Animation for search icon transition
   const searchIconOpacity = useRef(new Animated.Value(1)).current;
@@ -110,10 +112,33 @@ export default function FriendsScreen() {
   }, [isClerkLoaded, userId]); // Re-run when Clerk loads or user changes
 
   // Also fetch when screen comes into focus (navigation between tabs)
+  // Keep ref in sync with state
+  useEffect(() => {
+    isSearchActiveRef.current = isSearchActive;
+  }, [isSearchActive]);
+
   // But only if Clerk is loaded and user is authenticated
   useFocusEffect(
     useCallback(() => {
       console.log("🟢 FriendsScreen: useFocusEffect running, isClerkLoaded:", isClerkLoaded, "userId:", userId, "hasInitialFetchRef:", hasInitialFetchRef.current);
+      
+      // Reset search state when navigating back to this tab (industry standard behavior)
+      // Only reset if search was active when we navigated away
+      if (wasSearchActiveOnBlurRef.current) {
+        console.log("🟢 FriendsScreen: Resetting search state on navigation back");
+        // Reset search state
+        setIsSearchActive(false);
+        setSearchQuery("");
+        setSearchResults([]);
+        // Reset animation values
+        searchIconOpacity.setValue(1);
+        searchIconRotation.setValue(0);
+        searchBarOpacity.setValue(0);
+        searchBarScale.setValue(0.95);
+        xButtonRotation.setValue(0);
+        searchInputRef.current?.blur();
+        wasSearchActiveOnBlurRef.current = false; // Reset the flag
+      }
       
       // Only fetch if Clerk is loaded and user is authenticated
       if (isClerkLoaded && userId) {
@@ -128,6 +153,12 @@ export default function FriendsScreen() {
       } else {
         console.log("🟢 FriendsScreen: Clerk not loaded or user not authenticated, skipping fetch");
       }
+      
+      // Cleanup: Track if search was active when we lose focus
+      return () => {
+        console.log("🔴 FriendsScreen: useFocusEffect cleanup - screen losing focus, isSearchActive:", isSearchActiveRef.current);
+        wasSearchActiveOnBlurRef.current = isSearchActiveRef.current;
+      };
     }, [fetchData, isClerkLoaded, userId])
   );
 

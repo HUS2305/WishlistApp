@@ -6,6 +6,7 @@ import {
   Pressable,
   Animated,
   StyleSheet,
+  Platform,
 } from "react-native";
 import { Text } from "./Text";
 import { Feather } from "@expo/vector-icons";
@@ -14,6 +15,8 @@ import { router } from "expo-router";
 interface QuickActionMenuProps {
   visible: boolean;
   onClose: () => void;
+  onCreateWishlist?: () => void;
+  onAddItem?: () => void;
 }
 
 interface ActionButton {
@@ -23,7 +26,7 @@ interface ActionButton {
   onPress: () => void;
 }
 
-export function QuickActionMenu({ visible, onClose }: QuickActionMenuProps) {
+export function QuickActionMenu({ visible, onClose, onCreateWishlist, onAddItem }: QuickActionMenuProps) {
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const scaleAnim = React.useRef(new Animated.Value(0.8)).current;
 
@@ -65,7 +68,11 @@ export function QuickActionMenu({ visible, onClose }: QuickActionMenuProps) {
       color: "#4A90E2",
       onPress: () => {
         onClose();
-        router.push("/wishlist/create");
+        if (onCreateWishlist) {
+          onCreateWishlist();
+        } else {
+          router.push("/wishlist/create");
+        }
       },
     },
     {
@@ -74,8 +81,11 @@ export function QuickActionMenu({ visible, onClose }: QuickActionMenuProps) {
       color: "#FFB84D",
       onPress: () => {
         onClose();
-        // TODO: Open item selector (which wishlist to add to)
-        console.log("Add gift/item - need to select wishlist first");
+        if (onAddItem) {
+          onAddItem();
+        } else {
+          console.log("Add gift/item - need to select wishlist first");
+        }
       },
     },
     {
@@ -170,11 +180,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    // Use boxShadow for web compatibility, shadow* props for native
+    ...(Platform.OS === 'web' ? {
+      boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.1)",
+    } : {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 5,
+    }),
   },
   iconContainer: {
     width: 48,
