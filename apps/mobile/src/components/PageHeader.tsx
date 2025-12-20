@@ -10,6 +10,7 @@ interface PageHeaderProps {
   onBack?: () => void;
   rightActions?: React.ReactNode;
   backButton?: boolean;
+  titleSize?: number;
 }
 
 /**
@@ -25,6 +26,7 @@ export function PageHeader({
   onBack,
   rightActions,
   backButton = true,
+  titleSize,
 }: PageHeaderProps) {
   const { theme } = useTheme();
   
@@ -45,7 +47,7 @@ export function PageHeader({
           </TouchableOpacity>
         )}
         
-        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary, fontSize: titleSize || 20 }]} numberOfLines={1}>
           {title}
         </Text>
         
@@ -103,7 +105,8 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10, // Match main content padding
+    paddingLeft: 16, // Match main content padding
+    paddingRight: 26, // Reduced right padding to move menu closer to edge
   },
   headerButton: {
     padding: 0,

@@ -13,6 +13,7 @@ import { SortWishlistSheet, type SortOption } from "@/components/SortWishlistShe
 import { sortWishlists } from "@/utils/sortPreferences";
 import { FriendMenu } from "@/components/FriendMenu";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
+import { useAuth } from "@clerk/clerk-expo";
 
 interface UserProfile {
   profile: User & {
@@ -38,6 +39,8 @@ interface UserProfile {
 
 export default function FriendProfileScreen() {
   const { theme } = useTheme();
+  const { isLoaded: isAuthLoaded } = useAuth();
+  const cardBackgroundColor = theme.isDark ? '#2E2E2E' : '#D3D3D3';
   const { refreshPendingRequestsCount, refreshUnreadNotificationsCount } = useNotificationContext();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -52,7 +55,7 @@ export default function FriendProfileScreen() {
   const [currentSort, setCurrentSort] = useState<SortOption>("last_added");
 
   const fetchProfile = async () => {
-    if (!id) return;
+    if (!id || !isAuthLoaded) return;
     
     try {
       const data = await friendsService.getUserProfile(id);
@@ -61,10 +64,10 @@ export default function FriendProfileScreen() {
       console.error("❌ Error fetching user profile:", error);
       if (error.response?.status === 404) {
         Alert.alert("Error", "User not found");
-        router.back();
+        router.push("/(tabs)/friends");
       } else if (error.response?.status === 403) {
         Alert.alert("Error", "Access denied");
-        router.back();
+        router.push("/(tabs)/friends");
       }
     } finally {
       setIsLoading(false);
@@ -73,10 +76,13 @@ export default function FriendProfileScreen() {
   };
 
   useEffect(() => {
-    fetchProfile();
-  }, [id]);
+    if (isAuthLoaded && id) {
+      fetchProfile();
+    }
+  }, [id, isAuthLoaded]);
 
   const onRefresh = () => {
+    if (!isAuthLoaded) return;
     setIsRefreshing(true);
     fetchProfile();
   };
@@ -238,6 +244,21 @@ export default function FriendProfileScreen() {
     setCurrentSort(sort);
   };
 
+  // Get privacy level display info
+  const getPrivacyInfo = (privacyLevel?: string) => {
+    if (!privacyLevel) return null;
+    switch (privacyLevel) {
+      case "PUBLIC":
+        return { icon: "globe", label: "Public" };
+      case "FRIENDS_ONLY":
+        return { icon: "users", label: "Friends Only" };
+      case "PRIVATE":
+        return { icon: "lock", label: "Private" };
+      default:
+        return { icon: "lock", label: "Private" };
+    }
+  };
+
   // Calculate sorted wishlists BEFORE early returns to maintain hook order
   const sortedWishlists = useMemo(() => {
     if (!profile) return [];
@@ -281,7 +302,8 @@ export default function FriendProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <PageHeader 
-        title={profile.profile.username ? `@${profile.profile.username}` : ""}
+        title=""
+        onBack={() => router.push("/(tabs)/friends")}
         rightActions={
           <TouchableOpacity
             onPress={() => setMenuVisible(true)}
@@ -293,214 +315,219 @@ export default function FriendProfileScreen() {
         }
       />
       
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            colors={[theme.colors.primary]}
-          />
-        }
-      >
-        {/* Profile Header - Horizontal Layout */}
-        <View style={styles.profileHeader}>
-          <View style={[styles.avatarContainer, { backgroundColor: theme.colors.primary }]}>
-            {profile.profile.avatar ? (
-              <Image 
-                source={{ uri: profile.profile.avatar }} 
-                style={styles.avatarImage}
-              />
-            ) : (
-              <Text style={styles.avatarText}>{avatarInitial}</Text>
-            )}
-          </View>
-          
-          <View style={styles.profileInfo}>
-            <Text style={[styles.displayName, { color: theme.colors.textPrimary }]}>
-              {displayName}
-            </Text>
-
-            {/* Birthday - Only show for friends */}
-            {profile.areFriends && (
-              <View style={styles.birthdayInfo}>
-                <View style={styles.birthdayIconContainer}>
-                  <MaterialCommunityIcons name="cake-variant" size={14} color={theme.colors.textSecondary} />
-                </View>
-                <Text style={[styles.birthdayText, { color: theme.colors.textSecondary }]}>
-                  Birthday information coming soon
-                </Text>
-              </View>
-            )}
-
-            {/* Friendship Status */}
-            {profile.areFriends && friendshipSince ? (
-              <View style={styles.friendshipStatus}>
-                <Feather name="users" size={14} color={theme.colors.textSecondary} />
-                <Text style={[styles.friendshipStatusText, { color: theme.colors.textSecondary }]}>
-                  Friends since {friendshipSince}
-                </Text>
-              </View>
-            ) : profile.isBlockedByMe ? (
-              <View style={styles.friendshipStatus}>
-                <Feather name="slash" size={14} color={theme.colors.textSecondary} />
-                <Text style={[styles.friendshipStatusText, { color: theme.colors.textSecondary }]}>
-                  Blocked
-                </Text>
-              </View>
-            ) : !profile.areFriends && (
-              <View style={styles.friendshipStatus}>
-                <Feather name="user-x" size={14} color={theme.colors.textSecondary} />
-                <Text style={[styles.friendshipStatusText, { color: theme.colors.textSecondary }]}>
-                  Not friends
-                </Text>
-              </View>
-            )}
-          </View>
+      {/* Profile Header - Centered Column Layout */}
+      <View style={styles.profileHeader}>
+        <View style={[styles.avatarContainer, { backgroundColor: theme.colors.primary }]}>
+          {profile.profile.avatar ? (
+            <Image 
+              source={{ uri: profile.profile.avatar }} 
+              style={styles.avatarImage}
+            />
+          ) : (
+            <Text style={styles.avatarText}>{avatarInitial}</Text>
+          )}
+        </View>
+        
+        <View style={styles.nameRow}>
+          <Text style={[styles.displayName, { color: theme.colors.textPrimary }]}>
+            {displayName}
+          </Text>
+          <View style={[styles.nameDivider, { backgroundColor: theme.colors.textSecondary + '40' }]} />
+          <Text style={[styles.username, { color: theme.colors.textSecondary }]}>
+            {profile.profile.username ? `@${profile.profile.username}` : ""}
+          </Text>
         </View>
 
-        {/* Bio Section */}
-        {profile.profile.bio && (
-          <View style={[styles.bioSection, { borderBottomColor: theme.colors.textSecondary + '20' }]}>
-            <Text style={[styles.bio, { color: theme.colors.textPrimary }]}>
-              {profile.profile.bio}
+        {/* Friendship Status */}
+        {profile.areFriends && friendshipSince ? (
+          <View style={styles.friendshipStatus}>
+            <Feather name="users" size={14} color={theme.colors.textSecondary} />
+            <Text style={[styles.friendshipStatusText, { color: theme.colors.textSecondary }]}>
+              Friends since {friendshipSince}
+            </Text>
+          </View>
+        ) : profile.isBlockedByMe ? (
+          <View style={styles.friendshipStatus}>
+            <Feather name="slash" size={14} color={theme.colors.textSecondary} />
+            <Text style={[styles.friendshipStatusText, { color: theme.colors.textSecondary }]}>
+              Blocked
+            </Text>
+          </View>
+        ) : !profile.areFriends && (
+          <View style={styles.friendshipStatus}>
+            <Feather name="user-x" size={14} color={theme.colors.textSecondary} />
+            <Text style={[styles.friendshipStatusText, { color: theme.colors.textSecondary }]}>
+              Not friends
             </Text>
           </View>
         )}
+      </View>
 
-        {/* Pending Friend Request Section (Received) */}
-        {profile.pendingRequestId && !profile.areFriends && (
-          <View style={[styles.requestSection, { borderBottomColor: theme.colors.textSecondary + '20' }]}>
-            <Text style={[styles.requestSectionTitle, { color: theme.colors.textPrimary }]}>
-              Friend Request
-            </Text>
-            <Text style={[styles.requestSectionText, { color: theme.colors.textSecondary }]}>
-              {displayName} sent you a friend request
-            </Text>
-            <View style={styles.requestActions}>
-              <TouchableOpacity
-                style={[styles.acceptRequestButton, { backgroundColor: theme.colors.primary }]}
-                onPress={handleAcceptRequest}
-                disabled={isProcessingRequest}
-                activeOpacity={0.7}
-              >
-                <Feather name="check" size={18} color="#FFFFFF" />
-                <Text style={styles.acceptRequestButtonText}>Accept</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.declineRequestButton, { 
-                  backgroundColor: theme.isDark ? '#2E2E2E' : '#E5E5E5',
-                  borderColor: theme.colors.textSecondary + '30',
-                }]}
-                onPress={handleDeclineRequest}
-                disabled={isProcessingRequest}
-                activeOpacity={0.7}
-              >
-                <Feather name="x" size={18} color={theme.colors.textPrimary} />
-                <Text style={[styles.declineRequestButtonText, { color: theme.colors.textPrimary }]}>Decline</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+      {/* Bio Section */}
+      {profile.profile.bio && (
+        <View style={[styles.bioSection, { borderBottomColor: theme.colors.textSecondary + '20' }]}>
+          <Text style={[styles.bio, { color: theme.colors.textPrimary }]}>
+            {profile.profile.bio}
+          </Text>
+        </View>
+      )}
 
-        {/* Sent Friend Request Section */}
-        {profile.sentRequestId && !profile.areFriends && (
-          <View style={[styles.requestSection, { borderBottomColor: theme.colors.textSecondary + '20' }]}>
-            <View style={styles.sentRequestHeader}>
-              <Text style={[styles.requestSectionTitle, { color: theme.colors.textPrimary }]}>
-                Friend Request Sent
-              </Text>
-              <View style={[styles.statusBadge, { backgroundColor: theme.colors.textSecondary + '15' }]}>
-                <Feather name="clock" size={14} color={theme.colors.textSecondary} />
-                <Text style={[styles.statusBadgeText, { color: theme.colors.textSecondary }]}>Pending</Text>
-              </View>
-            </View>
+      {/* Pending Friend Request Section (Received) */}
+      {profile.pendingRequestId && !profile.areFriends && (
+        <View style={[styles.requestSection, { borderBottomColor: theme.colors.textSecondary + '20' }]}>
+          <Text style={[styles.requestSectionTitle, { color: theme.colors.textPrimary }]}>
+            Friend Request
+          </Text>
+          <Text style={[styles.requestSectionText, { color: theme.colors.textSecondary }]}>
+            {displayName} sent you a friend request
+          </Text>
+          <View style={styles.requestActions}>
             <TouchableOpacity
-              style={[styles.cancelRequestButton, { 
+              style={[styles.acceptRequestButton, { backgroundColor: theme.colors.primary }]}
+              onPress={handleAcceptRequest}
+              disabled={isProcessingRequest}
+              activeOpacity={0.7}
+            >
+              <Feather name="check" size={18} color="#FFFFFF" />
+              <Text style={styles.acceptRequestButtonText}>Accept</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.declineRequestButton, { 
                 backgroundColor: theme.isDark ? '#2E2E2E' : '#E5E5E5',
                 borderColor: theme.colors.textSecondary + '30',
               }]}
-              onPress={handleCancelSentRequest}
+              onPress={handleDeclineRequest}
               disabled={isProcessingRequest}
               activeOpacity={0.7}
             >
               <Feather name="x" size={18} color={theme.colors.textPrimary} />
-              <Text style={[styles.cancelRequestButtonText, { color: theme.colors.textPrimary }]}>Cancel Request</Text>
+              <Text style={[styles.declineRequestButtonText, { color: theme.colors.textPrimary }]}>Decline</Text>
             </TouchableOpacity>
           </View>
-        )}
+        </View>
+      )}
 
-        {/* Wishlists Section */}
-        <View style={styles.wishlistsSection}>
-          <View style={styles.wishlistsHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
-              Wishlists ({profile.wishlists.length})
+      {/* Sent Friend Request Section */}
+      {profile.sentRequestId && !profile.areFriends && (
+        <View style={[styles.requestSection, { borderBottomColor: theme.colors.textSecondary + '20' }]}>
+          <View style={styles.sentRequestHeader}>
+            <Text style={[styles.requestSectionTitle, { color: theme.colors.textPrimary }]}>
+              Friend Request Sent
             </Text>
-            <TouchableOpacity
-              onPress={() => setSortModalVisible(true)}
-              style={styles.sortButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Feather name="sliders" size={20} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
+            <View style={[styles.statusBadge, { backgroundColor: theme.colors.textSecondary + '15' }]}>
+              <Feather name="clock" size={14} color={theme.colors.textSecondary} />
+              <Text style={[styles.statusBadgeText, { color: theme.colors.textSecondary }]}>Pending</Text>
+            </View>
           </View>
+          <TouchableOpacity
+            style={[styles.cancelRequestButton, { 
+              backgroundColor: theme.isDark ? '#2E2E2E' : '#E5E5E5',
+              borderColor: theme.colors.textSecondary + '30',
+            }]}
+            onPress={handleCancelSentRequest}
+            disabled={isProcessingRequest}
+            activeOpacity={0.7}
+          >
+            <Feather name="x" size={18} color={theme.colors.textPrimary} />
+            <Text style={[styles.cancelRequestButtonText, { color: theme.colors.textPrimary }]}>Cancel Request</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-          {sortedWishlists.length > 0 ? (
-            sortedWishlists.map((wishlist) => (
+      {/* Wishlists Section - Card Container with rounded top corners */}
+      <View style={[styles.wishlistsSectionContainer, { backgroundColor: cardBackgroundColor }]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              colors={[theme.colors.primary]}
+            />
+          }
+        >
+          <View style={styles.wishlistsSection}>
+            <View style={styles.wishlistsHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+                Wishlists ({profile.wishlists.length})
+              </Text>
               <TouchableOpacity
-                key={wishlist.id}
-                style={[styles.wishlistCard, { borderBottomColor: theme.colors.textSecondary + '20' }]}
-                onPress={() => router.push(`/wishlist/${wishlist.id}`)}
-                activeOpacity={0.7}
+                onPress={() => setSortModalVisible(true)}
+                style={styles.sortButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <View style={styles.wishlistContent}>
-                  <View style={styles.wishlistLeftSection}>
-                    <Text style={[styles.wishlistTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
-                      {wishlist.title}
-                    </Text>
-                    <View style={styles.wishlistStats}>
-                      <Text style={[styles.wishlistStat, { color: theme.colors.textSecondary }]}>
-                        {wishlist.activeWishes} active wishes
-                      </Text>
-                      {wishlist.totalPrice > 0 && (
-                        <View style={[styles.priceBadge, { backgroundColor: theme.colors.primary + '20' }]}>
-                          <Text style={[styles.priceBadgeText, { color: theme.colors.primary }]}>
-                            ${wishlist.totalPrice.toFixed(2)}
+                <MaterialCommunityIcons name="swap-vertical" size={24} color={theme.colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.wishlistsSectionContent}>
+            {sortedWishlists.length > 0 ? (
+            sortedWishlists.map((wishlist, index) => {
+              const privacyInfo = getPrivacyInfo((wishlist as any).privacyLevel);
+              const currency = (wishlist as any).currency || "$";
+              
+              return (
+                <View key={wishlist.id}>
+                  <TouchableOpacity
+                    style={styles.card}
+                    onPress={() => router.push(`/wishlist/${wishlist.id}`)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.cardContent}>
+                      <View style={styles.cardLeft}>
+                        <View style={styles.titleRow}>
+                          <Text 
+                            style={[styles.cardTitle, { color: theme.colors.textPrimary }]}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
+                            {wishlist.title}
+                          </Text>
+                          {privacyInfo && (
+                            <Feather 
+                              name={privacyInfo.icon as any} 
+                              size={16} 
+                              color={theme.colors.primary} 
+                            />
+                          )}
+                        </View>
+                        <View style={styles.metricsContainer}>
+                          <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>Active wishes</Text>
+                          <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>{wishlist.activeWishes}</Text>
+                          <View style={[styles.metricDivider, { backgroundColor: theme.colors.textSecondary + '40' }]} />
+                          <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>
+                            {currency} {wishlist.totalPrice.toFixed(2)}
                           </Text>
                         </View>
-                      )}
-                    </View>
-                  </View>
-
-                  <View style={styles.wishlistRightSection}>
-                    {wishlist.coverImage ? (
-                      <Image
-                        source={{ uri: wishlist.coverImage }}
-                        style={styles.wishlistCover}
-                      />
-                    ) : (
-                      <View style={[styles.wishlistPlaceholder, { backgroundColor: theme.colors.textSecondary + '20' }]}>
-                        <Feather name="image" size={24} color={theme.colors.textSecondary} />
                       </View>
-                    )}
-                    <Feather
-                      name="chevron-right"
-                      size={20}
-                      color={theme.colors.textSecondary}
-                      style={styles.chevron}
-                    />
-                  </View>
+                      <View style={styles.imagePlaceholder}>
+                        {wishlist.coverImage ? (
+                          <Image
+                            source={{ uri: wishlist.coverImage }}
+                            style={styles.imagePlaceholderImage}
+                          />
+                        ) : (
+                          <Feather name="image" size={24} color={theme.colors.textSecondary} />
+                        )}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                  {index < sortedWishlists.length - 1 && (
+                    <View style={[styles.cardDivider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
+                  )}
                 </View>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              No wishlists available
-            </Text>
-          )}
-        </View>
-      </ScrollView>
+              );
+            })
+            ) : (
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                No wishlists available
+              </Text>
+            )}
+            </View>
+          </View>
+        </ScrollView>
+      </View>
 
       {/* Options Menu Modal */}
       {profile && (
@@ -539,6 +566,7 @@ export default function FriendProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    flexDirection: "column",
   },
   loadingContainer: {
     flex: 1,
@@ -552,41 +580,49 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 100,
   },
   profileHeader: {
-    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-    alignItems: "flex-start",
+    paddingTop: 0,
+    paddingBottom: 30,
   },
   avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
+    marginBottom: 16,
   },
   avatarImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
   },
   avatarText: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "700",
     color: "#FFFFFF",
   },
-  profileInfo: {
-    flex: 1,
-    paddingTop: 8,
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 12,
+  },
+  username: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  nameDivider: {
+    width: 1,
+    height: 16,
   },
   displayName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
-    marginBottom: 8,
   },
   birthdayInfo: {
     flexDirection: "row",
@@ -603,6 +639,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    justifyContent: "center",
   },
   friendshipStatusText: {
     fontSize: 14,
@@ -696,8 +733,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 14,
   },
+  wishlistsSectionContainer: {
+    flex: 1,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: "hidden",
+    marginTop: 16,
+  },
   wishlistsSection: {
-    paddingHorizontal: 20,
     paddingTop: 24,
   },
   wishlistsHeader: {
@@ -705,6 +748,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 16,
+    paddingHorizontal: 16,
+    marginHorizontal: 0,
   },
   sectionTitle: {
     fontSize: 18,
@@ -713,61 +758,71 @@ const styles = StyleSheet.create({
   sortButton: {
     padding: 4,
   },
-  wishlistCard: {
-    marginBottom: 12,
-    borderBottomWidth: 1,
-    paddingBottom: 12,
+  card: {
+    paddingVertical: 16,
   },
-  wishlistContent: {
+  cardContent: {
     flexDirection: "row",
+    paddingHorizontal: 5,
     alignItems: "center",
-    justifyContent: "space-between",
   },
-  wishlistLeftSection: {
+  wishlistsSectionContent: {
+    padding: 16,
+    paddingTop: 0,
+    paddingBottom: 100,
+  },
+  cardDivider: {
+    height: 1,
+    width: "95%",
+    alignSelf: "center",
+    marginVertical: 12,
+  },
+  cardLeft: {
     flex: 1,
-    marginRight: 12,
+    marginRight: 16,
   },
-  wishlistTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  wishlistStats: {
+  titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    marginBottom: 12,
+    gap: 6,
+    flexWrap: "wrap",
   },
-  wishlistStat: {
-    fontSize: 13,
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "700",
   },
-  priceBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  priceBadgeText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  wishlistRightSection: {
+  metricsContainer: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 0,
     gap: 8,
   },
-  wishlistCover: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
+  metricLabel: {
+    fontSize: 14,
+    marginRight: 4,
   },
-  wishlistPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
+  metricValue: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  metricDivider: {
+    width: 1,
+    height: 16,
+    marginHorizontal: 8,
+  },
+  imagePlaceholder: {
+    width: 70,
+    height: 70,
+    borderRadius: 12,
+    backgroundColor: "#4B5563",
     alignItems: "center",
     justifyContent: "center",
   },
-  chevron: {
-    marginLeft: 4,
+  imagePlaceholderImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 12,
   },
   emptyText: {
     fontSize: 14,
