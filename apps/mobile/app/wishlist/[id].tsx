@@ -136,7 +136,8 @@ export default function WishlistDetailScreen() {
       }
       
       if (shareToken) {
-        const apiUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000/api";
+        const { getApiUrl } = require("@/utils/apiUrl");
+        const apiUrl = getApiUrl();
         shareUrl = shareUrl || `${apiUrl}/wishlists/public/${shareToken}`;
       }
       
@@ -399,6 +400,7 @@ export default function WishlistDetailScreen() {
     setReservedItems(reserved);
   }, [items, currentUser]);
 
+
   // Check if item is reserved (by anyone - if status is RESERVED or if we've reserved it)
   const isItemReserved = (item: Item) => {
     // Item is reserved if status is RESERVED or if current user has reserved it
@@ -437,6 +439,7 @@ export default function WishlistDetailScreen() {
       setIsRefreshing(false);
     }
   };
+
 
   const handleRestoreToWanted = async () => {
     if (!selectedItem) return;
@@ -929,7 +932,15 @@ export default function WishlistDetailScreen() {
   const cardBackgroundColor = theme.isDark ? '#2E2E2E' : '#D3D3D3';
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View 
+      style={[
+        styles.container, 
+        { 
+          backgroundColor: theme.colors.background,
+        }
+      ]} 
+      collapsable={false}
+    >
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
         <View style={styles.headerContent}>
@@ -1011,7 +1022,10 @@ export default function WishlistDetailScreen() {
       </View>
 
       {/* Card Container with rounded top corners */}
-      <View style={[styles.cardContainer, { backgroundColor: cardBackgroundColor }]}>
+      <View 
+        style={[styles.cardContainer, { backgroundColor: cardBackgroundColor }]} 
+        collapsable={false}
+      >
         {/* Filter/Sort Bar (Tabs) - Only show tabs for owner */}
         {isOwner === true && (
           <View style={styles.filterBar}>
@@ -1218,9 +1232,19 @@ export default function WishlistDetailScreen() {
           data={filteredItems}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            filteredItems.length === 0 ? { flexGrow: 1, paddingBottom: 0 } : undefined
+          ]}
           style={styles.list}
           showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+          horizontal={false}
+          scrollEnabled={true}
+          nestedScrollEnabled={false}
+          removeClippedSubviews={false}
+          bounces={true}
+          alwaysBounceVertical={false}
           refreshControl={
             <RefreshControl 
               refreshing={isRefreshing} 
@@ -1268,6 +1292,10 @@ export default function WishlistDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: "100%",
+    maxWidth: "100%",
+    position: "relative",
+    alignSelf: "stretch",
   },
   headerButton: {
     padding: 0,
@@ -1279,11 +1307,16 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: 48,
     paddingBottom: 16,
+    width: "100%",
+    maxWidth: "100%",
+    alignSelf: "stretch",
   },
   headerContent: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
+    width: "100%",
+    maxWidth: "100%",
   },
   headerTitleContainer: {
     flexDirection: "row",
@@ -1312,6 +1345,9 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     marginTop: 8,
     marginBottom: 45,
+    width: "100%",
+    maxWidth: "100%",
+    alignSelf: "stretch",
   },
   statsContentColumn: {
     alignItems: "center",
@@ -1363,6 +1399,11 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: "hidden",
+    minHeight: 0,
+    maxHeight: "100%",
+    width: "100%",
+    maxWidth: "100%",
+    alignSelf: "stretch",
   },
   filterBar: {
     flexDirection: "row",
@@ -1394,21 +1435,29 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+    width: "100%",
+    maxWidth: "100%",
+    alignSelf: "stretch",
   },
   listContent: {
     paddingHorizontal: 16,
     paddingTop: 5,
     paddingBottom: 100,
+    width: "100%",
   },
   itemCard: {
     marginTop: 12,
     marginBottom: 8,
+    width: "100%",
+    maxWidth: "100%",
   },
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 8,
+    width: "100%",
+    maxWidth: "100%",
   },
   itemCheckbox: {
     width: 24,

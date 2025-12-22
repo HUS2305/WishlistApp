@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, Param, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { GetUserId } from "../auth/get-user.decorator";
@@ -13,6 +13,21 @@ export class UsersController {
     return this.usersService.findByClerkId(userId);
   }
 
+  @Post("me")
+  async createCurrentUser(
+    @GetUserId() userId: string,
+    @Body() createData: {
+      username: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone?: string;
+      avatar?: string;
+    }
+  ) {
+    return this.usersService.createUser(userId, createData);
+  }
+
   @Patch("me")
   async updateCurrentUser(
     @GetUserId() userId: string,
@@ -21,12 +36,22 @@ export class UsersController {
     return this.usersService.updateByClerkId(userId, updateData);
   }
 
+  @Delete("me")
+  async deleteCurrentUser(@GetUserId() userId: string) {
+    return this.usersService.deleteByClerkId(userId);
+  }
+
   @Get("search")
   async searchUsers(
     @GetUserId() userId: string,
     @Query("q") query: string
   ) {
     return this.usersService.search(userId, query);
+  }
+
+  @Get("check-username/:username")
+  async checkUsernameAvailability(@Param("username") username: string) {
+    return this.usersService.checkUsernameAvailability(username);
   }
 
   @Get(":id")

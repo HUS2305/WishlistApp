@@ -1,7 +1,6 @@
-import { View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert } from "react-native";
 import { Text } from "@/components/Text";
-import { useUser, useClerk, useAuth } from "@clerk/clerk-expo";
-import { Card } from "@/components/ui";
+import { useUser, useAuth, useClerk } from "@clerk/clerk-expo";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState, useEffect } from "react";
@@ -9,6 +8,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { useTheme } from "@/contexts/ThemeContext";
 import api from "@/services/api";
 import { getDisplayName } from "@/lib/utils";
+import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
+import { IdentityVerificationModal } from "@/components/IdentityVerificationModal";
 
 interface UserProfile {
   id: string;
@@ -22,33 +23,21 @@ interface UserProfile {
 export default function ProfileScreen() {
   const { theme } = useTheme();
   const { user: clerkUser, isLoaded: userLoaded } = useUser();
+  const { isSignedIn, isLoaded, getToken } = useAuth();
   const { signOut } = useClerk();
-  const { isSignedIn, getToken } = useAuth();
-  const [isSigningOut, setIsSigningOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [identityVerifyVisible, setIdentityVerifyVisible] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleSignOut = async () => {
-    try {
-      setIsSigningOut(true);
-      await signOut();
-      // Wait a moment for Clerk to update the session state
-      await new Promise(resolve => setTimeout(resolve, 100));
-      // Navigate to onboarding after sign-out completes
-      router.replace("/(auth)/onboarding");
-    } catch (error) {
-      console.error("Error signing out:", error);
-      setIsSigningOut(false);
-    }
-  };
-
-  // If user signed out, redirect immediately (this handles the case where signOut completes)
+  // If user signed out, redirect immediately (only after Clerk is loaded)
   useEffect(() => {
-    if (!isSignedIn && !isSigningOut) {
+    if (isLoaded && !isSignedIn) {
       router.replace("/(auth)/onboarding");
     }
-  }, [isSignedIn, isSigningOut]);
+  }, [isLoaded, isSignedIn]);
 
   // Fetch user profile from backend
   const fetchUserProfile = async () => {
@@ -99,8 +88,9 @@ export default function ProfileScreen() {
   const avatarInitial = (computedDisplayName?.[0] || userProfile?.username?.[0]) || clerkUser?.emailAddresses?.[0]?.emailAddress?.[0] || clerkUser?.firstName?.[0] || "U";
   const avatarInitialUpper = avatarInitial.toUpperCase();
 
-  // Don't render profile if user is signing out or not signed in
-  if (!isSignedIn || isSigningOut || !clerkUser) {
+  // Wait for Clerk to load before making decisions
+  // Don't render profile if Clerk is still loading, user is not signed in, or Clerk user is not loaded
+  if (!isLoaded || !isSignedIn || !clerkUser) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={styles.emptyState}>
@@ -126,23 +116,10 @@ export default function ProfileScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <PageHeader
         title="Profile"
-        backButton={false}
+        backButton={true}
+        onBack={() => router.push("/(tabs)/settings")}
       />
       
-      <View style={styles.profileInfo}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {avatarInitialUpper}
-          </Text>
-        </View>
-        <Text style={styles.userName}>
-          {displayName || "User"}
-        </Text>
-        <Text style={styles.userEmail}>
-          {email}
-        </Text>
-      </View>
-
       <ScrollView 
         style={styles.content} 
         contentContainerStyle={styles.contentContainer}
@@ -154,64 +131,137 @@ export default function ProfileScreen() {
           />
         }
       >
-        <Card style={styles.menuCard}>
-          <TouchableOpacity style={styles.menuItem}>
-            <Feather name="user" size={24} color="#4A90E2" />
-            <Text style={styles.menuText}>Edit Profile</Text>
-            <Feather name="chevron-right" size={24} color="#C7C7CC" />
+        <View style={styles.profileInfo}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {avatarInitialUpper}
+            </Text>
+          </View>
+          <Text style={[styles.userName, { color: theme.colors.textPrimary }]}>
+            {displayName || "User"}
+          </Text>
+          <Text style={[styles.userEmail, { color: theme.colors.textSecondary }]}>
+            {email}
+          </Text>
+        </View>
+
+        <View style={styles.menuContainer}>
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push("/profile/edit")}
+          >
+            <Feather name="edit-3" size={24} color={theme.colors.primary} />
+            <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Edit Profile</Text>
+            <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
 
-          <View style={styles.divider} />
-
-          <TouchableOpacity style={styles.menuItem}>
-            <Feather name="bell" size={24} color="#4A90E2" />
-            <Text style={styles.menuText}>Notifications</Text>
-            <Feather name="chevron-right" size={24} color="#C7C7CC" />
-          </TouchableOpacity>
-
-          <View style={styles.divider} />
-
-          <TouchableOpacity style={styles.menuItem}>
-            <Feather name="lock" size={24} color="#4A90E2" />
-            <Text style={styles.menuText}>Privacy</Text>
-            <Feather name="chevron-right" size={24} color="#C7C7CC" />
-          </TouchableOpacity>
-
-          <View style={styles.divider} />
-
-          <TouchableOpacity style={styles.menuItem}>
-            <Feather name="help-circle" size={24} color="#4A90E2" />
-            <Text style={styles.menuText}>Help & Support</Text>
-            <Feather name="chevron-right" size={24} color="#C7C7CC" />
-          </TouchableOpacity>
-
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '25' }]} />
 
           <TouchableOpacity 
             style={styles.menuItem}
-            onPress={() => router.push("/appearance")}
+            onPress={() => router.push("/profile/change-email")}
           >
-            <Feather name="sliders" size={24} color="#4A90E2" />
-            <Text style={styles.menuText}>Appearance</Text>
-            <Feather name="chevron-right" size={24} color="#C7C7CC" />
+            <Feather name="mail" size={24} color={theme.colors.primary} />
+            <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Change Email</Text>
+            <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
-        </Card>
+
+          <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '25' }]} />
+
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push("/profile/change-password")}
+          >
+            <Feather name="lock" size={24} color={theme.colors.primary} />
+            <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Change Password</Text>
+            <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity 
-          style={[styles.signOutButton, isSigningOut && styles.signOutButtonDisabled]} 
-          onPress={handleSignOut}
-          disabled={isSigningOut}
+          style={[styles.dangerButton, { backgroundColor: theme.colors.error }]}
+          onPress={() => setIdentityVerifyVisible(true)}
         >
-          {isSigningOut ? (
-            <ActivityIndicator size="small" color="#FF3B30" />
-          ) : (
-            <Feather name="log-out" size={20} color="#FF3B30" />
-          )}
-          <Text style={styles.signOutText}>
-            {isSigningOut ? "Signing Out..." : "Sign Out"}
+          <Feather name="trash-2" size={20} color="#FFFFFF" />
+          <Text style={styles.dangerButtonText}>
+            Delete Account
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Identity Verification Modal */}
+      <IdentityVerificationModal
+        visible={identityVerifyVisible}
+        onConfirm={async () => {
+          // Identity verified, show delete confirmation
+          setIdentityVerifyVisible(false);
+          setDeleteConfirmVisible(true);
+        }}
+        onCancel={() => setIdentityVerifyVisible(false)}
+        isVerifying={false}
+      />
+
+      {/* Delete Account Confirmation */}
+      <DeleteConfirmModal
+        visible={deleteConfirmVisible}
+        title="your account"
+        modalTitle="Delete Account"
+        onConfirm={async () => {
+          try {
+            setIsDeleting(true);
+            const token = await getToken();
+            
+            // Delete user from database FIRST (while token is still valid)
+            // This ensures database is cleaned even if Clerk deletion fails
+            if (token) {
+              try {
+                await api.delete("/users/me");
+                console.log("✅ User deleted from database");
+              } catch (error: any) {
+                console.error("❌ Error deleting user from database:", error);
+                Alert.alert(
+                  "Deletion Failed",
+                  "Failed to delete account from database. Please try again or contact support.",
+                  [{ text: "OK" }]
+                );
+                setIsDeleting(false);
+                setDeleteConfirmVisible(false);
+                return;
+              }
+            }
+            
+            // Delete user from Clerk (requires verification)
+            // If this fails, database is already cleaned, so we can still proceed
+            try {
+              await clerkUser?.delete();
+              console.log("✅ User deleted from Clerk");
+            } catch (clerkError: any) {
+              console.error("⚠️ Error deleting user from Clerk:", clerkError);
+              // Database is already deleted, so show a warning but proceed
+              Alert.alert(
+                "Partial Deletion",
+                "Your account was deleted from our database, but there was an error deleting it from Clerk. You may need to contact Clerk support to complete the deletion.",
+                [{ text: "OK" }]
+              );
+            }
+            
+            // Sign out and redirect
+            await signOut();
+            router.replace("/(auth)/onboarding");
+          } catch (error) {
+            console.error("Error deleting account:", error);
+            Alert.alert(
+              "Deletion Failed",
+              "An unexpected error occurred. Please try again."
+            );
+            setIsDeleting(false);
+            setDeleteConfirmVisible(false);
+          }
+        }}
+        onCancel={() => setDeleteConfirmVisible(false)}
+        isDeleting={isDeleting}
+        type="wishlist"
+      />
     </View>
   );
 }
@@ -220,11 +270,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: 16,
+    paddingTop: 24,
+    paddingBottom: 40,
+  },
   profileInfo: {
     alignItems: "center",
-    paddingTop: 24,
-    paddingBottom: 32,
-    backgroundColor: "#1E3A5F",
+    paddingTop: 8,
+    paddingBottom: 24,
   },
   avatar: {
     width: 80,
@@ -243,54 +300,46 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.8)",
   },
-  content: {
-    flex: 1,
-  },
-  contentContainer: {
-    padding: 16,
-  },
-  menuCard: {
-    marginBottom: 16,
+  menuContainer: {
+    marginBottom: 24,
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    paddingVertical: 20,
+    paddingLeft: 20,
+    paddingRight: 16,
   },
   menuText: {
     flex: 1,
     fontSize: 16,
-    color: "#1F2937",
-    marginLeft: 12,
+    fontWeight: "600",
+    marginLeft: 16,
   },
   divider: {
     height: 1,
-    backgroundColor: "#E5E7EB",
-    marginHorizontal: 16,
+    marginLeft: 20,
+    marginRight: 16,
+    opacity: 1,
   },
-  signOutButton: {
+  dangerButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 59, 48, 0.1)",
     paddingVertical: 16,
     borderRadius: 12,
     gap: 8,
+    marginTop: 8,
   },
-  signOutText: {
-    color: "#FF3B30",
+  dangerButtonText: {
     fontSize: 16,
     fontWeight: "600",
-  },
-  signOutButtonDisabled: {
-    opacity: 0.6,
+    color: "#FFFFFF",
   },
   emptyState: {
     flex: 1,

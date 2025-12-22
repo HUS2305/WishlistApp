@@ -18,11 +18,13 @@ interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  height?: number; // Optional custom height (0-1 as percentage of screen height)
 }
 
-export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, children, height = 0.9 }: BottomSheetProps) {
   const { theme } = useTheme();
-  const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+  const sheetHeight = SCREEN_HEIGHT * height;
+  const translateY = useRef(new Animated.Value(sheetHeight)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const [isClosing, setIsClosing] = useState(false);
   const isClosingRef = useRef(false);
@@ -38,15 +40,12 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
     isClosingRef.current = true;
     setIsClosing(true);
     
-    // Hide backdrop immediately by setting opacity to 0 (no animation)
-    opacity.setValue(0);
-    
     // Stop any ongoing animations
     translateY.stopAnimation();
     opacity.stopAnimation();
     
-    // Hide modal immediately by setting translateY to SHEET_HEIGHT (no animation)
-    translateY.setValue(SHEET_HEIGHT);
+          // Hide modal immediately by setting translateY to sheetHeight (no animation)
+          translateY.setValue(sheetHeight);
     
     // Call parent's onClose immediately to start unmounting process
     // This allows QuickActionMenu to open right away
@@ -92,27 +91,18 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
       opacity.stopAnimation();
       
       // Reset to starting position immediately (this is critical!)
-      translateY.setValue(SHEET_HEIGHT);
+      translateY.setValue(sheetHeight);
       opacity.setValue(0);
       
-      // Use requestAnimationFrame to ensure reset happens before animation
+      // Backdrop is now STATIC - appears instantly, no animation
+      // Animate sheet sliding up
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          // Animate in - slower spring for more visible effect
-          Animated.parallel([
-            Animated.spring(translateY, {
-              toValue: 0,
-              useNativeDriver: true,
-              tension: 50,
-              friction: 8,
-            }),
-            Animated.timing(opacity, {
-              toValue: 1,
-              duration: 300,
-              useNativeDriver: true,
-            }),
-          ]).start();
-        });
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 8,
+        }).start();
       });
     } else if (!visible && isClosingRef.current && !isClosing) {
       // Parent set visible = false while we're already closing (shouldn't happen)
@@ -120,7 +110,7 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
       isClosingRef.current = false;
       setIsClosing(false);
     }
-  }, [visible, isClosing, translateY, opacity]);
+  }, [visible, isClosing, translateY, opacity, sheetHeight]);
   
   // Handle close requests - start animation, then call onClose after
   const handleClose = useCallback(() => {
@@ -170,13 +160,10 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
           // Set closing state immediately to disable pointer events right away
           isClosingRef.current = true;
           setIsClosing(true);
-          // Hide backdrop immediately by setting opacity to 0
-          opacity.setValue(0);
-          // Hide modal immediately by setting translateY to SHEET_HEIGHT
-          translateY.setValue(SHEET_HEIGHT);
+          // Hide modal immediately by setting translateY to sheetHeight
+          translateY.setValue(sheetHeight);
           // Stop any ongoing animations
           translateY.stopAnimation();
-          opacity.stopAnimation();
           // Call onClose immediately so Modal can start unmounting
           onClose();
           // No animation - close immediately
@@ -272,19 +259,17 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
       hardwareAccelerated
     >
       <View style={styles.container}>
-        {/* Backdrop */}
-        <Animated.View
+        {/* Backdrop - STATIC, appears instantly, no animation */}
+        <View
           style={[
             styles.backdrop,
             {
-              opacity: opacity.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 0.4],
-              }),
+              opacity: 0.25, // Lighter overlay (25% opacity instead of 40%)
               backgroundColor: 'rgba(0, 0, 0, 1)',
             },
           ]}
           pointerEvents="auto"
+          collapsable={false}
         >
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
@@ -292,7 +277,7 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
             onPress={handleCloseWithAnimation}
             disabled={isClosing || isClosingRef.current}
           />
-        </Animated.View>
+        </View>
 
         {/* Bottom Sheet */}
         <Animated.View
@@ -300,8 +285,8 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
             styles.sheet,
             {
               backgroundColor: theme.colors.background,
+              height: sheetHeight,
               transform: [{ translateY }],
-              maxHeight: SHEET_HEIGHT,
             },
           ]}
         >
@@ -335,6 +320,11 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   sheet: {
     width: "100%",
@@ -345,6 +335,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 10,
+    overflow: "hidden",
   },
   dragHandleContainer: {
     alignItems: "center",
@@ -357,6 +348,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    minHeight: 0, // Important for ScrollView to work properly
   },
 });
 

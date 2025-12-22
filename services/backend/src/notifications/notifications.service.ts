@@ -85,22 +85,15 @@ export class NotificationsService {
   }
 
   private async getOrCreateUser(clerkUserId: string) {
-    let user = await this.prisma.user.findUnique({
+    // DO NOT auto-create - only return existing users
+    const user = await this.prisma.user.findUnique({
       where: { clerkId: clerkUserId },
     });
-
+    
     if (!user) {
-      user = await this.prisma.user.create({
-        data: {
-          clerkId: clerkUserId,
-          email: `${clerkUserId}@clerk.temp`,
-          username: `user_${clerkUserId.slice(0, 8)}`,
-          firstName: null,
-          lastName: null,
-        },
-      });
+      throw new Error("User profile not found. Please complete your profile setup.");
     }
-
+    
     return user;
   }
 }

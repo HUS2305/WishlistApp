@@ -72,8 +72,13 @@ export default function TabBarWithNotch({ state, descriptors, navigation, insets
   const currentRoute = state.routes[state.index];
   const currentRouteName = currentRoute?.name;
   
+  // Hide tab bar on profile page
+  if (currentRouteName === "profile") {
+    return null;
+  }
+  
   // Main tab route names
-  const mainTabRoutes = ["index", "friends", "gifts", "profile"];
+  const mainTabRoutes = ["index", "friends", "gifts", "settings"];
   
   // Check if we're on a main tab page - use BottomMenuBar for all main tabs
   const isMainTabPage = mainTabRoutes.includes(currentRouteName || "");
@@ -158,9 +163,19 @@ export default function TabBarWithNotch({ state, descriptors, navigation, insets
             const { options } = descriptors[route.key];
             const isFocused = state.index === index;
 
-            // Skip the placeholder route
+            // Skip profile route completely - don't render anything
+            if (route.name === "profile") {
+              return null;
+            }
+
+            // Render placeholder for FAB
             if (route.name === "_placeholder") {
               return <View key={route.key} style={styles.tabPlaceholder} />;
+            }
+
+            // Skip routes with href: null or tabBarButton that returns null
+            if ((options as any).href === null || options.tabBarButton === null) {
+              return null;
             }
 
             const onPress = () => {

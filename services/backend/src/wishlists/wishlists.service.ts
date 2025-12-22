@@ -232,27 +232,18 @@ export class WishlistsService {
   }
 
   private async getOrCreateUser(clerkUserId: string) {
-    // Try to find user by Clerk ID
+    // DO NOT auto-create - only return existing users
     console.log(`🔍 Looking up user with Clerk ID: ${clerkUserId}`);
-    let user = await this.prisma.user.findUnique({
+    
+    const user = await this.prisma.user.findUnique({
       where: { clerkId: clerkUserId },
     });
-
+    
     if (!user) {
-      // Create new user if doesn't exist
-      console.log(`⚠️ User not found for Clerk ID: ${clerkUserId}, creating new user...`);
-      user = await this.prisma.user.create({
-        data: {
-          clerkId: clerkUserId,
-          email: `${clerkUserId}@clerk.temp`, // Temporary email, will be updated by webhook
-          username: `user_${clerkUserId.slice(0, 8)}`,
-        },
-      });
-      console.log('✅ Created new user:', user.id, 'for Clerk ID:', clerkUserId);
-    } else {
-      console.log(`✅ Found existing user: ${user.id} for Clerk ID: ${clerkUserId}`);
+      throw new Error("User profile not found. Please complete your profile setup.");
     }
-
+    
+    console.log(`✅ User found: ${user.id} for Clerk ID: ${clerkUserId}`);
     return user;
   }
 

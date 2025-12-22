@@ -37,7 +37,7 @@ export default function AppearanceScreen() {
       <PageHeader
         title="Appearance"
         backButton={true}
-        onBack={() => router.push("/(tabs)/profile")}
+        onBack={() => router.push("/(tabs)/settings")}
       />
 
       <ScrollView 

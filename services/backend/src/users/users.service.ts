@@ -44,8 +44,8 @@ export class UsersService {
       throw new NotFoundException("User not found");
     }
 
-    // Sanitize update data - only allow certain fields
-    const allowedFields = ['firstName', 'lastName', 'bio', 'avatar', 'privacyLevel'];
+    // Sanitize update data - allow profile fields including username and email
+    const allowedFields = ['firstName', 'lastName', 'username', 'email', 'bio', 'avatar', 'privacyLevel'];
     const sanitizedData: any = {};
     
     for (const field of allowedFields) {
@@ -54,29 +54,42 @@ export class UsersService {
       }
     }
 
-    const updated = await this.prisma.user.update({
-      where: { id: user.id },
-      data: sanitizedData,
-      select: {
-        id: true,
-        clerkId: true,
-        email: true,
-        username: true,
-        firstName: true,
-        lastName: true,
-        avatar: true,
-        bio: true,
-        privacyLevel: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    try {
+      const updated = await this.prisma.user.update({
+        where: { id: user.id },
+        data: sanitizedData,
+        select: {
+          id: true,
+          clerkId: true,
+          email: true,
+          username: true,
+          firstName: true,
+          lastName: true,
+          avatar: true,
+          bio: true,
+          privacyLevel: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
 
-    return {
-      ...updated,
-      displayName: getDisplayName(updated.firstName, updated.lastName),
-    };
+      return {
+        ...updated,
+        displayName: getDisplayName(updated.firstName, updated.lastName),
+      };
+    } catch (error: any) {
+      // Handle unique constraint violations
+      if (error.code === "P2002") {
+        const field = error.meta?.target?.[0];
+        if (field === "username") {
+          throw new Error("Username already taken");
+        } else if (field === "email") {
+          throw new Error("Email already in use");
+        }
+      }
+      throw error;
+    }
   }
 
   async findById(requestingClerkUserId: string, targetUserId: string) {
@@ -233,6 +246,15 @@ export class UsersService {
     return enrichedUsers.filter(user => !user.isBlockedByThem);
   }
 
+  async checkUsernameAvailability(username: string): Promise<{ available: boolean }> {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { username: username.trim().toLowerCase() },
+      select: { id: true },
+    });
+
+    return { available: !existingUser };
+  }
+
   async getUserProfile(requestingClerkUserId: string, targetUserId: string) {
     const requestingUser = await this.getOrCreateUser(requestingClerkUserId);
     
@@ -319,21 +341,129 @@ export class UsersService {
   }
 
   private async getOrCreateUser(clerkUserId: string) {
-    let user = await this.prisma.user.findUnique({
+    // Try to find user - DO NOT auto-create
+    const user = await this.prisma.user.findUnique({
+      where: { clerkId: clerkUserId },
+    });
+    
+    if (!user) {
+      // User hasn't completed profile creation yet
+      throw new NotFoundException("User profile not found. Please complete your profile setup.");
+    }
+    
+    return user;
+  }
+
+  async createUser(clerkUserId: string, data: {
+    username: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    avatar?: string;
+  }) {
+    try {
+      // Check if user already exists
+      const existingUser = await this.prisma.user.findUnique({
+        where: { clerkId: clerkUserId },
+      });
+
+      if (existingUser) {
+        // User exists - update with the new profile data instead
+        console.log(`User with Clerk ID ${clerkUserId} already exists - updating profile instead`);
+        const updated = await this.prisma.user.update({
+          where: { clerkId: clerkUserId },
+          data: {
+            email: data.email,
+            phone: data.phone || null,
+            username: data.username.trim(),
+            firstName: data.firstName.trim(),
+            lastName: data.lastName.trim(),
+            avatar: data.avatar || null,
+          },
+          select: {
+            id: true,
+            clerkId: true,
+            email: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+            bio: true,
+            privacyLevel: true,
+            role: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+        return {
+          ...updated,
+          displayName: getDisplayName(updated.firstName, updated.lastName),
+        };
+      }
+
+      // Create new user
+      const user = await this.prisma.user.create({
+        data: {
+          clerkId: clerkUserId,
+          email: data.email,
+          phone: data.phone || null,
+          username: data.username.toLowerCase().trim(),
+          firstName: data.firstName.trim(),
+          lastName: data.lastName.trim(),
+          avatar: data.avatar || null,
+        },
+        select: {
+          id: true,
+          clerkId: true,
+          email: true,
+          username: true,
+          firstName: true,
+          lastName: true,
+          avatar: true,
+          bio: true,
+          privacyLevel: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      return {
+        ...user,
+        displayName: getDisplayName(user.firstName, user.lastName),
+      };
+    } catch (error: any) {
+      // Handle unique constraint violations
+      if (error.code === "P2002") {
+        const field = error.meta?.target?.[0];
+        if (field === "username") {
+          throw new Error("Username already taken");
+        } else if (field === "email") {
+          throw new Error("Email already in use");
+        }
+      }
+      throw error;
+    }
+  }
+
+  async deleteByClerkId(clerkUserId: string) {
+    const user = await this.prisma.user.findUnique({
       where: { clerkId: clerkUserId },
     });
 
     if (!user) {
-      user = await this.prisma.user.create({
-        data: {
-          clerkId: clerkUserId,
-          email: `${clerkUserId}@clerk.temp`,
-          username: `user_${clerkUserId.slice(0, 8)}`,
-        },
-      });
+      throw new NotFoundException("User not found");
     }
 
-    return user;
+    // Delete user - Prisma will cascade delete all related records
+    // (wishlists, items, friendships, notifications, etc.)
+    await this.prisma.user.delete({
+      where: { id: user.id },
+    });
+
+    return { message: "User account deleted successfully" };
   }
 
   private async areFriends(userId: string, friendId: string): Promise<boolean> {

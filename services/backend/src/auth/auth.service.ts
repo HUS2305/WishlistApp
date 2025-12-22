@@ -37,18 +37,13 @@ export class AuthService {
     // Handle different webhook event types
     switch (evt.type) {
       case "user.created":
-        return await this.createUser({
-          clerkId: id,
-          email: email_addresses[0]?.email_address || "",
-          phone: phone_numbers[0]?.phone_number || null,
-          username: username || null,
-          firstName: first_name || null,
-          lastName: last_name || null,
-          avatar: image_url || null,
-        });
+        // Don't auto-create users from webhook - they will be created when they complete profile
+        console.log(`User created in Clerk: ${id} - waiting for profile completion`);
+        return { received: true, message: "User will be created after profile completion" };
 
       case "user.updated":
-        return await this.updateUser({
+        // Only update if user already exists in our database
+        return await this.updateUserIfExists({
           clerkId: id,
           email: email_addresses[0]?.email_address || "",
           phone: phone_numbers[0]?.phone_number || null,
@@ -67,7 +62,7 @@ export class AuthService {
     }
   }
 
-  private async createUser(data: {
+  private async updateUserIfExists(data: {
     clerkId: string;
     email: string;
     phone: string | null;
@@ -77,40 +72,17 @@ export class AuthService {
     avatar: string | null;
   }) {
     try {
-      const user = await this.prisma.user.create({
-        data: {
-          clerkId: data.clerkId,
-          email: data.email,
-          phone: data.phone,
-          username: data.username,
-          firstName: data.firstName,
-          lastName: data.lastName,
-          avatar: data.avatar,
-        },
+      // Check if user exists first
+      const existingUser = await this.prisma.user.findUnique({
+        where: { clerkId: data.clerkId },
       });
-      console.log("User created:", user.id);
-      return { success: true, userId: user.id };
-    } catch (error: any) {
-      // Handle unique constraint violations (user might already exist)
-      if (error.code === "P2002") {
-        console.log("User already exists, updating instead");
-        return await this.updateUser(data);
-      }
-      console.error("Error creating user:", error);
-      throw error;
-    }
-  }
 
-  private async updateUser(data: {
-    clerkId: string;
-    email: string;
-    phone: string | null;
-    username: string | null;
-    firstName: string | null;
-    lastName: string | null;
-    avatar: string | null;
-  }) {
-    try {
+      if (!existingUser) {
+        console.log(`User ${data.clerkId} not found in database - skipping webhook update`);
+        return { success: true, message: "User not in database yet" };
+      }
+
+      // Only update if user exists
       const user = await this.prisma.user.update({
         where: { clerkId: data.clerkId },
         data: {
@@ -122,16 +94,12 @@ export class AuthService {
           avatar: data.avatar,
         },
       });
-      console.log("User updated:", user.id);
+      console.log("User updated from webhook:", user.id);
       return { success: true, userId: user.id };
     } catch (error: any) {
-      if (error.code === "P2025") {
-        // User doesn't exist, create instead
-        console.log("User not found, creating instead");
-        return await this.createUser(data);
-      }
-      console.error("Error updating user:", error);
-      throw error;
+      console.error("Error updating user from webhook:", error);
+      // Don't throw - webhook failures shouldn't block Clerk operations
+      return { success: false, error: error.message };
     }
   }
 
@@ -148,6 +116,46 @@ export class AuthService {
         return { success: true, message: "User already deleted" };
       }
       console.error("Error deleting user:", error);
+      throw error;
+    }
+  }
+
+  // Public method for creating user after profile completion
+  async createUserAfterProfileCompletion(data: {
+    clerkId: string;
+    email: string;
+    phone?: string | null;
+    username: string;
+    firstName: string;
+    lastName: string;
+    avatar?: string | null;
+  }) {
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          clerkId: data.clerkId,
+          email: data.email,
+          phone: data.phone || null,
+          username: data.username,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          avatar: data.avatar || null,
+        },
+      });
+      console.log("User created after profile completion:", user.id);
+      return { success: true, userId: user.id, user };
+    } catch (error: any) {
+      // Handle unique constraint violations
+      if (error.code === "P2002") {
+        const field = error.meta?.target?.[0];
+        if (field === "username") {
+          throw new Error("Username already taken");
+        } else if (field === "email") {
+          throw new Error("Email already in use");
+        }
+        throw new Error("User already exists");
+      }
+      console.error("Error creating user:", error);
       throw error;
     }
   }

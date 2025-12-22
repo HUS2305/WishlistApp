@@ -24,7 +24,7 @@ export default function LoginScreen() {
         <SignIn
           routing="hash"
           signUpUrl="#/signup"
-          fallbackRedirectUrl="/(tabs)"
+          fallbackRedirectUrl="/"
         />
       </View>
     );
@@ -54,7 +54,10 @@ export default function LoginScreen() {
 
       if (completeSignIn.status === "complete") {
         await signInHook.setActive({ session: completeSignIn.createdSessionId });
-        router.replace("/(tabs)");
+        
+        // Check if user has completed profile in database
+        // The index page will handle the redirect, so just go to root
+        router.replace("/");
       } else {
         setError("Additional verification required");
       }

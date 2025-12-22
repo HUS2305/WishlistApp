@@ -1,6 +1,7 @@
 import axios from "axios";
+import { getApiUrl } from "../utils/apiUrl";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000/api";
+const API_URL = getApiUrl();
 
 console.log("API URL configured as:", API_URL);
 

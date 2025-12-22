@@ -27,9 +27,19 @@ export function BottomMenuBar({ state, descriptors, navigation, insets }: Bottom
             const { options } = descriptors[route.key];
             const isFocused = state.index === index;
 
-            // Skip the placeholder route
+            // Skip profile route completely - don't render anything
+            if (route.name === "profile") {
+              return null;
+            }
+
+            // Render placeholder for FAB
             if (route.name === "_placeholder") {
               return <View key={route.key} style={styles.tabPlaceholder} />;
+            }
+
+            // Skip routes with href: null or tabBarButton that returns null
+            if ((options as any).href === null || options.tabBarButton === null) {
+              return null;
             }
 
             const onPress = () => {

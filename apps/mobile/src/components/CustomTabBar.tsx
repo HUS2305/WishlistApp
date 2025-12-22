@@ -71,7 +71,7 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
     pathname === "/index" ||
     pathname === "/(tabs)/friends" ||
     pathname === "/(tabs)/gifts" ||
-    pathname === "/(tabs)/profile" ||
+    pathname === "/(tabs)/settings" ||
     (pathname?.startsWith("/(tabs)/") && 
      !pathname?.includes("/wishlist/") && 
      !pathname?.includes("/friends/search") && 
@@ -131,9 +131,19 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
             const { options } = descriptors[route.key];
             const isFocused = state.index === index;
 
-            // Skip the placeholder route - it's handled by the notch
+            // Skip profile route completely - don't render anything
+            if (route.name === "profile") {
+              return null;
+            }
+
+            // Render placeholder for FAB
             if (route.name === "_placeholder") {
               return <View key={route.key} style={styles.tabPlaceholder} />;
+            }
+
+            // Skip routes with href: null or tabBarButton that returns null
+            if ((options as any).href === null || options.tabBarButton === null) {
+              return null;
             }
 
             const onPress = () => {

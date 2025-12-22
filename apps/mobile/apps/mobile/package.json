@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "@expo-google-fonts/poppins": "^0.4.1"
+    "@expo-google-fonts/poppins": "^0.4.1",
+    "react-native-date-picker": "^5.0.13"
   }
 }

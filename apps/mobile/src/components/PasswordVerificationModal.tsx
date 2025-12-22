@@ -1,86 +1,108 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  TextInput,
+  Alert,
 } from "react-native";
 import { Text } from "./Text";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
+import { useUser } from "@clerk/clerk-expo";
 
-interface DeleteConfirmModalProps {
+interface PasswordVerificationModalProps {
   visible: boolean;
-  title: string;
-  type?: "wishlist" | "item" | "notifications"; // Type of item being deleted
-  onConfirm: () => void;
+  onConfirm: (password: string) => Promise<void>;
   onCancel: () => void;
-  isDeleting?: boolean;
-  modalTitle?: string; // Optional custom modal title
+  isVerifying?: boolean;
 }
 
-export function DeleteConfirmModal({
+export function PasswordVerificationModal({
   visible,
-  title,
-  type = "wishlist",
   onConfirm,
   onCancel,
-  isDeleting = false,
-  modalTitle,
-}: DeleteConfirmModalProps) {
+  isVerifying = false,
+}: PasswordVerificationModalProps) {
   const { theme } = useTheme();
-  const defaultModalTitle = type === "item" ? "Delete Item" : type === "notifications" ? "Delete All Notifications" : "Delete Wishlist";
-  const finalModalTitle = modalTitle || defaultModalTitle;
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    if (!password.trim()) {
+      Alert.alert("Error", "Please enter your password");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await onConfirm(password);
+      setPassword(""); // Clear password on success
+    } catch (error: any) {
+      Alert.alert(
+        "Verification Failed",
+        error.message || "Incorrect password. Please try again."
+      );
+      setPassword(""); // Clear password on error
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setPassword("");
+    onCancel();
+  };
 
   return (
-    <BottomSheet visible={visible} onClose={onCancel}>
+    <BottomSheet visible={visible} onClose={handleCancel}>
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerSpacer} />
           <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-            {finalModalTitle}
+            Verify Your Identity
           </Text>
           <TouchableOpacity
-            onPress={onCancel}
+            onPress={handleCancel}
             style={styles.closeButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            disabled={isDeleting}
+            disabled={isLoading || isVerifying}
           >
             <Feather 
               name="x" 
               size={24} 
-              color={isDeleting ? theme.colors.textSecondary : theme.colors.textPrimary} 
+              color={isLoading || isVerifying ? theme.colors.textSecondary : theme.colors.textPrimary} 
             />
           </TouchableOpacity>
         </View>
 
         {/* Content */}
         <View style={styles.content}>
-          {/* Warning Icon */}
-          <View style={[
-            styles.iconContainer,
-            { backgroundColor: theme.isDark ? '#EF444420' : '#FEE2E2' }
-          ]}>
-            <Feather name="alert-triangle" size={32} color="#EF4444" />
-          </View>
-
-          {/* Message */}
           <Text style={[styles.message, { color: theme.colors.textPrimary }]}>
-            {type === "notifications" 
-              ? "Are you sure you want to delete all notifications? This action cannot be undone."
-              : modalTitle === "Sign Out"
-              ? "Are you sure you want to sign out? You'll need to sign in again to access your account."
-              : modalTitle === "Delete Account"
-              ? "Are you sure you want to delete your account? This will permanently delete all your wishlists, items, and profile data. This action cannot be undone."
-              : modalTitle === "Block User"
-              ? `Are you sure you want to block ${title}? You won't be able to see their profile or send them friend requests.`
-              : modalTitle === "Remove Friend"
-              ? `Are you sure you want to remove ${title}? This action cannot be undone.`
-              : `Are you sure you want to delete "${title}"? This action cannot be undone.`
-            }
+            For your security, please enter your password to confirm this action.
           </Text>
+
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.colors.surface,
+                color: theme.colors.textPrimary,
+                borderColor: theme.colors.textSecondary + '30',
+              },
+            ]}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Enter your password"
+            placeholderTextColor={theme.colors.textSecondary}
+            secureTextEntry
+            autoCapitalize="none"
+            editable={!isLoading && !isVerifying}
+            onSubmitEditing={handleConfirm}
+          />
 
           {/* Action Buttons */}
           <View style={styles.actions}>
@@ -93,8 +115,8 @@ export function DeleteConfirmModal({
                   borderColor: theme.colors.textSecondary + '40',
                 }
               ]}
-              onPress={onCancel}
-              disabled={isDeleting}
+              onPress={handleCancel}
+              disabled={isLoading || isVerifying}
               activeOpacity={0.7}
             >
               <Text style={[
@@ -108,18 +130,19 @@ export function DeleteConfirmModal({
             <TouchableOpacity
               style={[
                 styles.button,
-                styles.deleteButton,
-                isDeleting && styles.deleteButtonDisabled
+                styles.confirmButton,
+                { backgroundColor: theme.colors.primary },
+                (isLoading || isVerifying) && styles.buttonDisabled
               ]}
-              onPress={onConfirm}
-              disabled={isDeleting}
+              onPress={handleConfirm}
+              disabled={isLoading || isVerifying}
               activeOpacity={0.7}
             >
-              {isDeleting ? (
+              {isLoading || isVerifying ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.deleteButtonText}>
-                  {modalTitle === "Sign Out" ? "Sign Out" : modalTitle === "Block User" ? "Block" : modalTitle === "Remove Friend" ? "Remove" : "Delete"}
+                <Text style={styles.confirmButtonText}>
+                  Verify
                 </Text>
               )}
             </TouchableOpacity>
@@ -155,7 +178,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   headerSpacer: {
-    width: 24, // Same width as close button to center the title
+    width: 24,
   },
   closeButton: {
     padding: 4,
@@ -163,22 +186,21 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
-    alignItems: "center",
-  },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
   },
   message: {
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
-    marginBottom: 24,
+    marginBottom: 20,
     paddingHorizontal: 8,
+  },
+  input: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    fontSize: 16,
+    borderWidth: 1,
+    marginBottom: 24,
   },
   actions: {
     flexDirection: "row",
@@ -201,15 +223,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  deleteButton: {
+  confirmButton: {
     backgroundColor: "#EF4444",
   },
-  deleteButtonDisabled: {
+  buttonDisabled: {
     opacity: 0.6,
   },
-  deleteButtonText: {
+  confirmButtonText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#fff",
   },
 });
+
