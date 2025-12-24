@@ -1123,6 +1123,7 @@ export default function WishlistDetailScreen() {
           setAddToWishlistModalVisible(false);
           setSelectedItem(null);
         }}
+        autoHeight={true}
       >
         <View style={[styles.bottomSheetContainer, { backgroundColor: theme.colors.background }]}>
           {/* Header */}

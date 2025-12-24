@@ -5,8 +5,10 @@ import { useAuth } from "@clerk/clerk-expo";
 import { useState, useEffect } from "react";
 import { View, ActivityIndicator } from "react-native";
 import api from "@/services/api";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function TabsLayout() {
+  const { theme } = useTheme();
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const [checkingProfile, setCheckingProfile] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);
@@ -56,8 +58,8 @@ export default function TabsLayout() {
   // Wait for Clerk to load and profile check to complete
   if (!isLoaded || checkingProfile) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.background }}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }

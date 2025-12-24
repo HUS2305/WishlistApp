@@ -34,7 +34,7 @@ export function DeleteConfirmModal({
   const finalModalTitle = modalTitle || defaultModalTitle;
 
   return (
-    <BottomSheet visible={visible} onClose={onCancel}>
+    <BottomSheet visible={visible} onClose={onCancel} autoHeight={true}>
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
         <View style={styles.header}>

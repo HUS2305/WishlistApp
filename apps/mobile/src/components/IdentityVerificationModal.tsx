@@ -6,13 +6,13 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
-  Modal,
   Platform,
 } from "react-native";
 import { Text } from "./Text";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useUser } from "@clerk/clerk-expo";
+import { BottomSheet } from "./BottomSheet";
 
 interface IdentityVerificationModalProps {
   visible: boolean;
@@ -42,9 +42,14 @@ export function IdentityVerificationModal({
       setCode("");
       setCodeSent(false);
       setVerification(null);
-      // Auto-send code when modal opens
+      // Delay sending code to allow sheet to measure content first
+      // This prevents layout shift and re-measurement
       if (user && !codeSent && !isSendingCode) {
-        sendVerificationCode();
+        // Small delay to let BottomSheet measure content first
+        const timer = setTimeout(() => {
+          sendVerificationCode();
+        }, 100);
+        return () => clearTimeout(timer);
       }
     } else {
       setCode("");
@@ -214,20 +219,8 @@ export function IdentityVerificationModal({
   if (!user) return null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={handleCancel}
-      statusBarTranslucent
-    >
-      <View style={styles.modalOverlay}>
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={handleCancel}
-        />
-        <View style={[styles.modalContent, { backgroundColor: theme.colors.background }]}>
+    <BottomSheet visible={visible} onClose={handleCancel} autoHeight={true}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerSpacer} />
@@ -254,73 +247,72 @@ export function IdentityVerificationModal({
               We've sent a 6-digit verification code to {user.emailAddresses[0]?.emailAddress}. Please enter it below.
             </Text>
 
-            {!codeSent && !isSendingCode && (
-              <TouchableOpacity
-                onPress={sendVerificationCode}
-                disabled={isSendingCode}
-                style={styles.resendButton}
-              >
-                <Text style={[styles.resendText, { color: theme.colors.primary }]}>
-                  Send Code
-                </Text>
-              </TouchableOpacity>
-            )}
+            {/* Always show input field to prevent layout shift */}
+            <TextInput
+              ref={codeInputRef}
+              style={[
+                styles.input,
+                styles.codeInput,
+                {
+                  backgroundColor: theme.colors.surface,
+                  color: theme.colors.textPrimary,
+                  borderColor: theme.colors.textSecondary + '30',
+                  opacity: codeSent ? 1 : 0.5,
+                },
+              ]}
+              value={code}
+              onChangeText={(text) => {
+                // Only allow numbers
+                const numericText = text.replace(/[^0-9]/g, '');
+                setCode(numericText);
+              }}
+              placeholder="000000"
+              placeholderTextColor={theme.colors.textSecondary}
+              keyboardType="number-pad"
+              maxLength={6}
+              editable={codeSent && !isLoading && !isVerifying}
+              onSubmitEditing={handleConfirm}
+              selectTextOnFocus={false}
+              textContentType="oneTimeCode"
+              returnKeyType="done"
+              autoFocus={Platform.OS === 'web' && codeSent}
+            />
 
-            {isSendingCode && (
-              <View style={styles.sendingContainer}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-                <Text style={[styles.sendingText, { color: theme.colors.textSecondary }]}>
-                  Sending code...
-                </Text>
-              </View>
-            )}
-
-            {codeSent && (
-              <>
-                <TextInput
-                  ref={codeInputRef}
-                  style={[
-                    styles.input,
-                    styles.codeInput,
-                    {
-                      backgroundColor: theme.colors.surface,
-                      color: theme.colors.textPrimary,
-                      borderColor: theme.colors.textSecondary + '30',
-                    },
-                  ]}
-                  value={code}
-                  onChangeText={(text) => {
-                    // Only allow numbers
-                    const numericText = text.replace(/[^0-9]/g, '');
-                    setCode(numericText);
-                  }}
-                  placeholder="000000"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  editable={!isLoading && !isVerifying}
-                  onSubmitEditing={handleConfirm}
-                  selectTextOnFocus={false}
-                  textContentType="oneTimeCode"
-                  returnKeyType="done"
-                  autoFocus={Platform.OS === 'web'}
-                />
-
+            {/* Always render resend button container to prevent layout shift */}
+            <View style={styles.resendButton}>
+              {!codeSent && !isSendingCode && (
                 <TouchableOpacity
                   onPress={sendVerificationCode}
                   disabled={isSendingCode}
-                  style={styles.resendButton}
+                  style={styles.resendButtonInner}
                 >
-                  {isSendingCode ? (
-                    <ActivityIndicator size="small" color={theme.colors.primary} />
-                  ) : (
-                    <Text style={[styles.resendText, { color: theme.colors.primary }]}>
-                      Resend Code
-                    </Text>
-                  )}
+                  <Text style={[styles.resendText, { color: theme.colors.primary }]}>
+                    Send Code
+                  </Text>
                 </TouchableOpacity>
-              </>
-            )}
+              )}
+
+              {isSendingCode && (
+                <View style={styles.sendingContainer}>
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                  <Text style={[styles.sendingText, { color: theme.colors.textSecondary }]}>
+                    Sending code...
+                  </Text>
+                </View>
+              )}
+
+              {codeSent && !isSendingCode && (
+                <TouchableOpacity
+                  onPress={sendVerificationCode}
+                  disabled={isSendingCode}
+                  style={styles.resendButtonInner}
+                >
+                  <Text style={[styles.resendText, { color: theme.colors.primary }]}>
+                    Resend Code
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
             {/* Action Buttons */}
             <View style={styles.actions}>
@@ -367,25 +359,14 @@ export function IdentityVerificationModal({
             </View>
           </View>
         </View>
-      </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: {
+  container: {
     flex: 1,
-    justifyContent: "flex-end",
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
     paddingBottom: Platform.OS === 'ios' ? 34 : 24,
-    maxHeight: '90%',
   },
   header: {
     flexDirection: "row",
@@ -439,6 +420,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 24,
     paddingVertical: 8,
+    minHeight: 40, // Fixed height to prevent layout shift
+  },
+  resendButtonInner: {
+    alignItems: "center",
   },
   resendText: {
     fontSize: 14,

@@ -3,8 +3,10 @@ import { useAuth } from "@clerk/clerk-expo";
 import { View, ActivityIndicator } from "react-native";
 import { useState, useEffect } from "react";
 import api from "@/services/api";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function Index() {
+  const { theme } = useTheme();
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const [checkingProfile, setCheckingProfile] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);
@@ -56,8 +58,8 @@ export default function Index() {
   // Wait for Clerk to load before making routing decisions
   if (!isLoaded || checkingProfile) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.background }}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }

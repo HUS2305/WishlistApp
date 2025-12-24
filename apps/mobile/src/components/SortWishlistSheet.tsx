@@ -42,7 +42,7 @@ export function SortWishlistSheet({ visible, onClose, currentSort, onSortChange 
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} autoHeight={true}>
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
         <View style={styles.header}>

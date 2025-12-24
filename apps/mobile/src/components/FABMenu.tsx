@@ -377,7 +377,7 @@ export function FABMenu({
               },
             ]}
           >
-            <Feather name="plus" size={32} color={theme.colors.textPrimary} />
+            <Feather name="plus" size={32} color="#FFFFFF" />
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -422,7 +422,7 @@ export function FABMenu({
                   },
                 ]}
               >
-                <Feather name="plus" size={32} color={theme.colors.textPrimary} />
+                <Feather name="plus" size={32} color="#FFFFFF" />
               </TouchableOpacity>
             </Animated.View>
 

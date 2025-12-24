@@ -34,8 +34,8 @@ export const themes: Record<ThemeName, Theme> = {
     name: 'modernLight',
     isDark: false,
     colors: {
-      primary: '#4A90E2',
-      primaryVariant: '#357ABD',
+      primary: '#90CAF9',
+      primaryVariant: '#64B5F6',
       secondary: '#F5A623',
       background: '#E4E4E4',
       surface: '#FFFFFF',

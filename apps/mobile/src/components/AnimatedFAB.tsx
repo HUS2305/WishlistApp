@@ -116,7 +116,7 @@ export function AnimatedFAB({ onPress, variant = "center", positionStyle = "tab-
           variant === "bottom-right" && styles.fabBottomRight,
         ]}
       >
-        <Feather name="plus" size={32} color={theme.colors.textPrimary} />
+        <Feather name="plus" size={32} color="#FFFFFF" />
       </TouchableOpacity>
     </Animated.View>
   );

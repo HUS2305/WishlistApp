@@ -686,6 +686,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
       <BottomSheet 
           visible={showWishlistBottomSheet} 
           onClose={() => setShowWishlistBottomSheet(false)}
+          autoHeight={true}
         >
           <View style={[styles.wishlistBottomSheetContainer, { backgroundColor: theme.colors.background }]}>
             {/* Header */}

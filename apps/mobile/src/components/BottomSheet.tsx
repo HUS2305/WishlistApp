@@ -26,6 +26,7 @@ export function BottomSheet({ visible, onClose, children, height = 0.9, autoHeig
   const { theme } = useTheme();
   const contentRef = useRef<View>(null);
   const [contentHeight, setContentHeight] = useState(0);
+  const [isContentMeasured, setIsContentMeasured] = useState(!autoHeight); // For autoHeight, wait for measurement
   
   const fixedMinHeight = SCREEN_HEIGHT * height;
   const maxHeight = SCREEN_HEIGHT * 0.9;
@@ -91,36 +92,53 @@ export function BottomSheet({ visible, onClose, children, height = 0.9, autoHeig
   }, [visible]);
   
   // Measure content height when autoHeight is enabled
+  // Only measure once to prevent re-animation when content changes
+  const hasMeasuredRef = useRef(false);
   const handleContentLayout = useCallback((event: any) => {
-    if (autoHeight) {
+    if (autoHeight && !hasMeasuredRef.current) {
       const { height: measuredHeight } = event.nativeEvent.layout;
       if (measuredHeight > 0) {
         // Add padding for drag handle area (48px) and some bottom padding (12px)
         const totalHeight = measuredHeight + 60;
         const clampedHeight = Math.min(Math.max(totalHeight, 150), maxHeight);
         
-        // Only update if significantly different to avoid infinite loops
-        if (Math.abs(measuredHeight - contentHeight) > 5 || contentHeight === 0) {
-          setContentHeight(measuredHeight);
-          setCurrentHeight(clampedHeight);
-          // Also update translateY initial position
-          translateY.setValue(clampedHeight);
-        }
+        setContentHeight(measuredHeight);
+        setCurrentHeight(clampedHeight);
+        // Also update translateY initial position immediately to prevent flash
+        translateY.setValue(clampedHeight);
+        // Mark content as measured so animation can proceed
+        setIsContentMeasured(true);
+        hasMeasuredRef.current = true; // Prevent re-measurement
       }
     }
-  }, [autoHeight, maxHeight, contentHeight, translateY]);
+  }, [autoHeight, maxHeight, translateY]);
 
   // Update height when contentHeight changes (for autoHeight)
+  // Only update if we haven't started animating yet (to prevent re-animation)
   useEffect(() => {
-    if (autoHeight && contentHeight > 0 && visible) {
+    if (autoHeight && contentHeight > 0 && visible && !isContentMeasured) {
       const targetHeight = Math.min(Math.max(contentHeight + 60, 150), maxHeight);
       setCurrentHeight(targetHeight);
     }
-  }, [contentHeight, autoHeight, visible, maxHeight]);
+  }, [contentHeight, autoHeight, visible, maxHeight, isContentMeasured]);
+
+  // Reset content measured state when modal closes
+  useEffect(() => {
+    if (!visible) {
+      setIsContentMeasured(!autoHeight); // Reset to false for autoHeight when closed
+      hasMeasuredRef.current = false; // Reset measurement flag when closed
+    }
+  }, [visible, autoHeight]);
 
   // Handle visibility changes and animations
   useEffect(() => {
     if (visible && !isClosing) {
+      // For autoHeight, wait for content to be measured before animating
+      if (autoHeight && !isContentMeasured) {
+        // Don't animate yet, wait for handleContentLayout to measure
+        return;
+      }
+      
       // Reset height to minimum when opening
       if (autoHeight) {
         // If we have measured content, use it; otherwise use default
@@ -160,7 +178,7 @@ export function BottomSheet({ visible, onClose, children, height = 0.9, autoHeig
       isClosingRef.current = false;
       setIsClosing(false);
     }
-  }, [visible, isClosing, translateY, opacity, minHeight]);
+  }, [visible, isClosing, translateY, opacity, minHeight, autoHeight, isContentMeasured, contentHeight, fixedMinHeight, maxHeight]);
   
   // Handle close requests - start animation, then call onClose after
   const handleClose = useCallback(() => {

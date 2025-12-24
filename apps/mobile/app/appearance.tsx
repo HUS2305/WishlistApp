@@ -118,22 +118,6 @@ export default function AppearanceScreen() {
             );
           })}
         </View>
-
-        <View style={styles.currentThemeSection}>
-          <Text style={[styles.currentThemeLabel, { color: currentTheme.colors.textSecondary }]}>
-            Current Theme
-          </Text>
-          <View
-            style={[
-              styles.currentThemeBadge,
-              { backgroundColor: currentTheme.colors.primary },
-            ]}
-          >
-            <Text style={styles.currentThemeText}>
-              {getThemeDisplayName(themeName)}
-            </Text>
-          </View>
-        </View>
       </ScrollView>
     </View>
   );
@@ -154,7 +138,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: "700",
     marginBottom: 8,
   },
@@ -203,27 +187,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-  },
-  currentThemeSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.1)",
-  },
-  currentThemeLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  currentThemeBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  currentThemeText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
   },
 });

@@ -1,4 +1,4 @@
-import { View, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Image, Alert, Platform } from "react-native";
+import { View, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Image, Alert } from "react-native";
 import { Text } from "@/components/Text";
 import { router, useLocalSearchParams } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -49,6 +49,7 @@ export default function FriendProfileScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [blockConfirmVisible, setBlockConfirmVisible] = useState(false);
   const [isRemovingFriend, setIsRemovingFriend] = useState(false);
   const [isProcessingRequest, setIsProcessingRequest] = useState(false);
   const [isBlockingUser, setIsBlockingUser] = useState(false);
@@ -99,63 +100,33 @@ export default function FriendProfileScreen() {
     }, 100);
   };
 
-  const handleBlockUser = useCallback(async () => {
+  const handleBlockUser = useCallback(() => {
     if (!profile || !id) {
       return;
     }
-    
-    const userName = getDisplayName(profile.profile) || profile.profile.username || "this user";
-    const confirmMessage = `Are you sure you want to block ${userName}? You won't be able to see their profile or send them friend requests.`;
-    
-    if (Platform.OS === 'web') {
-      const win = (globalThis as any).window as { confirm: (msg: string) => boolean; alert: (msg: string) => void } | undefined;
-      const confirmed = win ? win.confirm(confirmMessage) : false;
-      if (!confirmed) {
-        return;
-      }
-      
-      try {
-        setIsBlockingUser(true);
-        await friendsService.blockUser(id);
-        if (win) {
-          win.alert("User blocked successfully");
-        }
-        router.back();
-      } catch (error: any) {
-        console.error("Error blocking user:", error);
-        if (win) {
-          win.alert(error.response?.data?.message || error.message || "Failed to block user");
-        }
-      } finally {
-        setIsBlockingUser(false);
-      }
-    } else {
-      Alert.alert(
-        "Block User",
-        confirmMessage,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Block",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                setIsBlockingUser(true);
-                await friendsService.blockUser(id);
-                Alert.alert("Success", "User blocked successfully");
-                router.back();
-              } catch (error: any) {
-                console.error("Error blocking user:", error);
-                Alert.alert("Error", error.response?.data?.message || error.message || "Failed to block user");
-              } finally {
-                setIsBlockingUser(false);
-              }
-            },
-          },
-        ]
-      );
+    // Close menu first, then open block modal after a short delay
+    setMenuVisible(false);
+    setTimeout(() => {
+      setBlockConfirmVisible(true);
+    }, 150);
+  }, [profile, id]);
+
+  const confirmBlockUser = async () => {
+    if (!profile || !id) return;
+    try {
+      setIsBlockingUser(true);
+      await friendsService.blockUser(id);
+      Alert.alert("Success", "User blocked successfully");
+      setBlockConfirmVisible(false);
+      await fetchProfile();
+    } catch (error: any) {
+      console.error("Error blocking user:", error);
+      Alert.alert("Error", error.response?.data?.message || error.message || "Failed to block user");
+      setBlockConfirmVisible(false);
+    } finally {
+      setIsBlockingUser(false);
     }
-  }, [profile, id, router]);
+  };
 
   const handleUnblockUser = async () => {
     if (!profile || !id) return;
@@ -375,7 +346,7 @@ export default function FriendProfileScreen() {
 
       {/* Pending Friend Request Section (Received) */}
       {profile.pendingRequestId && !profile.areFriends && (
-        <View style={[styles.requestSection, { borderBottomColor: theme.colors.textSecondary + '20' }]}>
+        <View style={[styles.requestSection, { borderBottomColor: theme.colors.textSecondary + '20', borderBottomWidth: 0 }]}>
           <Text style={[styles.requestSectionTitle, { color: theme.colors.textPrimary }]}>
             Friend Request
           </Text>
@@ -410,14 +381,14 @@ export default function FriendProfileScreen() {
 
       {/* Sent Friend Request Section */}
       {profile.sentRequestId && !profile.areFriends && (
-        <View style={[styles.requestSection, { borderBottomColor: theme.colors.textSecondary + '20' }]}>
+        <View style={[styles.requestSection, { borderBottomColor: theme.colors.textSecondary + '20', borderBottomWidth: 0 }]}>
           <View style={styles.sentRequestHeader}>
-            <Text style={[styles.requestSectionTitle, { color: theme.colors.textPrimary }]}>
+            <Text style={[styles.requestSectionTitle, { color: theme.colors.textPrimary, marginBottom: 0, includeFontPadding: false }]}>
               Friend Request Sent
             </Text>
-            <View style={[styles.statusBadge, { backgroundColor: theme.colors.textSecondary + '15' }]}>
+            <View style={[styles.statusBadge, { backgroundColor: theme.colors.textSecondary + '15', alignSelf: 'center' }]}>
               <Feather name="clock" size={14} color={theme.colors.textSecondary} />
-              <Text style={[styles.statusBadgeText, { color: theme.colors.textSecondary }]}>Pending</Text>
+              <Text style={[styles.statusBadgeText, { color: theme.colors.textSecondary, includeFontPadding: false }]}>Pending</Text>
             </View>
           </View>
           <TouchableOpacity
@@ -556,6 +527,20 @@ export default function FriendProfileScreen() {
         isDeleting={isRemovingFriend}
       />
 
+      {/* Block User Confirmation Modal */}
+      {profile && (
+        <DeleteConfirmModal
+          visible={blockConfirmVisible}
+          title={getDisplayName(profile.profile) || profile.profile.username || "this user"}
+          modalTitle="Block User"
+          onConfirm={confirmBlockUser}
+          onCancel={() => {
+            setBlockConfirmVisible(false);
+          }}
+          isDeleting={isBlockingUser}
+        />
+      )}
+
       {/* Sort Modal */}
       <SortWishlistSheet
         visible={sortModalVisible}
@@ -675,7 +660,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 16,
   },
   statusBadge: {
     flexDirection: "row",

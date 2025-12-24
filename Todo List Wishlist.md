@@ -23,7 +23,7 @@
 * when clicking an image of an item it should be in the focus
 
 ### Friends page
-* Fix styling
+* ✅ Fix styling
 * ✅ Add search function - Inline animated search bar with Instagram-style UX
 * ✅ Create adding friends feature - Send friend requests via search
 * ✅ Show friend requests (both ways) and options to accept and decline - Pending requests section with themed accept/decline buttons
@@ -48,21 +48,21 @@
 * ✅ Birthday display - Show birthdays on friend profiles (friends only, with privacy controls)
 * ⚠️ Important dates/events - Not yet implemented (mentioned in requirements)
 * ⚠️ Mutual friends display - Not yet implemented (mentioned in cursorrules.md)
-* ⚠️ Block/unblock users - BLOCKED status exists in schema but UI functionality not implemented
+* ✅ Block/unblock users - BLOCKED status exists in schema but UI functionality not implemented
 
 ### Gifts
 * find out what should go here
 * Gift recommendation based on profile (age/sex/interests)
 
 ### Profile page
-* Turn profile page into a instagram inspired page
-* showcase how others view u
-* allow access to settings page
-* Saved themes by user.
-* Delete my account feature (deletes from both Clerk and database) 
+✅ Turn profile page into a instagram inspired page
+✅ showcase how others view u
+✅ allow access to settings page
+✅ Saved themes by user.
+✅ Delete my account feature (deletes from both Clerk and database) 
 
 ### Fab button
-* implement other buttons features
+✅ implement other buttons features
 
 ### Add Item
 * Add item from link, scan barcode, manual entry --, share link to app
@@ -71,9 +71,9 @@
 
 ### Guided onboarding
 * sign up
-* create profile
+✅ create profile
 * choose interests
-* choose default theme
+✅ choose default theme
 
 
 
@@ -85,8 +85,6 @@
 ### Affiliate marketing
 * add products, graphs, show cheapest options, replace links
 
-
-### Sync everything with database
 
 
 
