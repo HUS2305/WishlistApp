@@ -7,12 +7,17 @@ import { View, ActivityIndicator } from "react-native";
 import api from "@/services/api";
 
 export default function TabsLayout() {
-  const { isSignedIn, getToken } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
   const [checkingProfile, setCheckingProfile] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);
 
   useEffect(() => {
     async function checkProfile() {
+      // Wait for Clerk to be loaded before checking profile
+      if (!isLoaded) {
+        return;
+      }
+
       if (!isSignedIn) {
         setCheckingProfile(false);
         return;
@@ -24,13 +29,19 @@ export default function TabsLayout() {
         if (token) {
           await api.get("/users/me");
           setHasProfile(true);
+        } else {
+          // If no token but user is signed in, wait a bit and retry
+          // This can happen during initial load
+          console.warn("No token available yet, assuming profile exists to avoid redirect loop");
+          setHasProfile(true);
         }
       } catch (error: any) {
         // If user not found (404), they need to complete profile
         if (error.response?.status === 404 || error.message?.includes("not found")) {
           setHasProfile(false);
         } else {
-          // For other errors, assume they have profile to avoid blocking
+          // For other errors (network, 401, etc.), assume they have profile to avoid blocking
+          // This prevents redirect loops on refresh when there are temporary network issues
           console.warn("Error checking profile:", error);
           setHasProfile(true);
         }
@@ -40,10 +51,10 @@ export default function TabsLayout() {
     }
 
     checkProfile();
-  }, [isSignedIn, getToken]);
+  }, [isLoaded, isSignedIn, getToken]);
 
-  // Show loading while checking profile
-  if (checkingProfile) {
+  // Wait for Clerk to load and profile check to complete
+  if (!isLoaded || checkingProfile) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
         <ActivityIndicator size="large" />

@@ -14,10 +14,13 @@ import { SortWishlistSheet, type SortOption } from "@/components/SortWishlistShe
 import { loadSortPreference, saveSortPreference, sortWishlists } from "@/utils/sortPreferences";
 import { useAuth } from "@clerk/clerk-expo";
 import { wishlistEvents } from "@/utils/wishlistEvents";
+import { useUserCurrency } from "@/hooks/useUserCurrency";
+import { PriceDisplay } from "@/components/PriceDisplay";
 
 export default function WishlistsScreen() {
   const { theme } = useTheme();
   const { userId, isLoaded, isSignedIn } = useAuth();
+  const { userCurrency } = useUserCurrency();
   const { unreadNotificationsCount, refreshUnreadNotificationsCount } = useNotificationContext();
   const [wishlists, setWishlists] = useState<Wishlist[]>([]);
   const [isLoading, setIsLoading] = useState(false); // Start as false to prevent flash
@@ -246,12 +249,25 @@ export default function WishlistsScreen() {
                         />
                       </View>
                       <View style={styles.metricsContainer}>
-                        <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>Active wishes</Text>
-                        <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>{activeWishes}</Text>
-                        <View style={[styles.metricDivider, { backgroundColor: theme.colors.textSecondary + '40' }]} />
-                        <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>
-                          {currency} {totalPrice.toFixed(2)}
+                        <Text 
+                          style={[styles.metricLabel, { color: theme.colors.textSecondary }]}
+                          allowFontScaling={false}
+                        >
+                          Active wishes
                         </Text>
+                        <Text 
+                          style={[styles.metricValue, { color: theme.colors.textPrimary }]}
+                          allowFontScaling={false}
+                        >
+                          {activeWishes}
+                        </Text>
+                        <View style={[styles.metricDivider, { backgroundColor: theme.colors.textSecondary + '40' }]} />
+                        <PriceDisplay
+                          amount={totalPrice}
+                          currency={currency}
+                          textStyle={[styles.metricValue, { color: theme.colors.textPrimary }]}
+                          containerStyle={{ margin: 0, padding: 0 }}
+                        />
                       </View>
                     </View>
                     <View style={styles.imagePlaceholder}>
@@ -345,8 +361,12 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   metricValue: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontFamily: "Poppins_600SemiBold",
+    letterSpacing: 0.2,
+    lineHeight: 20,
+    includeFontPadding: false,
+    color: "red",
   },
   metricDivider: {
     width: 1,

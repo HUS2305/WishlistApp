@@ -26,6 +26,7 @@ import { EditWishlistSheet } from "@/components/EditWishlistSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 import { useAuth } from "@clerk/clerk-expo";
 import api from "@/services/api";
+import { PriceDisplay } from "@/components/PriceDisplay";
 
 export default function WishlistDetailScreen() {
   const { theme } = useTheme();
@@ -196,7 +197,7 @@ export default function WishlistDetailScreen() {
     const quantity = item.quantity || 1; // Default to 1 if no quantity specified
     return sum + (price * quantity);
   }, 0);
-  const currency = items.length > 0 ? items[0].currency : "$";
+  const currency = items.length > 0 ? items[0].currency : "USD";
 
   // Get privacy level display
   const getPrivacyInfo = (privacyLevel: string) => {
@@ -312,7 +313,7 @@ export default function WishlistDetailScreen() {
         description: selectedItem.description || undefined,
         url: selectedItem.url || undefined,
         price: selectedItem.price || undefined,
-        currency: selectedItem.currency || "USD",
+        currency: selectedItem.currency || "USD", // Keep original currency when copying item
         priority: selectedItem.priority || "NICE_TO_HAVE",
         quantity: selectedItem.quantity || undefined,
       });
@@ -611,15 +612,28 @@ export default function WishlistDetailScreen() {
                       color={itemIsReserved ? theme.colors.textSecondary + '80' : theme.colors.textSecondary} 
                       style={{ marginRight: 4 }} 
                     />
+                    <PriceDisplay
+                      amount={item.price}
+                      currency={item.currency || 'USD'}
+                      textStyle={[
+                        styles.itemPrice, 
+                        { 
+                          color: itemIsReserved 
+                            ? theme.colors.textSecondary + '80' 
+                            : theme.colors.textSecondary 
+                        }
+                      ]}
+                    />
                     <Text style={[
                       styles.itemPrice, 
                       { 
                         color: itemIsReserved 
                           ? theme.colors.textSecondary + '80' 
-                          : theme.colors.textSecondary 
+                          : theme.colors.textSecondary,
+                        marginLeft: 6
                       }
                     ]}>
-                      {item.currency || 'USD'} {item.price.toFixed(2)} / per piece
+                      / per piece
                     </Text>
                   </View>
                 )}
@@ -1004,9 +1018,12 @@ export default function WishlistDetailScreen() {
             </View>
             <View style={styles.statItem}>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total value</Text>
-              <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>
-                {currency} {totalPrice.toFixed(2)}
-              </Text>
+              <PriceDisplay
+                amount={totalPrice}
+                currency={currency}
+                textStyle={[styles.statValue, { color: theme.colors.textPrimary }]}
+                containerStyle={{ flexShrink: 0 }}
+              />
             </View>
           </View>
           
@@ -1371,10 +1388,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     justifyContent: "center",
     gap: 24,
+    flexWrap: "nowrap",
   },
   statItem: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
+    flexWrap: "nowrap",
+    margin: 0,
+    padding: 0,
   },
   statDivider: {
     width: 1,
@@ -1384,10 +1406,22 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 14,
     marginRight: 8,
+    marginBottom: 0,
+    marginTop: 0,
+    marginLeft: 0,
+    padding: 0,
+    lineHeight: 20,
+    includeFontPadding: false,
   },
   statValue: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Poppins_600SemiBold",
+    letterSpacing: 0.2,
+    margin: 0,
+    padding: 0,
+    lineHeight: 20,
+    includeFontPadding: false,
+    color: "red",
   },
   privacyText: {
     fontSize: 12,
@@ -1525,6 +1559,7 @@ const styles = StyleSheet.create({
   itemPrice: {
     fontSize: 12,
     lineHeight: 22,
+    fontWeight: "500",
   },
   itemQuantityContainer: {
     flexDirection: "row",

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,20 +15,30 @@ import { Card } from "@/components/ui";
 import type { Priority } from "@/types";
 import { PageHeader } from "@/components/PageHeader";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useUserCurrency } from "@/hooks/useUserCurrency";
+import { getCurrencyByCode } from "@/utils/currencies";
 
 export default function AddItemScreen() {
   const { theme } = useTheme();
+  const { userCurrency } = useUserCurrency();
   const { id: wishlistId } = useLocalSearchParams<{ id: string }>();
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [url, setUrl] = useState("");
   const [price, setPrice] = useState("");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState("USD"); // Initialize with USD, will be updated when userCurrency loads
   const [category, setCategory] = useState("");
   const [priority, setPriority] = useState<Priority>("NICE_TO_HAVE");
   const [isLoading, setIsLoading] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
+
+  // Update currency when userCurrency loads (if form is empty and currency is still default)
+  useEffect(() => {
+    if (userCurrency && userCurrency !== "USD" && currency === "USD" && !title && !price) {
+      setCurrency(userCurrency);
+    }
+  }, [userCurrency, currency, title, price]);
 
   const handleParseUrl = async () => {
     if (!url.trim()) {
@@ -198,7 +208,7 @@ export default function AddItemScreen() {
                 <Text style={styles.label}>Currency</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="USD"
+                  placeholder={userCurrency || "USD"}
                   value={currency}
                   onChangeText={setCurrency}
                   autoCapitalize="characters"

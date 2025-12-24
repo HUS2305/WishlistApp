@@ -23,6 +23,10 @@ export class UsersController {
       email: string;
       phone?: string;
       avatar?: string;
+      theme?: string;
+      language?: string;
+      currency?: string;
+      timezone?: string;
     }
   ) {
     return this.usersService.createUser(userId, createData);

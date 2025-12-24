@@ -14,6 +14,7 @@ import { sortWishlists } from "@/utils/sortPreferences";
 import { FriendMenu } from "@/components/FriendMenu";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { useAuth } from "@clerk/clerk-expo";
+import { PriceDisplay } from "@/components/PriceDisplay";
 
 interface UserProfile {
   profile: User & {
@@ -465,7 +466,7 @@ export default function FriendProfileScreen() {
             {sortedWishlists.length > 0 ? (
             sortedWishlists.map((wishlist, index) => {
               const privacyInfo = getPrivacyInfo((wishlist as any).privacyLevel);
-              const currency = (wishlist as any).currency || "$";
+              const currency = (wishlist as any).currency || "USD";
               
               return (
                 <View key={wishlist.id}>
@@ -496,9 +497,12 @@ export default function FriendProfileScreen() {
                           <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>Active wishes</Text>
                           <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>{wishlist.activeWishes}</Text>
                           <View style={[styles.metricDivider, { backgroundColor: theme.colors.textSecondary + '40' }]} />
-                          <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>
-                            {currency} {wishlist.totalPrice.toFixed(2)}
-                          </Text>
+                          <PriceDisplay
+                            amount={wishlist.totalPrice}
+                            currency={currency}
+                            textStyle={[styles.metricValue, { color: theme.colors.textPrimary, margin: 0, padding: 0 }]}
+                            containerStyle={{ margin: 0, padding: 0 }}
+                          />
                         </View>
                       </View>
                       <View style={styles.imagePlaceholder}>
@@ -803,8 +807,12 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   metricValue: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontFamily: "Poppins_600SemiBold",
+    letterSpacing: 0.2,
+    lineHeight: 20,
+    includeFontPadding: false,
+    color: "red",
   },
   metricDivider: {
     width: 1,
@@ -833,6 +841,8 @@ const styles = StyleSheet.create({
     padding: 4,
   },
 });
+
+
 
 
 

@@ -22,6 +22,8 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
 import { wishlistsService } from "@/services/wishlists";
 import { useWishlists } from "@/hooks/useWishlists";
+import { useUserCurrency } from "@/hooks/useUserCurrency";
+import { getCurrencyByCode } from "@/utils/currencies";
 
 interface AddItemSheetProps {
   visible: boolean;
@@ -36,6 +38,7 @@ interface AddItemSheetProps {
 export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, prefillItem, title: customTitle }: AddItemSheetProps) {
   const { theme } = useTheme();
   const { data: wishlists = [] } = useWishlists();
+  const { userCurrency, isLoading: isLoadingCurrency } = useUserCurrency();
   const isEditMode = !!item;
   
   const [selectedWishlistId, setSelectedWishlistId] = useState(wishlistId || "");
@@ -45,13 +48,13 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
   const [url, setUrl] = useState("");
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [price, setPrice] = useState("");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState("USD"); // Will be updated when userCurrency loads
   const [quantity, setQuantity] = useState("1");
   const [priority, setPriority] = useState<Priority>("NICE_TO_HAVE");
   const [isLoading, setIsLoading] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   
-  // Initialize form with item data when editing
+  // Initialize form with item data when editing or prefilling
   React.useEffect(() => {
     if (visible && item) {
       // Edit mode - prefill with item data when modal becomes visible
@@ -73,24 +76,32 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
       setCurrency(prefillItem.currency || "USD");
       setQuantity(prefillItem.quantity !== undefined && prefillItem.quantity !== null ? prefillItem.quantity.toString() : "1");
       setPriority(prefillItem.priority || "NICE_TO_HAVE");
-    } else if (!visible && !item && !prefillItem) {
-      // Reset form when modal closes (only if not in edit/prefill mode)
+    } else if (visible && !item && !prefillItem) {
+      // Add mode - reset form and set currency to user's preference
       setTitle("");
       setDescription("");
       setUrl("");
       setImageUri(null);
       setPrice("");
-      setCurrency("USD");
+      setCurrency(userCurrency); // Use userCurrency directly (will be "USD" if not loaded yet)
       setQuantity("1");
       setPriority("NICE_TO_HAVE");
+      setSelectedWishlistId(wishlistId || "");
     }
-  }, [visible, item, prefillItem, wishlistId]);
+  }, [visible, item, prefillItem, wishlistId, userCurrency]);
   
   React.useEffect(() => {
     if (wishlistId && !item) {
       setSelectedWishlistId(wishlistId);
     }
   }, [wishlistId, item]);
+
+  // Update currency when userCurrency loads (if in add mode and currency is still default)
+  React.useEffect(() => {
+    if (visible && !isEditMode && !prefillItem && !item && userCurrency && currency === "USD" && !isLoadingCurrency) {
+      setCurrency(userCurrency);
+    }
+  }, [visible, userCurrency, isEditMode, prefillItem, item, currency, isLoadingCurrency]);
 
   const handleParseUrl = async () => {
     if (!url.trim()) {
@@ -171,7 +182,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
         setUrl("");
         setImageUri(null);
         setPrice("");
-        setCurrency("USD");
+        setCurrency(userCurrency); // Use userCurrency directly (will be "USD" if not loaded yet)
         setQuantity("1");
         setPriority("NICE_TO_HAVE");
         
@@ -192,21 +203,9 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
   };
 
   const handleClose = () => {
-    // Reset form when closing only if not in edit mode
-    if (!isEditMode) {
-      setTitle("");
-      setDescription("");
-      setUrl("");
-      setImageUri(null);
-      setPrice("");
-        setCurrency("USD");
-        setQuantity("1");
-        setPriority("NICE_TO_HAVE");
-        setShowWishlistBottomSheet(false);
-      if (!wishlistId) {
-        setSelectedWishlistId("");
-      }
-    }
+    // Don't reset form here - let the useEffect handle it when sheet opens next time
+    // This prevents currency from being reset to "USD" if userCurrency hasn't loaded yet
+    setShowWishlistBottomSheet(false);
     onClose();
   };
 
@@ -515,7 +514,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
                     keyboardType="decimal-pad"
                   />
                   <Text style={[styles.currencyLabel, { color: theme.colors.textSecondary }]}>
-                    {currency}
+                    {getCurrencyByCode(currency)?.symbol || currency}
                   </Text>
                 </View>
 

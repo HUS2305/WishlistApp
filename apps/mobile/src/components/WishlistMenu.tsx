@@ -34,7 +34,7 @@ export function WishlistMenu({ visible, onClose, onEdit, onDelete }: WishlistMen
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} autoHeight>
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
         <View style={styles.header}>
@@ -126,7 +126,6 @@ export function WishlistMenu({ visible, onClose, onEdit, onDelete }: WishlistMen
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },

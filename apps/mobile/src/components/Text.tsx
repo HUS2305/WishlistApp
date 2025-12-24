@@ -25,10 +25,13 @@ export function Text({ style, ...props }: TextProps) {
     return <RNText style={style} {...props} />;
   }
   
-  // Apply our font to all regular text
+  // If fontFamily is explicitly set to a Poppins variant, preserve it
+  const hasExplicitPoppinsFont = flatStyle?.fontFamily && flatStyle.fontFamily.includes('Poppins');
+  
+  // Apply our font to all regular text, but preserve explicit Poppins fontFamily
   const forcedStyle = {
     ...flatStyle,
-    fontFamily: FONT_NAME,
+    fontFamily: hasExplicitPoppinsFont ? flatStyle.fontFamily : FONT_NAME,
   };
   
   return <RNText style={forcedStyle} {...props} />;

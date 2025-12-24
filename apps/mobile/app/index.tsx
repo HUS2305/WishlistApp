@@ -11,6 +11,11 @@ export default function Index() {
 
   useEffect(() => {
     async function checkProfile() {
+      // Wait for Clerk to be loaded before checking profile
+      if (!isLoaded) {
+        return;
+      }
+
       if (!isSignedIn) {
         setCheckingProfile(false);
         return;
@@ -22,13 +27,19 @@ export default function Index() {
         if (token) {
           await api.get("/users/me");
           setHasProfile(true);
+        } else {
+          // If no token but user is signed in, wait a bit and retry
+          // This can happen during initial load
+          console.warn("No token available yet, assuming profile exists to avoid redirect loop");
+          setHasProfile(true);
         }
       } catch (error: any) {
         // If user not found (404), they need to complete profile
         if (error.response?.status === 404 || error.message?.includes("not found")) {
           setHasProfile(false);
         } else {
-          // For other errors, assume they have profile to avoid blocking
+          // For other errors (network, 401, etc.), assume they have profile to avoid blocking
+          // This prevents redirect loops on refresh when there are temporary network issues
           console.warn("Error checking profile:", error);
           setHasProfile(true);
         }

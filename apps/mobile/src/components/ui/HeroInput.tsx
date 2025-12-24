@@ -15,6 +15,7 @@ interface HeroInputProps extends TextInputProps {
   size?: "sm" | "md" | "lg";
   radius?: "none" | "sm" | "md" | "lg" | "full";
   labelPlacement?: "inside" | "outside" | "outside-left" | "outside-top";
+  backgroundColor?: string; // Custom background color override
 }
 
 export function HeroInput({
@@ -29,6 +30,7 @@ export function HeroInput({
   size = "md",
   radius = "md",
   labelPlacement = "outside-top",
+  backgroundColor,
   style,
   ...props
 }: HeroInputProps) {
@@ -61,16 +63,22 @@ export function HeroInput({
   };
 
   const getVariantStyles = (): ViewStyle => {
+    let bgColor: string;
+    if (backgroundColor) {
+      bgColor = backgroundColor;
+    } else if (variant === "flat" || variant === "underlined") {
+      bgColor = "transparent";
+    } else {
+      bgColor = theme.colors.background;
+    }
+
     const baseStyle: ViewStyle = {
       borderWidth: variant === "underlined" ? 0 : 1.5,
       borderBottomWidth: variant === "underlined" ? 1.5 : undefined,
       borderColor: isInvalid
         ? theme.colors.error || "#EF4444"
         : theme.colors.textSecondary + "40",
-      backgroundColor:
-        variant === "flat" || variant === "underlined"
-          ? "transparent"
-          : theme.colors.background,
+      backgroundColor: bgColor,
     };
 
     return baseStyle;

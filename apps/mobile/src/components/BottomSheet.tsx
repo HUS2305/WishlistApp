@@ -19,12 +19,20 @@ interface BottomSheetProps {
   onClose: () => void;
   children: React.ReactNode;
   height?: number; // Optional custom height (0-1 as percentage of screen height)
+  autoHeight?: boolean; // If true, height adjusts to content (with max constraint)
 }
 
-export function BottomSheet({ visible, onClose, children, height = 0.9 }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, children, height = 0.9, autoHeight = false }: BottomSheetProps) {
   const { theme } = useTheme();
-  const sheetHeight = SCREEN_HEIGHT * height;
-  const translateY = useRef(new Animated.Value(sheetHeight)).current;
+  const contentRef = useRef<View>(null);
+  const [contentHeight, setContentHeight] = useState(0);
+  
+  const fixedMinHeight = SCREEN_HEIGHT * height;
+  const maxHeight = SCREEN_HEIGHT * 0.9;
+  // For autoHeight, start with a reasonable default, will be updated when content is measured
+  const minHeight = autoHeight ? (contentHeight > 0 ? contentHeight + 60 : 200) : fixedMinHeight;
+  const [currentHeight, setCurrentHeight] = useState(autoHeight ? 200 : fixedMinHeight);
+  const translateY = useRef(new Animated.Value(autoHeight ? 200 : fixedMinHeight)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const [isClosing, setIsClosing] = useState(false);
   const isClosingRef = useRef(false);
@@ -44,8 +52,8 @@ export function BottomSheet({ visible, onClose, children, height = 0.9 }: Bottom
     translateY.stopAnimation();
     opacity.stopAnimation();
     
-          // Hide modal immediately by setting translateY to sheetHeight (no animation)
-          translateY.setValue(sheetHeight);
+          // Hide modal immediately by setting translateY to currentHeight (no animation)
+          translateY.setValue(currentHeight);
     
     // Call parent's onClose immediately to start unmounting process
     // This allows QuickActionMenu to open right away
@@ -82,16 +90,58 @@ export function BottomSheet({ visible, onClose, children, height = 0.9 }: Bottom
     prevVisibleRef.current = visible;
   }, [visible]);
   
+  // Measure content height when autoHeight is enabled
+  const handleContentLayout = useCallback((event: any) => {
+    if (autoHeight) {
+      const { height: measuredHeight } = event.nativeEvent.layout;
+      if (measuredHeight > 0) {
+        // Add padding for drag handle area (48px) and some bottom padding (12px)
+        const totalHeight = measuredHeight + 60;
+        const clampedHeight = Math.min(Math.max(totalHeight, 150), maxHeight);
+        
+        // Only update if significantly different to avoid infinite loops
+        if (Math.abs(measuredHeight - contentHeight) > 5 || contentHeight === 0) {
+          setContentHeight(measuredHeight);
+          setCurrentHeight(clampedHeight);
+          // Also update translateY initial position
+          translateY.setValue(clampedHeight);
+        }
+      }
+    }
+  }, [autoHeight, maxHeight, contentHeight, translateY]);
+
+  // Update height when contentHeight changes (for autoHeight)
+  useEffect(() => {
+    if (autoHeight && contentHeight > 0 && visible) {
+      const targetHeight = Math.min(Math.max(contentHeight + 60, 150), maxHeight);
+      setCurrentHeight(targetHeight);
+    }
+  }, [contentHeight, autoHeight, visible, maxHeight]);
+
   // Handle visibility changes and animations
   useEffect(() => {
     if (visible && !isClosing) {
+      // Reset height to minimum when opening
+      if (autoHeight) {
+        // If we have measured content, use it; otherwise use default
+        const targetHeight = contentHeight > 0 
+          ? Math.min(Math.max(contentHeight + 60, 150), maxHeight)
+          : 200;
+        setCurrentHeight(targetHeight);
+      } else {
+        setCurrentHeight(fixedMinHeight);
+      }
+      
       // Opening - animate in
       // Stop any ongoing animations first
       translateY.stopAnimation();
       opacity.stopAnimation();
       
       // Reset to starting position immediately (this is critical!)
-      translateY.setValue(sheetHeight);
+      const startHeight = autoHeight 
+        ? (contentHeight > 0 ? Math.min(Math.max(contentHeight + 60, 150), maxHeight) : 200)
+        : fixedMinHeight;
+      translateY.setValue(startHeight);
       opacity.setValue(0);
       
       // Backdrop is now STATIC - appears instantly, no animation
@@ -110,7 +160,7 @@ export function BottomSheet({ visible, onClose, children, height = 0.9 }: Bottom
       isClosingRef.current = false;
       setIsClosing(false);
     }
-  }, [visible, isClosing, translateY, opacity, sheetHeight]);
+  }, [visible, isClosing, translateY, opacity, minHeight]);
   
   // Handle close requests - start animation, then call onClose after
   const handleClose = useCallback(() => {
@@ -130,50 +180,59 @@ export function BottomSheet({ visible, onClose, children, height = 0.9 }: Bottom
     };
   }, [translateY]);
   
-  // NOTE: Pan responder removed - not attached to sheet to allow text input
-  // Only dragHandlePanResponder is used for the drag handle
-  // const panResponder = useRef(
-  const _unusedPanResponder = useRef(
+  // Pan responder for the entire sheet - allows pull-to-dismiss from anywhere
+  // Uses capture phase to intercept touches before ScrollViews get them
+  const sheetPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond to clear downward drags (not taps or small movements)
+        // Only respond to clear downward drags
         // Must be moving down more than horizontally and have sufficient movement
-        const isDownwardDrag = Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && gestureState.dy > 10;
+        const isDownwardDrag = 
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && 
+          gestureState.dy > 10; // Lower threshold for better responsiveness
+        return isDownwardDrag;
+      },
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        // Capture phase - intercept before ScrollViews
+        // Only for clear downward drags
+        const isDownwardDrag = 
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && 
+          gestureState.dy > 10;
         return isDownwardDrag;
       },
       onPanResponderGrant: () => {
-        translateY.setOffset(translateYCurrent.current);
+        // Stop any ongoing animations
+        translateY.stopAnimation();
+        // Get the current value directly (should be 0 when fully open)
+        const currentVal = translateYCurrent.current;
+        // Store current position as offset
+        translateY.setOffset(currentVal);
         translateY.setValue(0);
       },
       onPanResponderMove: (_, gestureState) => {
-        // Only allow downward dragging
+        // Only allow downward dragging (positive dy)
         if (gestureState.dy > 0) {
           translateY.setValue(gestureState.dy);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
+        // Get the dragged distance
+        const draggedDistance = gestureState.dy;
+        
+        // Flatten the offset - this combines offset and value into a single value
         translateY.flattenOffset();
         
-        // If dragged down more than threshold, dismiss immediately (no animation)
-        if (gestureState.dy > DRAG_THRESHOLD || gestureState.vy > 0.5) {
-          // Set closing state immediately to disable pointer events right away
-          isClosingRef.current = true;
-          setIsClosing(true);
-          // Hide modal immediately by setting translateY to sheetHeight
-          translateY.setValue(sheetHeight);
-          // Stop any ongoing animations
-          translateY.stopAnimation();
-          // Call onClose immediately so Modal can start unmounting
-          onClose();
-          // No animation - close immediately
-          // Reset closing state after a tiny delay to ensure Modal unmounts
-          setTimeout(() => {
-            isClosingRef.current = false;
-            setIsClosing(false);
-          }, 0);
+        // If dragged down more than threshold or with sufficient velocity, dismiss
+        if (draggedDistance > DRAG_THRESHOLD || gestureState.vy > 0.3) {
+          // Dismiss the sheet immediately
+          if (handleCloseWithAnimationRef.current) {
+            handleCloseWithAnimationRef.current();
+          }
         } else {
-          // Snap back to original position
+          // Snap back to original position (0 = fully open)
+          // The translateY is now at the dragged position after flattenOffset
           Animated.spring(translateY, {
             toValue: 0,
             useNativeDriver: true,
@@ -183,7 +242,7 @@ export function BottomSheet({ visible, onClose, children, height = 0.9 }: Bottom
         }
       },
       onPanResponderTerminate: () => {
-        // If gesture is terminated, snap back
+        // If gesture is terminated (e.g., by another responder), snap back
         translateY.flattenOffset();
         Animated.spring(translateY, {
           toValue: 0,
@@ -195,38 +254,42 @@ export function BottomSheet({ visible, onClose, children, height = 0.9 }: Bottom
     })
   ).current;
 
-  // Separate pan responder for drag handle - always active for dragging
+  // Track initial height when drag starts
+  const initialHeight = useRef(minHeight);
+
+  // Separate pan responder for drag handle - allows resizing and dismissing
   const dragHandlePanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        // Use extractOffset to get current value, then set offset
-        translateY.flattenOffset();
-        const currentValue = (translateY as any).__getValue ? (translateY as any).__getValue() : 0;
-        translateY.setOffset(currentValue);
-        translateY.setValue(0);
+        // Store initial height when drag starts
+        initialHeight.current = currentHeight;
       },
       onPanResponderMove: (_, gestureState) => {
-        // Allow dragging in both directions from drag handle
-        translateY.setValue(gestureState.dy);
+        // Calculate new height based on drag direction
+        // Dragging up (negative dy) increases height
+        // Dragging down (positive dy) decreases height
+        const newHeight = Math.max(
+          minHeight,
+          Math.min(maxHeight, initialHeight.current - gestureState.dy)
+        );
+        
+        // Update height state immediately for responsive resizing
+        setCurrentHeight(newHeight);
       },
       onPanResponderRelease: (_, gestureState) => {
-        translateY.flattenOffset();
+        const finalHeight = Math.max(
+          minHeight,
+          Math.min(maxHeight, initialHeight.current - gestureState.dy)
+        );
+        setCurrentHeight(finalHeight);
         
-        // If dragged down more than threshold, dismiss immediately (no animation)
-        if (gestureState.dy > DRAG_THRESHOLD || gestureState.vy > 0.5) {
+        // If dragged down significantly from minimum height, dismiss
+        if (gestureState.dy > DRAG_THRESHOLD && finalHeight <= minHeight && gestureState.vy > 0.3) {
           if (handleCloseWithAnimationRef.current) {
             handleCloseWithAnimationRef.current();
           }
-        } else {
-          // Snap back to original position
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 65,
-            friction: 11,
-          }).start();
         }
       },
     })
@@ -285,15 +348,17 @@ export function BottomSheet({ visible, onClose, children, height = 0.9 }: Bottom
             styles.sheet,
             {
               backgroundColor: theme.colors.background,
-              height: sheetHeight,
+              height: currentHeight,
+              maxHeight: maxHeight,
               transform: [{ translateY }],
             },
           ]}
+          {...sheetPanResponder.panHandlers}
         >
-          {/* Drag Handle */}
+          {/* Drag Handle - larger area for easier dragging */}
           <View 
             style={styles.dragHandleContainer}
-            {...dragHandlePanResponder.panHandlers}
+            {...sheetPanResponder.panHandlers}
           >
             <View
               style={[
@@ -303,10 +368,20 @@ export function BottomSheet({ visible, onClose, children, height = 0.9 }: Bottom
             />
           </View>
 
-          {/* Content - no pan responder to allow text input */}
-          <View style={styles.content}>
-            {children}
-          </View>
+          {/* Content - pan responder on parent allows pull-to-dismiss */}
+          {autoHeight ? (
+            <View 
+              ref={contentRef}
+              onLayout={handleContentLayout}
+              style={styles.autoHeightWrapper}
+            >
+              {children}
+            </View>
+          ) : (
+            <View style={styles.content} pointerEvents="box-none">
+              {children}
+            </View>
+          )}
         </Animated.View>
       </View>
     </Modal>
@@ -339,7 +414,10 @@ const styles = StyleSheet.create({
   },
   dragHandleContainer: {
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 16,
+    // Larger touch area for easier dragging
+    minHeight: 48,
+    justifyContent: "center",
   },
   dragHandle: {
     width: 40,
@@ -347,8 +425,13 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   content: {
-    flex: 1,
+    flex: 1, // Use flex: 1 instead of flexGrow to ensure proper scrolling
     minHeight: 0, // Important for ScrollView to work properly
+    overflow: 'hidden', // Ensure content doesn't overflow
+  },
+  autoHeightWrapper: {
+    // No flex - let content determine size naturally
+    width: '100%',
   },
 });
 

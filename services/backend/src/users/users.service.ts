@@ -18,6 +18,10 @@ export class UsersService {
         lastName: true,
         avatar: true,
         bio: true,
+        theme: true,
+        language: true,
+        currency: true,
+        timezone: true,
         privacyLevel: true,
         role: true,
         createdAt: true,
@@ -45,7 +49,7 @@ export class UsersService {
     }
 
     // Sanitize update data - allow profile fields including username and email
-    const allowedFields = ['firstName', 'lastName', 'username', 'email', 'bio', 'avatar', 'privacyLevel'];
+    const allowedFields = ['firstName', 'lastName', 'username', 'email', 'bio', 'avatar', 'privacyLevel', 'theme', 'language', 'currency', 'timezone'];
     const sanitizedData: any = {};
     
     for (const field of allowedFields) {
@@ -67,6 +71,7 @@ export class UsersService {
           lastName: true,
           avatar: true,
           bio: true,
+          theme: true,
           privacyLevel: true,
           role: true,
           createdAt: true,
@@ -361,6 +366,10 @@ export class UsersService {
     email: string;
     phone?: string;
     avatar?: string;
+    theme?: string;
+    language?: string;
+    currency?: string;
+    timezone?: string;
   }) {
     try {
       // Check if user already exists
@@ -380,6 +389,10 @@ export class UsersService {
             firstName: data.firstName.trim(),
             lastName: data.lastName.trim(),
             avatar: data.avatar || null,
+            theme: data.theme || null,
+            language: data.language || null,
+            currency: data.currency || null,
+            timezone: data.timezone || null,
           },
           select: {
             id: true,
@@ -413,6 +426,10 @@ export class UsersService {
           firstName: data.firstName.trim(),
           lastName: data.lastName.trim(),
           avatar: data.avatar || null,
+          theme: data.theme || null,
+          language: data.language || null,
+          currency: data.currency || null,
+          timezone: data.timezone || null,
         },
         select: {
           id: true,
@@ -423,6 +440,7 @@ export class UsersService {
           lastName: true,
           avatar: true,
           bio: true,
+          theme: true,
           privacyLevel: true,
           role: true,
           createdAt: true,

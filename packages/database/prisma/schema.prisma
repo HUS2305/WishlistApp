@@ -16,6 +16,10 @@ model User {
   username               String?                @unique
   avatar                 String?
   bio                    String?
+  theme                  String?                // Theme preference: modernLight, darkMode, nature, cyberpunk, sunset, emerald
+  language               String?                // Language preference: en, es, fr, de, it, pt, zh, ja, ko, ar
+  currency               String?                // Currency preference: USD, EUR, GBP, JPY, CNY, AUD, CAD, CHF, INR, BRL
+  timezone               String?                // User's timezone (e.g., "America/New_York", "Europe/London")
   privacyLevel           PrivacyLevel           @default(FRIENDS_ONLY)
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
