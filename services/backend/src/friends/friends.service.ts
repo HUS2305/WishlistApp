@@ -33,6 +33,7 @@ export class FriendsService {
             firstName: true,
             lastName: true,
             avatar: true,
+            birthday: true,
           },
         },
         friend: {
@@ -42,6 +43,7 @@ export class FriendsService {
             firstName: true,
             lastName: true,
             avatar: true,
+            birthday: true,
           },
         },
       },
@@ -52,6 +54,7 @@ export class FriendsService {
       const otherUser = f.userId === user.id ? f.friend : f.user;
       return {
         ...otherUser,
+        birthday: otherUser.birthday?.toISOString() || null,
         displayName: getDisplayName(otherUser.firstName, otherUser.lastName),
       };
     });
@@ -74,6 +77,7 @@ export class FriendsService {
             firstName: true,
             lastName: true,
             avatar: true,
+            birthday: true,
           },
         },
       },
@@ -83,6 +87,7 @@ export class FriendsService {
       ...request,
       user: {
         ...request.user,
+        birthday: request.user.birthday?.toISOString() || null,
         displayName: getDisplayName(request.user.firstName, request.user.lastName),
       },
     }));
@@ -284,6 +289,7 @@ export class FriendsService {
             firstName: true,
             lastName: true,
             avatar: true,
+            birthday: true,
           },
         },
       },
@@ -293,6 +299,7 @@ export class FriendsService {
       ...request,
       friend: {
         ...request.friend,
+        birthday: request.friend.birthday?.toISOString() || null,
         displayName: getDisplayName(request.friend.firstName, request.friend.lastName),
       },
     }));

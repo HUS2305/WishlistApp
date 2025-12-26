@@ -7,7 +7,7 @@ import { friendsService, type FriendRequest, type SearchResult } from "@/service
 import { HeaderButton } from "@/components/PageHeader";
 import type { User } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getDisplayName } from "@/lib/utils";
+import { getDisplayName, getUpcomingBirthdays } from "@/lib/utils";
 import { FriendMenu } from "@/components/FriendMenu";
 import { useNotificationContext } from "@/contexts/NotificationContext";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
@@ -1026,28 +1026,92 @@ export default function FriendsScreen() {
       )}
 
       {/* Upcoming Birthdays Section */}
-      {!isLoading && friends.length > 0 && (
-        <View style={[styles.eventsSection, styles.birthdaysSection]}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.sectionHeaderLeft}>
-              <Feather name="calendar" size={20} color={theme.colors.primary} />
-              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Upcoming Birthdays</Text>
+      {!isLoading && friends.length > 0 && (() => {
+        const upcomingBirthdays = getUpcomingBirthdays(friends, 30);
+        const displayedBirthdays = upcomingBirthdays.slice(0, 4);
+        return (
+          <View style={[styles.eventsSection, styles.birthdaysSection]}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionHeaderLeft}>
+                <Feather name="calendar" size={20} color={theme.colors.primary} />
+                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Upcoming Birthdays</Text>
+              </View>
             </View>
+            {upcomingBirthdays.length > 0 ? (
+              <>
+                {displayedBirthdays.map((birthday, index) => (
+                  <View key={birthday.friend.id}>
+                    <TouchableOpacity
+                      onPress={() => handleViewProfile(birthday.friend.id)}
+                      activeOpacity={0.7}
+                      style={styles.birthdayRow}
+                    >
+                      <View style={styles.friendInfo}>
+                        <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
+                          {birthday.friend.avatar ? (
+                            <Text style={styles.avatarText}>🖼️</Text>
+                          ) : (
+                            <Text style={styles.avatarText}>
+                              {(birthday.friend.displayName?.[0] || birthday.friend.username?.[0] || "?").toUpperCase()}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.friendDetails}>
+                          <Text style={[styles.friendName, { color: theme.colors.textPrimary }]}>
+                            {birthday.friend.displayName || birthday.friend.username || "Friend"}
+                          </Text>
+                          <View style={styles.birthdayDateRow}>
+                            <Feather name="calendar" size={12} color={theme.colors.textSecondary} />
+                            <Text style={[styles.birthdayDate, { color: theme.colors.textSecondary }]}>
+                              {birthday.formattedDate}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      {(birthday.daysUntil === 0 || birthday.daysUntil === 1) && (
+                        <View style={[
+                          styles.birthdayBadgeCompact,
+                          { backgroundColor: birthday.daysUntil === 0 ? theme.colors.primary : theme.colors.primary + '80' }
+                        ]}>
+                          <Text style={[styles.birthdayBadgeTextCompact, { color: "#FFFFFF" }]}>
+                            {birthday.daysUntil === 0 ? "Today" : "Tomorrow"}
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                    {index < displayedBirthdays.length - 1 && (
+                      <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
+                    )}
+                  </View>
+                ))}
+                {upcomingBirthdays.length > 4 && (
+                  <TouchableOpacity
+                    style={styles.seeMoreButton}
+                    onPress={() => {
+                      // TODO: Navigate to full birthdays list
+                      console.log("See all birthdays");
+                    }}
+                  >
+                    <Text style={[styles.seeMoreText, { color: theme.colors.primary }]}>
+                      See All Birthdays
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            ) : (
+              <View style={styles.emptyStateSmall}>
+                <Feather name="calendar" size={40} color={theme.colors.primary} />
+                <Text style={[styles.emptyTitleSmall, { color: theme.colors.textPrimary }]}>
+                  No upcoming birthdays
+                </Text>
+                <Text style={[styles.emptySubtitleSmall, { color: theme.colors.textSecondary }]}>
+                  Birthdays from your friends will appear here
+                </Text>
+              </View>
+            )}
           </View>
-          <View style={styles.birthdaysContainer}>
-            {/* TODO: Fetch and display upcoming birthdays from friends with birthday data */}
-            <View style={styles.emptyStateSmall}>
-              <Feather name="calendar" size={40} color={theme.colors.primary} />
-              <Text style={[styles.emptyTitleSmall, { color: theme.colors.textPrimary }]}>
-                No upcoming birthdays
-              </Text>
-              <Text style={[styles.emptySubtitleSmall, { color: theme.colors.textSecondary }]}>
-                Birthdays from your friends will appear here
-              </Text>
-            </View>
-          </View>
-        </View>
-      )}
+        );
+      })()}
 
       {/* Friends List Section */}
       {!isLoading && friends.length > 0 && (
@@ -1217,6 +1281,31 @@ const styles = StyleSheet.create({
   },
   birthdaysContainer: {
     gap: 8,
+  },
+  birthdayRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  birthdayDateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  birthdayDate: {
+    fontSize: 13,
+  },
+  birthdayBadgeCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  birthdayBadgeTextCompact: {
+    fontSize: 11,
+    fontWeight: "600",
   },
   birthdaysSection: {
     marginTop: 24,
