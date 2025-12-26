@@ -18,6 +18,7 @@ export class UsersService {
         lastName: true,
         avatar: true,
         bio: true,
+        birthday: true,
         theme: true,
         language: true,
         currency: true,
@@ -35,6 +36,7 @@ export class UsersService {
 
     return {
       ...user,
+      birthday: user.birthday?.toISOString().split('T')[0] || null,
       displayName: getDisplayName(user.firstName, user.lastName),
     };
   }
@@ -49,12 +51,17 @@ export class UsersService {
     }
 
     // Sanitize update data - allow profile fields including username and email
-    const allowedFields = ['firstName', 'lastName', 'username', 'email', 'bio', 'avatar', 'privacyLevel', 'theme', 'language', 'currency', 'timezone'];
+    const allowedFields = ['firstName', 'lastName', 'username', 'email', 'bio', 'avatar', 'privacyLevel', 'theme', 'language', 'currency', 'timezone', 'birthday'];
     const sanitizedData: any = {};
     
     for (const field of allowedFields) {
       if (updateData[field] !== undefined) {
-        sanitizedData[field] = updateData[field];
+        // Convert birthday string to Date object if it's provided, allow null to clear it
+        if (field === 'birthday') {
+          sanitizedData[field] = updateData[field] ? new Date(updateData[field]) : null;
+        } else {
+          sanitizedData[field] = updateData[field];
+        }
       }
     }
 
@@ -71,6 +78,7 @@ export class UsersService {
           lastName: true,
           avatar: true,
           bio: true,
+          birthday: true,
           theme: true,
           privacyLevel: true,
           role: true,
@@ -81,6 +89,7 @@ export class UsersService {
 
       return {
         ...updated,
+        birthday: updated.birthday?.toISOString().split('T')[0] || null,
         displayName: getDisplayName(updated.firstName, updated.lastName),
       };
     } catch (error: any) {
@@ -109,6 +118,7 @@ export class UsersService {
         lastName: true,
         avatar: true,
         bio: true,
+        birthday: true,
         privacyLevel: true,
         createdAt: true,
         email: true, // Will filter based on privacy
@@ -120,11 +130,13 @@ export class UsersService {
     }
 
     const displayName = getDisplayName(targetUser.firstName, targetUser.lastName);
+    const birthdayISO = targetUser.birthday?.toISOString().split('T')[0] || null;
 
     // If looking at own profile, return everything
     if (requestingUser.id === targetUserId) {
       return {
         ...targetUser,
+        birthday: birthdayISO,
         displayName,
       };
     }
@@ -144,7 +156,7 @@ export class UsersService {
     }
 
     if (targetUser.privacyLevel === "FRIENDS_ONLY" && !areFriends) {
-      // Show some info but not email for friends-only profiles
+      // Show some info but not email or birthday for friends-only profiles to non-friends
       return {
         id: targetUser.id,
         username: targetUser.username,
@@ -154,10 +166,11 @@ export class UsersService {
       };
     }
 
-    // Public profile or friend - show everything except email
+    // Public profile or friend - show everything except email, include birthday only for friends
     const { email, ...publicData } = targetUser;
     return {
       ...publicData,
+      birthday: areFriends ? birthdayISO : null, // Birthday only visible to friends
       displayName,
     };
   }
@@ -321,9 +334,13 @@ export class UsersService {
       },
     });
 
+    const birthdayISO = targetUser.birthday?.toISOString().split('T')[0] || null;
+    const areFriends = !!accepted;
+
     return {
       profile: {
         ...targetUser,
+        birthday: areFriends ? birthdayISO : null, // Birthday only visible to friends
         displayName: getDisplayName(targetUser.firstName, targetUser.lastName),
       },
       wishlists: wishlists.map((w) => {
@@ -336,7 +353,7 @@ export class UsersService {
           updatedAt: w.updatedAt.toISOString(),
         };
       }),
-      areFriends: !!accepted,
+      areFriends,
       friendshipSince: accepted?.createdAt?.toISOString() || null,
       pendingRequestId: pending?.id || null,
       sentRequestId: sent?.id || null,
@@ -370,6 +387,7 @@ export class UsersService {
     language?: string;
     currency?: string;
     timezone?: string;
+    birthday?: string;
   }) {
     try {
       // Check if user already exists
@@ -380,20 +398,26 @@ export class UsersService {
       if (existingUser) {
         // User exists - update with the new profile data instead
         console.log(`User with Clerk ID ${clerkUserId} already exists - updating profile instead`);
+        const updateData: any = {
+          email: data.email,
+          phone: data.phone || null,
+          username: data.username.trim(),
+          firstName: data.firstName.trim(),
+          lastName: data.lastName.trim(),
+          avatar: data.avatar || null,
+          theme: data.theme || null,
+          language: data.language || null,
+          currency: data.currency || null,
+          timezone: data.timezone || null,
+        };
+        
+        if (data.birthday) {
+          updateData.birthday = new Date(data.birthday);
+        }
+
         const updated = await this.prisma.user.update({
           where: { clerkId: clerkUserId },
-          data: {
-            email: data.email,
-            phone: data.phone || null,
-            username: data.username.trim(),
-            firstName: data.firstName.trim(),
-            lastName: data.lastName.trim(),
-            avatar: data.avatar || null,
-            theme: data.theme || null,
-            language: data.language || null,
-            currency: data.currency || null,
-            timezone: data.timezone || null,
-          },
+          data: updateData,
           select: {
             id: true,
             clerkId: true,
@@ -403,6 +427,7 @@ export class UsersService {
             lastName: true,
             avatar: true,
             bio: true,
+            birthday: true,
             privacyLevel: true,
             role: true,
             createdAt: true,
@@ -412,25 +437,32 @@ export class UsersService {
 
         return {
           ...updated,
+          birthday: updated.birthday?.toISOString().split('T')[0] || null,
           displayName: getDisplayName(updated.firstName, updated.lastName),
         };
       }
 
       // Create new user
+      const createData: any = {
+        clerkId: clerkUserId,
+        email: data.email,
+        phone: data.phone || null,
+        username: data.username.toLowerCase().trim(),
+        firstName: data.firstName.trim(),
+        lastName: data.lastName.trim(),
+        avatar: data.avatar || null,
+        theme: data.theme || null,
+        language: data.language || null,
+        currency: data.currency || null,
+        timezone: data.timezone || null,
+      };
+
+      if (data.birthday) {
+        createData.birthday = new Date(data.birthday);
+      }
+
       const user = await this.prisma.user.create({
-        data: {
-          clerkId: clerkUserId,
-          email: data.email,
-          phone: data.phone || null,
-          username: data.username.toLowerCase().trim(),
-          firstName: data.firstName.trim(),
-          lastName: data.lastName.trim(),
-          avatar: data.avatar || null,
-          theme: data.theme || null,
-          language: data.language || null,
-          currency: data.currency || null,
-          timezone: data.timezone || null,
-        },
+        data: createData,
         select: {
           id: true,
           clerkId: true,
@@ -440,7 +472,7 @@ export class UsersService {
           lastName: true,
           avatar: true,
           bio: true,
-          theme: true,
+          birthday: true,
           privacyLevel: true,
           role: true,
           createdAt: true,
@@ -450,6 +482,7 @@ export class UsersService {
 
       return {
         ...user,
+        birthday: user.birthday?.toISOString().split('T')[0] || null,
         displayName: getDisplayName(user.firstName, user.lastName),
       };
     } catch (error: any) {

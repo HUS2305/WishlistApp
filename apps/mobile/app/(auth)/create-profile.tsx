@@ -195,6 +195,13 @@ export default function CreateProfileScreen() {
       // Detect timezone automatically
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+      // Convert birthday Date to ISO string format (YYYY-MM-DD) using local time, not UTC
+      // This prevents timezone shifts that can change the date by a day
+      const year = birthdate.getFullYear();
+      const month = String(birthdate.getMonth() + 1).padStart(2, '0');
+      const day = String(birthdate.getDate()).padStart(2, '0');
+      const birthdayISO = `${year}-${month}-${day}`;
+
       await api.post("/users/me", {
         username: username.trim(),
         firstName: firstName.trim(),
@@ -205,6 +212,7 @@ export default function CreateProfileScreen() {
         language: language, // Save language preference
         currency: currency, // Save currency preference
         timezone: timezone, // Save detected timezone
+        birthday: birthdayISO, // Save birthday in ISO format (YYYY-MM-DD)
       });
 
       // Navigate to home
@@ -653,8 +661,8 @@ export default function CreateProfileScreen() {
       </View>
 
       {/* Language Picker BottomSheet */}
-      <BottomSheet visible={showLanguagePicker} onClose={() => setShowLanguagePicker(false)} autoHeight>
-        <View style={[styles.pickerSheetContainer, { backgroundColor: theme.colors.background }]}>
+      <BottomSheet visible={showLanguagePicker} onClose={() => setShowLanguagePicker(false)} height={0.7}>
+        <View style={[styles.pickerSheetContainer, { backgroundColor: theme.colors.background, flex: 1 }]}>
           {/* Header */}
           <View style={styles.pickerSheetHeader}>
             <View style={styles.pickerSheetHeaderSpacer} />
@@ -671,7 +679,12 @@ export default function CreateProfileScreen() {
           </View>
 
           {/* Options */}
-          <View style={styles.pickerSheetContent}>
+          <ScrollView 
+            style={styles.pickerSheetContent}
+            contentContainerStyle={styles.pickerSheetContentContainer}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+          >
             {languageOptions.map((option) => (
               <TouchableOpacity
                 key={option.value}
@@ -704,13 +717,13 @@ export default function CreateProfileScreen() {
                 )}
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         </View>
       </BottomSheet>
 
       {/* Currency Picker BottomSheet */}
-      <BottomSheet visible={showCurrencyPicker} onClose={() => setShowCurrencyPicker(false)} autoHeight>
-        <View style={[styles.pickerSheetContainer, { backgroundColor: theme.colors.background }]}>
+      <BottomSheet visible={showCurrencyPicker} onClose={() => setShowCurrencyPicker(false)} height={0.7}>
+        <View style={[styles.pickerSheetContainer, { backgroundColor: theme.colors.background, flex: 1 }]}>
           {/* Header */}
           <View style={styles.pickerSheetHeader}>
             <View style={styles.pickerSheetHeaderSpacer} />
@@ -727,7 +740,12 @@ export default function CreateProfileScreen() {
           </View>
 
           {/* Options */}
-          <View style={styles.pickerSheetContent}>
+          <ScrollView 
+            style={styles.pickerSheetContent}
+            contentContainerStyle={styles.pickerSheetContentContainer}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+          >
             {currencyOptions.map((option) => (
               <TouchableOpacity
                 key={option.value}
@@ -760,7 +778,7 @@ export default function CreateProfileScreen() {
                 )}
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         </View>
       </BottomSheet>
     </View>
@@ -934,6 +952,9 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   pickerSheetContent: {
+    flex: 1, // Take available space for scrolling
+  },
+  pickerSheetContentContainer: {
     paddingVertical: 8,
   },
   pickerSheetOptionRow: {

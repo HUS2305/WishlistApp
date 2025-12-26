@@ -102,11 +102,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="gifts"
+        name="discover"
         options={{
-          title: "Gifts",
+          title: "Discover",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="gift" size={size} color={color} />
+            <Feather name="compass" size={size} color={color} />
           ),
         }}
       />

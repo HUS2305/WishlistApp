@@ -1,0 +1,796 @@
+import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList, Animated } from "react-native";
+import { Text } from "@/components/Text";
+import { router, useFocusEffect } from "expo-router";
+import { Feather } from "@expo/vector-icons";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { friendsService, type SearchResult } from "@/services/friends";
+import { HeaderButton } from "@/components/PageHeader";
+import type { User } from "@/types";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getDisplayName } from "@/lib/utils";
+import { FriendMenu } from "@/components/FriendMenu";
+import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
+import { useAuth } from "@clerk/clerk-expo";
+
+export default function AllFriendsScreen() {
+  const { theme } = useTheme();
+  const { isLoaded: isClerkLoaded, userId } = useAuth();
+  const [friends, setFriends] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [friendMenuVisible, setFriendMenuVisible] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
+  const [selectedFriendBlockStatus, setSelectedFriendBlockStatus] = useState<{ isBlockedByMe?: boolean; isBlockedByThem?: boolean }>({});
+  const [removeConfirmVisible, setRemoveConfirmVisible] = useState(false);
+  const [blockConfirmVisible, setBlockConfirmVisible] = useState(false);
+  
+  // Search state
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchInputRef = useRef<TextInput>(null);
+  const isSearchActiveRef = useRef(false);
+  
+  // Animation for search icon transition
+  const searchIconOpacity = useRef(new Animated.Value(1)).current;
+  const searchIconRotation = useRef(new Animated.Value(0)).current;
+  const searchBarOpacity = useRef(new Animated.Value(0)).current;
+  const searchBarScale = useRef(new Animated.Value(0.95)).current;
+  const xButtonRotation = useRef(new Animated.Value(0)).current;
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const fetchFriends = useCallback(async (showLoader = true) => {
+    try {
+      const shouldShowLoader = showLoader && !hasLoadedOnce;
+      if (shouldShowLoader) {
+        setIsLoading(true);
+      }
+      const friendsData = await friendsService.getFriends();
+      setFriends(friendsData);
+      if (!hasLoadedOnce) {
+        setHasLoadedOnce(true);
+      }
+      console.log("✅ Loaded", friendsData.length, "friends");
+    } catch (error) {
+      console.error("❌ Error fetching friends:", error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [hasLoadedOnce]);
+
+  useEffect(() => {
+    if (isClerkLoaded && userId && !hasLoadedOnce) {
+      fetchFriends(true);
+    }
+  }, [isClerkLoaded, userId, hasLoadedOnce, fetchFriends]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isClerkLoaded && userId) {
+        if (hasLoadedOnce) {
+          fetchFriends(false);
+        } else {
+          fetchFriends(true);
+        }
+      }
+    }, [fetchFriends, isClerkLoaded, userId, hasLoadedOnce])
+  );
+
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    fetchFriends(false);
+  };
+
+  const handleViewProfile = (friendId: string) => {
+    router.push(`/friends/${friendId}`);
+  };
+
+  const handleRemoveFriend = () => {
+    setFriendMenuVisible(false);
+    if (!selectedFriend) return;
+    setRemoveConfirmVisible(true);
+  };
+
+  const confirmRemoveFriend = async () => {
+    if (!selectedFriend) return;
+    try {
+      await friendsService.removeFriend(selectedFriend.id);
+      Alert.alert("Success", "Friend removed");
+      setSelectedFriend(null);
+      setSelectedFriendBlockStatus({});
+      setRemoveConfirmVisible(false);
+      fetchFriends(false);
+    } catch (error: any) {
+      console.error("Error removing friend:", error);
+      Alert.alert("Error", error.response?.data?.message || "Failed to remove friend");
+      setRemoveConfirmVisible(false);
+    }
+  };
+
+  const handleBlockUser = () => {
+    if (!selectedFriend) return;
+    setFriendMenuVisible(false);
+    setTimeout(() => {
+      setBlockConfirmVisible(true);
+    }, 150);
+  };
+
+  const confirmBlockUser = async () => {
+    if (!selectedFriend) return;
+    try {
+      await friendsService.blockUser(selectedFriend.id);
+      Alert.alert("Success", "User blocked successfully");
+      setSelectedFriend(null);
+      setSelectedFriendBlockStatus({});
+      setBlockConfirmVisible(false);
+      fetchFriends(false);
+    } catch (error: any) {
+      console.error("Error blocking user:", error);
+      Alert.alert("Error", error.response?.data?.message || "Failed to block user");
+      setBlockConfirmVisible(false);
+    }
+  };
+
+  const handleUnblockUser = async () => {
+    if (!selectedFriend) return;
+    try {
+      await friendsService.unblockUser(selectedFriend.id);
+      Alert.alert("Success", "User unblocked successfully");
+      setFriendMenuVisible(false);
+      setSelectedFriend(null);
+      setSelectedFriendBlockStatus({});
+      fetchFriends(false);
+    } catch (error: any) {
+      console.error("Error unblocking user:", error);
+      Alert.alert("Error", error.response?.data?.message || "Failed to unblock user");
+    }
+  };
+
+  const handleSearchPress = () => {
+    if (isSearchActive) {
+      Animated.parallel([
+        Animated.timing(searchIconOpacity, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(searchIconRotation, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(xButtonRotation, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(searchBarOpacity, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(searchBarScale, {
+          toValue: 0.95,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setIsSearchActive(false);
+        setSearchQuery("");
+        setSearchResults([]);
+        searchInputRef.current?.blur();
+        xButtonRotation.setValue(0);
+      });
+    } else {
+      setIsSearchActive(true);
+      searchIconOpacity.setValue(1);
+      searchIconRotation.setValue(0);
+      searchBarOpacity.setValue(0);
+      searchBarScale.setValue(0.95);
+      xButtonRotation.setValue(0);
+      
+      setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(searchIconOpacity, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(searchIconRotation, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(xButtonRotation, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(searchBarOpacity, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(searchBarScale, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setTimeout(() => {
+            searchInputRef.current?.focus();
+          }, 50);
+        });
+      }, 10);
+    }
+  };
+
+  const handleSearch = useCallback((query: string) => {
+    if (!query.trim() || query.trim().length < 1) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      // Filter friends locally based on search query
+      const queryLower = query.trim().toLowerCase();
+      const filtered = friends.filter(friend => {
+        const displayName = getDisplayName(friend)?.toLowerCase() || '';
+        const username = friend.username?.toLowerCase() || '';
+        return displayName.includes(queryLower) || username.includes(queryLower);
+      });
+      
+      // Convert friends to SearchResult format for consistency
+      const results: SearchResult[] = filtered.map(friend => ({
+        id: friend.id,
+        username: friend.username || '',
+        firstName: friend.firstName,
+        lastName: friend.lastName,
+        avatar: friend.avatar,
+        isFriend: true,
+        isPending: false,
+        isBlockedByMe: false,
+        isBlockedByThem: false,
+      }));
+      
+      setSearchResults(results);
+    } catch (error) {
+      console.error("❌ Error searching friends:", error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [friends]);
+
+  const handleSearchQueryChange = (text: string) => {
+    setSearchQuery(text);
+    
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    if (!text.trim() || text.trim().length < 1) {
+      setSearchResults([]);
+      return;
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      handleSearch(text);
+    }, 300);
+  };
+
+  useEffect(() => {
+    isSearchActiveRef.current = isSearchActive;
+  }, [isSearchActive]);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const renderSearchResult = ({ item }: { item: SearchResult }) => {
+    // Since we're only searching friends, all results are friends
+    return (
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => router.push(`/friends/${item.id}`)}
+        style={styles.searchResultRow}
+      >
+        <View style={styles.friendInfo}>
+          <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
+            <Text style={styles.avatarText}>
+              {(getDisplayName(item)?.[0] || item.username?.[0] || "?").toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.friendDetails}>
+            <Text style={[styles.friendName, { color: theme.colors.textPrimary }]}>
+              {getDisplayName(item) || item.username}
+            </Text>
+            <Text style={[styles.friendUsername, { color: theme.colors.textSecondary }]}>@{item.username}</Text>
+          </View>
+        </View>
+        <View style={styles.searchResultActions}>
+          <View style={[styles.statusBadge, { backgroundColor: theme.colors.primary + '15' }]}>
+            <Feather name="check-circle" size={14} color={theme.colors.primary} />
+            <Text style={[styles.statusBadgeText, { color: theme.colors.primary }]}>Friends</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const handleSendRequest = async (userId: string) => {
+    try {
+      await friendsService.sendFriendRequest(userId);
+      Alert.alert("Success", "Friend request sent!");
+      // Refresh friends list after sending request
+      fetchFriends(false);
+      // Re-run search if there's a search query
+      if (searchQuery.trim()) {
+        handleSearch(searchQuery.trim());
+      }
+    } catch (error) {
+      console.error("❌ Error sending friend request:", error);
+      Alert.alert("Error", "Failed to send friend request");
+    }
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.headerContainer, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.headerContent}>
+          {!isSearchActive && (
+            <TouchableOpacity 
+              onPress={() => router.push("/(tabs)/friends")} 
+              style={styles.backButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Feather name="chevron-left" size={24} color={theme.colors.textPrimary} />
+            </TouchableOpacity>
+          )}
+          
+          {!isSearchActive && (
+            <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>All Friends</Text>
+          )}
+          
+          {!isSearchActive && (
+            <Animated.View 
+              style={{ 
+                opacity: searchIconOpacity, 
+                marginLeft: 'auto',
+                transform: [{
+                  rotate: searchIconRotation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0deg', '180deg'],
+                  })
+                }]
+              }}
+            >
+              <HeaderButton
+                icon="search"
+                onPress={handleSearchPress}
+                style={{ marginRight: 0 }}
+              />
+            </Animated.View>
+          )}
+          
+          {isSearchActive && (
+            <Animated.View 
+              style={[
+                styles.searchBarContainer,
+                {
+                  opacity: searchBarOpacity,
+                  transform: [{ scale: searchBarScale }],
+                }
+              ]}
+            >
+              <View style={[styles.headerSearchBar, { backgroundColor: theme.colors.background, borderColor: theme.colors.primary, borderWidth: 1 }]}>
+                <Feather name="search" size={20} color={theme.colors.primary} />
+                <TextInput
+                  ref={searchInputRef}
+                  style={[styles.headerSearchInput, { color: theme.colors.textPrimary }]}
+                  placeholder="Search by name or username"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  value={searchQuery}
+                  onChangeText={handleSearchQueryChange}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => handleSearchQueryChange("")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <Feather name="x" size={18} color={theme.colors.primary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Animated.View 
+                style={[
+                  styles.closeSearchButtonWrapper,
+                  {
+                    transform: [{
+                      rotate: xButtonRotation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['180deg', '0deg'],
+                      })
+                    }]
+                  }
+                ]}
+              >
+                <TouchableOpacity
+                  onPress={handleSearchPress}
+                  style={styles.closeSearchButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Feather name="x" size={24} color={theme.colors.textPrimary} />
+                </TouchableOpacity>
+              </Animated.View>
+            </Animated.View>
+          )}
+        </View>
+      </View>
+
+      {/* Search Results */}
+      {isSearchActive && (
+        <View style={styles.searchResultsContainer}>
+          {isSearching ? (
+            <View style={styles.searchLoadingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={[styles.searchLoadingText, { color: theme.colors.textSecondary }]}>Searching...</Text>
+            </View>
+          ) : searchResults.length > 0 ? (
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.id}
+              renderItem={renderSearchResult}
+              contentContainerStyle={styles.searchResultsContent}
+            />
+          ) : searchQuery.trim() && !isSearching ? (
+            <View style={styles.searchEmptyState}>
+              <Feather name="search" size={64} color={theme.colors.primary} />
+              <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No friends found</Text>
+              <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+                Try a different name or username
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.searchEmptyState}>
+              <Feather name="search" size={64} color={theme.colors.primary} />
+              <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>Search your friends</Text>
+              <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+                Search by name or username to find friends
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Friends List - Hidden when search is active */}
+      {!isSearchActive && (
+        <ScrollView 
+          style={styles.mainContent}
+          contentContainerStyle={styles.mainContentContainer}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[theme.colors.primary]} />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {isLoading ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary, marginTop: 16 }]}>Loading friends...</Text>
+            </View>
+          ) : friends.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Feather name="users" size={64} color={theme.colors.primary} />
+              <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No friends yet</Text>
+              <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+                Tap the search icon to find friends
+              </Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.friendsListSection}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Friends ({friends.length})</Text>
+              </View>
+              {friends.map((friend, index) => (
+                <View key={friend.id}>
+                  <TouchableOpacity
+                    onPress={() => handleViewProfile(friend.id)}
+                    activeOpacity={0.7}
+                    style={styles.friendRow}
+                  >
+                    <View style={styles.friendInfo}>
+                      <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
+                        {friend.avatar ? (
+                          <Text style={styles.avatarText}>🖼️</Text>
+                        ) : (
+                          <Text style={styles.avatarText}>
+                            {(getDisplayName(friend)?.[0] || friend.username?.[0] || "?").toUpperCase()}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={styles.friendDetails}>
+                        <Text style={[styles.friendName, { color: theme.colors.textPrimary }]}>
+                          {getDisplayName(friend) || friend.username || "Unknown"}
+                        </Text>
+                        <Text style={[styles.friendUsername, { color: theme.colors.textSecondary }]}>@{friend.username}</Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      onPress={(e: any) => {
+                        e.stopPropagation();
+                        setSelectedFriend(friend);
+                        setSelectedFriendBlockStatus({});
+                        setFriendMenuVisible(true);
+                      }}
+                      style={styles.menuButton}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Feather name="more-horizontal" size={20} color={theme.colors.textSecondary} />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                  {index < friends.length - 1 && (
+                    <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
+                  )}
+                </View>
+              ))}
+            </>
+          )}
+        </ScrollView>
+      )}
+
+      {/* Friend Menu */}
+      {selectedFriend && (
+        <FriendMenu
+          visible={friendMenuVisible}
+          onClose={() => {
+            setFriendMenuVisible(false);
+            setSelectedFriend(null);
+            setSelectedFriendBlockStatus({});
+          }}
+          onViewProfile={() => {
+            setFriendMenuVisible(false);
+            handleViewProfile(selectedFriend.id);
+          }}
+          onRemoveFriend={handleRemoveFriend}
+          onBlockUser={handleBlockUser}
+          onUnblockUser={handleUnblockUser}
+          areFriends={friends.some(f => f.id === selectedFriend.id)}
+          isBlockedByMe={selectedFriendBlockStatus.isBlockedByMe}
+          isBlockedByThem={selectedFriendBlockStatus.isBlockedByThem}
+        />
+      )}
+
+      {/* Block User Confirmation Modal */}
+      {selectedFriend && (
+        <DeleteConfirmModal
+          visible={blockConfirmVisible}
+          title={getDisplayName(selectedFriend) || selectedFriend.username || "this user"}
+          modalTitle="Block User"
+          onConfirm={confirmBlockUser}
+          onCancel={() => {
+            setBlockConfirmVisible(false);
+            setSelectedFriend(null);
+          }}
+        />
+      )}
+
+      {/* Remove Friend Confirmation Modal */}
+      {selectedFriend && (
+        <DeleteConfirmModal
+          visible={removeConfirmVisible}
+          title={getDisplayName(selectedFriend) || selectedFriend.username || "this friend"}
+          modalTitle="Remove Friend"
+          onConfirm={confirmRemoveFriend}
+          onCancel={() => {
+            setRemoveConfirmVisible(false);
+            setSelectedFriend(null);
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  headerContainer: {
+    paddingTop: 48,
+    paddingBottom: 16,
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 16,
+    paddingRight: 26,
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 4,
+  },
+  headerTitle: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "700",
+    flex: 1,
+  },
+  searchBarContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerSearchBar: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 8,
+  },
+  headerSearchInput: {
+    flex: 1,
+    fontSize: 16,
+  },
+  closeSearchButtonWrapper: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeSearchButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchResultsContainer: {
+    flex: 1,
+  },
+  searchLoadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 100,
+    gap: 12,
+  },
+  searchLoadingText: {
+    fontSize: 14,
+  },
+  searchResultsContent: {
+    paddingTop: 8,
+  },
+  searchResultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  searchResultActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pendingStatusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  searchEmptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingTop: 100,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  mainContent: {
+    flex: 1,
+  },
+  mainContentContainer: {
+    paddingBottom: 160,
+  },
+  friendsListSection: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  friendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  friendInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  avatarText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  friendDetails: {
+    flex: 1,
+  },
+  friendName: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 1,
+  },
+  friendUsername: {
+    fontSize: 14,
+  },
+  menuButton: {
+    padding: 8,
+  },
+  divider: {
+    height: 1,
+    width: "100%",
+    marginLeft: 24,
+  },
+});
+

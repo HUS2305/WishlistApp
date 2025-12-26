@@ -90,6 +90,8 @@ export default function FriendProfileScreen() {
   };
 
   const handleBack = () => {
+    // Always navigate to Friends tab to ensure consistent behavior
+    // This works whether user came from Friends tab or All Friends page
     router.push("/(tabs)/friends");
   };
 
@@ -275,7 +277,7 @@ export default function FriendProfileScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <PageHeader 
         title=""
-        onBack={() => router.push("/(tabs)/friends")}
+        onBack={handleBack}
         rightActions={
           <TouchableOpacity
             onPress={() => setMenuVisible(true)}

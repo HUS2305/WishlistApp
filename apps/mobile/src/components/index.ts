@@ -1,4 +1,3 @@
-export { CustomTabBar } from "./CustomTabBar";
 export { QuickActionMenu } from "./QuickActionMenu";
 export { WishlistMenu } from "./WishlistMenu";
 export { DeleteConfirmModal } from "./DeleteConfirmModal";

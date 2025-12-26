@@ -14,6 +14,7 @@ export interface User {
   displayName?: string; // Computed from firstName and lastName by backend
   avatar?: string;
   bio?: string;
+  birthday?: string; // User's birthday (ISO date string, only month/day used for tracking)
   privacyLevel: PrivacyLevel;
   createdAt: string;
   updatedAt: string;

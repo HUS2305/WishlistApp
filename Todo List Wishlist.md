@@ -1,9 +1,4 @@
 # Todo List
-
-##notifications
-* Maybe delete notifactions older than 30days to better the database?
-
-
 ## Recent Fixes (Dec 2025)
 * ✅ Fixed displayName to firstName/lastName migration - Database schema updated, all backend services and frontend components updated
 * ✅ Restored friends feature functionality - Friends list, search, and requests now working correctly
@@ -18,9 +13,6 @@
 * ✅ Reserve button visibility - Only shows when wishlist allows reservations (allowReservations check)
 * ✅ Modal title customization - "Add to my Wishlist" title when adding items from friend's wishlist
 * ✅ Action button spacing - Improved spacing between action buttons and divider
-
-### Wishlists details page
-* when clicking an image of an item it should be in the focus
 
 ### Friends page
 * ✅ Fix styling
@@ -46,13 +38,8 @@
 * ✅ Modal title customization - Custom "Add to my Wishlist" title when adding items from friend's wishlist
 * ✅ Friends wishlists display - View friend's wishlists on their profile with sorting
 * ✅ Birthday display - Show birthdays on friend profiles (friends only, with privacy controls)
-* ⚠️ Important dates/events - Not yet implemented (mentioned in requirements)
-* ⚠️ Mutual friends display - Not yet implemented (mentioned in cursorrules.md)
 * ✅ Block/unblock users - BLOCKED status exists in schema but UI functionality not implemented
 
-### Gifts
-* find out what should go here
-* Gift recommendation based on profile (age/sex/interests)
 
 ### Profile page
 ✅ Turn profile page into a instagram inspired page
@@ -64,31 +51,47 @@
 ### Fab button
 ✅ implement other buttons features
 
-### Add Item
-* Add item from link, scan barcode, manual entry --, share link to app
-* route link for affiliate
-
-
 ### Guided onboarding
-* sign up
+* sign up forms design
 ✅ create profile
-* choose interests
 ✅ choose default theme
 
 
+### Gifts page
+* find out what should go here
+* Gift recommendation based on profile (age/sex/interests)
 
-### Sharing links
-
-### Refresh pages by pulling down
-* ✅ Completed - All pages now have pull-to-refresh functionality
 
 ### Affiliate marketing
 * add products, graphs, show cheapest options, replace links
+* route link for affiliate
+
+
+### SETTINGS PAGE
+* EDIT PROFILE
+* Change EMail
+* Change password
+* Profile picture
+* Notifications, Privacy, Help & Support (decide what goes here and implement)
+
+
+### Push Notifications
 
 
 
 
+###                                              NICE TO HAVE
+### Wishlists details page
+* when clicking an image of an item it should be in the focus
 
+* Important dates/events - Not yet implemented (mentioned in requirements)
+* Mutual friends display - Not yet implemented (mentioned in cursorrules.md)
 
+##notifications
+* Maybe delete notifactions older than 30days to better the database?
 
+### Sharing links
 
+* choose interests on onboarding
+
+* Add item from link, scan barcode, manual entry --, share link to app

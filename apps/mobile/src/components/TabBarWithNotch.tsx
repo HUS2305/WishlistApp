@@ -78,7 +78,7 @@ export default function TabBarWithNotch({ state, descriptors, navigation, insets
   }
   
   // Main tab route names
-  const mainTabRoutes = ["index", "friends", "gifts", "settings"];
+  const mainTabRoutes = ["index", "friends", "discover", "settings"];
   
   // Check if we're on a main tab page - use BottomMenuBar for all main tabs
   const isMainTabPage = mainTabRoutes.includes(currentRouteName || "");

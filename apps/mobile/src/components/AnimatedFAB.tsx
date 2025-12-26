@@ -125,7 +125,7 @@ export function AnimatedFAB({ onPress, variant = "center", positionStyle = "tab-
 const getFabContainerStyle = (positionStyle: "tab-bar" | "screen") => {
   if (positionStyle === "tab-bar") {
     // Positioned relative to notch container in tab bar
-    // The positioning is handled by the notchArea in CustomTabBar
+    // The positioning is handled by the notchArea in TabBarWithNotch
     return {
       position: "relative" as const,
       width: FAB_SIZE,

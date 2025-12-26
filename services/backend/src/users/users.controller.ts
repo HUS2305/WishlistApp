@@ -27,6 +27,7 @@ export class UsersController {
       language?: string;
       currency?: string;
       timezone?: string;
+      birthday?: string;
     }
   ) {
     return this.usersService.createUser(userId, createData);

@@ -847,7 +847,14 @@ export default function FriendsScreen() {
 
       {/* Main Content - Hidden when search is active */}
       {!isSearchActive && (
-      <View style={styles.mainContent}>
+      <ScrollView 
+        style={styles.mainContent}
+        contentContainerStyle={styles.mainContentContainer}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[theme.colors.primary]} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
       {/* Pending friend requests section */}
       {!isLoading && pendingRequests.length > 0 && (
         <View style={styles.pendingSection}>
@@ -973,27 +980,101 @@ export default function FriendsScreen() {
         </View>
       )}
 
+      {/* Active Events Section */}
+      {!isLoading && (
+        <View style={styles.eventsSection}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderLeft}>
+              <Feather name="gift" size={20} color={theme.colors.primary} />
+              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Active Events</Text>
+            </View>
+          </View>
+          <View style={styles.eventsContainer}>
+            {/* Secret Santa Quick Action */}
+            <TouchableOpacity
+              style={[styles.eventCard, { backgroundColor: theme.colors.primary }]}
+              onPress={() => {
+                // TODO: Navigate to Secret Santa creation/management
+                console.log("Create Secret Santa");
+              }}
+            >
+              <View style={styles.eventCardContent}>
+                <Feather name="gift" size={20} color="#FFFFFF" />
+                <View style={styles.eventCardText}>
+                  <Text style={[styles.eventCardTitle, { color: "#FFFFFF" }]}>Secret Santa</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            {/* Group Gift Quick Action */}
+            <TouchableOpacity
+              style={[styles.eventCard, { backgroundColor: theme.colors.primary }]}
+              onPress={() => {
+                // TODO: Navigate to Group Gift creation/management
+                console.log("Create Group Gift");
+              }}
+            >
+              <View style={styles.eventCardContent}>
+                <Feather name="users" size={20} color="#FFFFFF" />
+                <View style={styles.eventCardText}>
+                  <Text style={[styles.eventCardTitle, { color: "#FFFFFF" }]}>Group Gift</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Upcoming Birthdays Section */}
+      {!isLoading && friends.length > 0 && (
+        <View style={[styles.eventsSection, styles.birthdaysSection]}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderLeft}>
+              <Feather name="calendar" size={20} color={theme.colors.primary} />
+              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Upcoming Birthdays</Text>
+            </View>
+          </View>
+          <View style={styles.birthdaysContainer}>
+            {/* TODO: Fetch and display upcoming birthdays from friends with birthday data */}
+            <View style={styles.emptyStateSmall}>
+              <Feather name="calendar" size={40} color={theme.colors.primary} />
+              <Text style={[styles.emptyTitleSmall, { color: theme.colors.textPrimary }]}>
+                No upcoming birthdays
+              </Text>
+              <Text style={[styles.emptySubtitleSmall, { color: theme.colors.textSecondary }]}>
+                Birthdays from your friends will appear here
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Friends List Section */}
+      {!isLoading && friends.length > 0 && (
+        <View style={styles.friendsListSection}>
+          <View style={styles.sectionHeaderLeft}>
+            <Feather name="users" size={20} color={theme.colors.primary} />
+            <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Friends ({friends.length})</Text>
+          </View>
+        </View>
+      )}
+
       {isLoading ? (
         <View style={styles.emptyState}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary, marginTop: 16 }]}>Loading friends...</Text>
         </View>
       ) : friends.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Feather name="users" size={64} color={theme.colors.primary} />
-          <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No friends yet</Text>
-          <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+        <View style={styles.emptyStateSmall}>
+          <Feather name="users" size={40} color={theme.colors.primary} />
+          <Text style={[styles.emptyTitleSmall, { color: theme.colors.textPrimary }]}>No friends yet</Text>
+          <Text style={[styles.emptySubtitleSmall, { color: theme.colors.textSecondary }]}>
             Tap the search icon to find friends
           </Text>
         </View>
       ) : (
-        <ScrollView 
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[theme.colors.primary]} />
-          }
-        >
-          {friends.map((friend, index) => (
+        <>
+          {friends.slice(0, 3).map((friend, index) => (
             <View key={friend.id}>
               <TouchableOpacity
                 onPress={() => handleViewProfile(friend.id)}
@@ -1030,14 +1111,24 @@ export default function FriendsScreen() {
                   <Feather name="more-horizontal" size={20} color={theme.colors.textSecondary} />
                 </TouchableOpacity>
               </TouchableOpacity>
-              {index < friends.length - 1 && (
+              {index < Math.min(friends.length, 3) - 1 && (
                 <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
               )}
             </View>
           ))}
-        </ScrollView>
+          {friends.length > 3 && (
+            <TouchableOpacity
+              style={styles.seeMoreButton}
+              onPress={() => router.push("/friends/all")}
+            >
+              <Text style={[styles.seeMoreText, { color: theme.colors.primary }]}>
+                See All Friends
+              </Text>
+            </TouchableOpacity>
+          )}
+        </>
       )}
-      </View>
+      </ScrollView>
       )}
 
       {/* Friend Menu */}
@@ -1105,9 +1196,85 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: "600",
-    marginBottom: 10,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  eventsSection: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  sectionHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  birthdaysContainer: {
+    gap: 8,
+  },
+  birthdaysSection: {
+    marginTop: 24,
+  },
+  emptyStateSmall: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  emptyTitleSmall: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginTop: 12,
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  emptySubtitleSmall: {
+    fontSize: 12,
+    textAlign: "center",
+  },
+  eventsContainer: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  eventCard: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  eventCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  eventIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  eventCardText: {
+    // Removed flex: 1 to allow proper centering
+  },
+  eventCardTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  eventCardSubtitle: {
+    fontSize: 12,
+  },
+  friendsListSection: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
   requestRow: {
     flexDirection: "row",
@@ -1121,7 +1288,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 12,
-    paddingHorizontal: 0,
+    paddingHorizontal: 24,
   },
   requestActions: {
     flexDirection: "row",
@@ -1143,10 +1310,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  seeMoreButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 0,
+    marginTop: 5,
+  },
+  seeMoreText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
   divider: {
     height: 1,
-    width: "90%",
-    alignSelf: "center",
+    width: "100%",
+    marginLeft: 24,
     marginVertical: 4,
   },
   emptyState: {
@@ -1318,6 +1495,9 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
+  },
+  mainContentContainer: {
+    paddingBottom: 130, // Extra padding to account for bottom menu bar (80px height + padding)
   },
   headerContainer: {
     paddingTop: 48,
