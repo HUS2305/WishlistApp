@@ -9,6 +9,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { getDisplayName, getUpcomingBirthdays } from "@/lib/utils";
 import { useAuth } from "@clerk/clerk-expo";
 import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
+import { CreateGroupGiftSheet } from "@/components/CreateGroupGiftSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 import { Alert } from "react-native";
 
@@ -22,6 +23,7 @@ export default function AllBirthdaysScreen() {
   const [birthdayGiftModalVisible, setBirthdayGiftModalVisible] = useState(false);
   const [selectedBirthdayFriend, setSelectedBirthdayFriend] = useState<{ id: string; name: string } | null>(null);
   const [createWishlistSheetVisible, setCreateWishlistSheetVisible] = useState(false);
+  const [createGroupGiftSheetVisible, setCreateGroupGiftSheetVisible] = useState(false);
 
   const fetchFriends = useCallback(async (showLoader = true) => {
     try {
@@ -241,11 +243,7 @@ export default function AllBirthdaysScreen() {
               ]}
               onPress={() => {
                 setBirthdayGiftModalVisible(false);
-                // TODO: Navigate to group gift creation
-                Alert.alert(
-                  "Coming Soon",
-                  "Group gift functionality will be available soon! You'll be able to create a shared wishlist with selected friends."
-                );
+                setCreateGroupGiftSheetVisible(true);
               }}
               activeOpacity={0.7}
             >
@@ -274,6 +272,14 @@ export default function AllBirthdaysScreen() {
         visible={createWishlistSheetVisible}
         onClose={() => setCreateWishlistSheetVisible(false)}
         initialTitle={selectedBirthdayFriend ? `${selectedBirthdayFriend.name}'s Birthday` : undefined}
+      />
+      
+      {/* Create Group Gift Sheet */}
+      <CreateGroupGiftSheet
+        visible={createGroupGiftSheetVisible}
+        onClose={() => setCreateGroupGiftSheetVisible(false)}
+        initialTitle={selectedBirthdayFriend ? `${selectedBirthdayFriend.name}'s Birthday` : undefined}
+        initialFriendId={selectedBirthdayFriend?.id}
       />
     </View>
   );

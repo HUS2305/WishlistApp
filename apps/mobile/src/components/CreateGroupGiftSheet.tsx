@@ -14,67 +14,66 @@ import {
 } from "react-native";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
-import type { PrivacyLevel, Wishlist } from "@/types";
-import { useUpdateWishlist } from "@/hooks/useWishlists";
-import { friendsService, type User as FriendUser } from "@/services/friends";
+import { router } from "expo-router";
 import { wishlistsService } from "@/services/wishlists";
+import { friendsService, type User as FriendUser } from "@/services/friends";
 import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
+import { wishlistEvents } from "@/utils/wishlistEvents";
 import { ThemedSwitch } from "./ThemedSwitch";
 import { getDisplayName } from "@/lib/utils";
 
-interface EditWishlistSheetProps {
+interface CreateGroupGiftSheetProps {
   visible: boolean;
   onClose: () => void;
-  wishlist: Wishlist | null;
   onSuccess?: () => void;
+  initialTitle?: string;
+  initialFriendId?: string; // Pre-select a friend if creating from their profile
 }
 
-export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: EditWishlistSheetProps) {
+export function CreateGroupGiftSheet({ 
+  visible, 
+  onClose, 
+  onSuccess, 
+  initialTitle,
+  initialFriendId 
+}: CreateGroupGiftSheetProps) {
   const { theme } = useTheme();
-  const updateWishlist = useUpdateWishlist();
-
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [privacyLevel, setPrivacyLevel] = useState<PrivacyLevel>("PRIVATE");
   const [allowReservations, setAllowReservations] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isTitleFocused, setIsTitleFocused] = useState(false);
   const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
-  const [existingCollaboratorIds, setExistingCollaboratorIds] = useState<Set<string>>(new Set());
-  const [existingCollaborators, setExistingCollaborators] = useState<Array<{ id: string; userId: string }>>([]);
   const [showFriendSelectionModal, setShowFriendSelectionModal] = useState(false);
 
-  // Load wishlist data when it becomes available
+  // Load friends when sheet opens
   useEffect(() => {
-    if (wishlist && visible) {
-      setTitle(wishlist.title || "");
-      setDescription(wishlist.description || "");
-      setPrivacyLevel(wishlist.privacyLevel);
-      setAllowReservations(wishlist.allowReservations ?? true);
-      
-      // Set existing collaborator IDs and full collaborator objects
-      const existingIds = new Set(wishlist.collaborators?.map(c => c.userId) || []);
-      setExistingCollaboratorIds(existingIds);
-      setExistingCollaborators(wishlist.collaborators?.map(c => ({ id: c.id, userId: c.userId })) || []);
-      
-      // Pre-select existing collaborators in the selection
-      const existingIdsSet = new Set(wishlist.collaborators?.map(c => c.userId) || []);
-      setSelectedFriends(existingIdsSet);
-      
-      // Load friends
+    if (visible) {
       loadFriends();
+      // Pre-select friend if provided
+      if (initialFriendId) {
+        setSelectedFriends(new Set([initialFriendId]));
+      }
     }
-  }, [wishlist, visible]);
+  }, [visible, initialFriendId]);
+
+  // Pre-fill title when modal opens with initialTitle prop
+  useEffect(() => {
+    if (visible && initialTitle) {
+      setTitle(initialTitle);
+    } else if (visible && !initialTitle) {
+      setTitle("");
+    }
+  }, [visible, initialTitle]);
 
   const loadFriends = async () => {
     setIsLoadingFriends(true);
     try {
       const friendsData = await friendsService.getFriends();
       setFriends(friendsData);
-      // Filter out existing collaborators from friends list
-      // (they'll be shown separately)
     } catch (error) {
       console.error("Error loading friends:", error);
     } finally {
@@ -92,109 +91,84 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
     setSelectedFriends(newSelection);
   };
 
-  // Get all friends (both existing collaborators and available friends)
-  // We'll show all friends in the modal, with existing collaborators pre-selected
-  const allFriends = friends;
-
-  const handleRemoveFromSelection = (userId: string) => {
-    // Just remove from selection - actual removal happens on save
-    const newSelected = new Set(selectedFriends);
-    newSelected.delete(userId);
-    setSelectedFriends(newSelected);
-  };
-
-  const handleSave = async () => {
+  const handleCreate = async () => {
     if (!title.trim()) {
       Alert.alert("Error", "Please enter a wishlist title");
       return;
     }
 
-    if (!wishlist?.id) {
-      Alert.alert("Error", "Invalid wishlist ID");
+    if (selectedFriends.size === 0) {
+      Alert.alert("Error", "Please select at least one friend to invite");
       return;
     }
 
-    updateWishlist.mutate(
-      {
-        id: wishlist.id,
+    console.log("🎯 Creating group gift wishlist with data:", {
+      title: title.trim(),
+      description: description.trim() || undefined,
+      allowReservations,
+      invitedFriends: Array.from(selectedFriends),
+    });
+
+    setIsLoading(true);
+    try {
+      // Create the wishlist with GROUP privacy level (set automatically when collaborators are provided)
+      const collaboratorIds = Array.from(selectedFriends);
+      const wishlist = await wishlistsService.createWishlist({
         title: title.trim(),
         description: description.trim() || undefined,
-        privacyLevel,
+        privacyLevel: "PRIVATE", // Will be changed to GROUP by backend when collaborators are added
         allowReservations,
-      },
-      {
-        onSuccess: async () => {
-          // Get the original existing collaborator IDs (from when modal opened)
-          const originalExistingIds = new Set(wishlist.collaborators?.map(c => c.userId) || []);
-          
-          // Find collaborators that were removed (were in original, not in selected)
-          const removedUserIds: string[] = [];
-          originalExistingIds.forEach(userId => {
-            if (!selectedFriends.has(userId)) {
-              removedUserIds.push(userId);
-            }
-          });
-          
-          // Remove collaborators that were deselected
-          for (const userId of removedUserIds) {
-            try {
-              await wishlistsService.removeCollaborator(wishlist.id, userId);
-            } catch (error: any) {
-              console.warn(`Failed to remove collaborator ${collaboratorId}:`, error);
-            }
-          }
-          
-          // Add new collaborators (were not in original, but are in selected)
-          const newFriendIds = Array.from(selectedFriends).filter(
-            friendId => !originalExistingIds.has(friendId)
-          );
-          
-          for (const friendId of newFriendIds) {
-            try {
-              await wishlistsService.inviteCollaborator(wishlist.id, friendId);
-            } catch (error: any) {
-              // Continue even if one invite fails (e.g., already a collaborator)
-              console.warn(`Failed to invite friend ${friendId}:`, error);
-            }
-          }
+        collaboratorIds, // Pass collaborator IDs - backend will set privacyLevel to GROUP
+      });
 
-          onClose();
-          if (onSuccess) {
-            onSuccess();
-          }
-        },
-        onError: (error: any) => {
-          console.error("❌ Error updating wishlist:", error);
-          const errorMessage = error.response?.data?.message 
-            || error.message 
-            || "Failed to update wishlist. Please try again.";
-          Alert.alert("Error", errorMessage);
-        },
+      console.log("✅ Group gift wishlist created successfully:", wishlist);
+
+      // Reset form
+      setTitle("");
+      setDescription("");
+      setAllowReservations(true);
+      setSelectedFriends(new Set());
+
+      // Close the sheet first
+      onClose();
+
+      // Emit event to notify listeners (like wishlists page) to refresh
+      wishlistEvents.emit();
+
+      // Trigger success callback if provided
+      if (onSuccess) {
+        onSuccess();
       }
-    );
+
+      // Navigate to wishlists page after a small delay to allow sheet to close
+      setTimeout(() => {
+        router.replace("/(tabs)/");
+      }, 300);
+    } catch (error: any) {
+      console.error("❌ Error creating group gift wishlist:", error);
+      console.error("Error details:", error.response?.data || error.message);
+
+      const errorMessage = error.response?.data?.message 
+        || error.message 
+        || "Failed to create group gift wishlist. Check console for details.";
+
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleClose = () => {
-    // Reset to original values when closing without saving
-    if (wishlist) {
-      setTitle(wishlist.title || "");
-      setDescription(wishlist.description || "");
-      setPrivacyLevel(wishlist.privacyLevel);
-      setAllowReservations(wishlist.allowReservations ?? true);
-      const existingIds = new Set(wishlist.collaborators?.map(c => c.userId) || []);
-      setExistingCollaboratorIds(existingIds);
-      setExistingCollaborators(wishlist.collaborators?.map(c => ({ id: c.id, userId: c.userId })) || []);
-      // Reset selected friends to original existing collaborators
-      setSelectedFriends(existingIds);
-    } else {
-      setSelectedFriends(new Set());
-    }
+    // Reset form when closing
+    setTitle("");
+    setDescription("");
+      setAllowReservations(true);
+    setSelectedFriends(new Set());
     onClose();
   };
 
   const renderFriendItem = ({ item, index, total }: { item: FriendUser; index: number; total: number }) => {
     const isSelected = selectedFriends.has(item.id);
-    const isExistingCollaborator = existingCollaboratorIds.has(item.id);
     const displayName = getDisplayName(item.firstName, item.lastName) || item.username || item.email;
 
     return (
@@ -203,7 +177,6 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
           style={styles.friendItem}
           onPress={() => toggleFriendSelection(item.id)}
           activeOpacity={0.7}
-          disabled={isLoading}
         >
           <View style={styles.friendItemLeft}>
             <View style={[styles.friendAvatar, { backgroundColor: isSelected ? theme.colors.primary + '20' : theme.colors.textSecondary + '20' }]}>
@@ -235,8 +208,6 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
     );
   };
 
-  const isLoading = updateWishlist.isPending;
-
   return (
     <>
       {/* Friend Selection Modal */}
@@ -256,17 +227,15 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
                   Loading friends...
                 </Text>
               </View>
-            ) : allFriends.length === 0 ? (
+            ) : friends.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Feather name="users" size={32} color={theme.colors.textSecondary} />
                 <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                  {isLoadingFriends 
-                    ? "Loading friends..." 
-                    : "No friends available"}
+                  No friends to invite. Add friends first!
                 </Text>
               </View>
             ) : (
-              allFriends.map((friend, index) => renderFriendItem({ item: friend, index, total: allFriends.length }))
+              friends.map((friend, index) => renderFriendItem({ item: friend, index, total: friends.length }))
             )}
           </ScrollView>
 
@@ -278,19 +247,24 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
               style={[
                 styles.modalDoneButton, 
                 { 
-                  backgroundColor: theme.colors.primary
+                  backgroundColor: selectedFriends.size === 0 
+                    ? theme.colors.textSecondary + '40' 
+                    : theme.colors.primary 
                 }
               ]}
               onPress={() => {
-                setShowFriendSelectionModal(false);
+                if (selectedFriends.size > 0) {
+                  setShowFriendSelectionModal(false);
+                }
               }}
               activeOpacity={0.8}
+              disabled={selectedFriends.size === 0}
             >
               <Text style={styles.modalDoneButtonText}>
                 {selectedFriends.size === 0 
-                  ? "Done"
+                  ? "Select at least one friend" 
                   : selectedFriends.size === 1 
-                    ? "Add friend"
+                    ? "Add friend" 
                     : `Add ${selectedFriends.size} friends`}
               </Text>
             </TouchableOpacity>
@@ -298,7 +272,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
         </View>
       </BottomSheet>
 
-      <BottomSheet visible={visible} onClose={handleClose}>
+      <BottomSheet visible={visible} onClose={onClose}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.keyboardView}
@@ -308,19 +282,14 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
           <View style={styles.header}>
             <View style={styles.headerSpacer} />
             <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-              Edit Wishlist
+              Create Group Gift
             </Text>
             <TouchableOpacity
               onPress={handleClose}
               style={styles.closeButton}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              disabled={isLoading}
             >
-              <Feather 
-                name="x" 
-                size={24} 
-                color={isLoading ? theme.colors.textSecondary : theme.colors.textPrimary} 
-              />
+              <Feather name="x" size={24} color={theme.colors.textPrimary} />
             </TouchableOpacity>
           </View>
 
@@ -331,26 +300,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Wishlist Image */}
-            <View style={styles.imageContainer}>
-              <View style={[styles.imageWrapper, { 
-                backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
-                borderColor: theme.colors.textSecondary + '40',
-              }]}>
-                <Feather name="image" size={48} color={theme.colors.textSecondary} />
-                <TouchableOpacity 
-                  style={[styles.imageChangeButton, { 
-                    backgroundColor: theme.colors.primary,
-                    borderColor: theme.colors.background,
-                  }]}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Feather name="camera" size={16} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Title Input - Centered */}
+            {/* Title Input */}
             <View style={styles.titleContainer}>
               <TextInput
                 style={[
@@ -362,13 +312,13 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
                       : theme.colors.textSecondary + '40',
                   },
                 ]}
-                placeholder="Title of wishlist"
+                placeholder="Title of group gift"
                 placeholderTextColor={theme.colors.textSecondary + '80'}
                 value={title}
                 onChangeText={setTitle}
                 onFocus={() => setIsTitleFocused(true)}
                 onBlur={() => setIsTitleFocused(false)}
-                editable={!isLoading}
+                autoFocus
               />
             </View>
 
@@ -395,123 +345,24 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
-                  editable={!isLoading}
                 />
               </View>
             </View>
 
-            {/* Privacy Settings - Horizontal Row (hidden when friends/collaborators are selected - becomes GROUP) */}
-            {selectedFriends.size === 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionContent}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>Privacy</Text>
-                <View style={styles.privacyRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.privacyOptionHorizontal,
-                      {
-                        borderColor: privacyLevel === "PRIVATE" 
-                          ? theme.colors.primary 
-                          : theme.colors.textSecondary + '40',
-                        backgroundColor: privacyLevel === "PRIVATE"
-                          ? (theme.isDark ? theme.colors.primary + '20' : theme.colors.primary + '15')
-                          : 'transparent',
-                        opacity: isLoading ? 0.6 : 1,
-                      },
-                    ]}
-                    onPress={() => !isLoading && setPrivacyLevel("PRIVATE")}
-                    disabled={isLoading}
-                  >
-                    <Feather
-                      name="lock"
-                      size={20}
-                      color={privacyLevel === "PRIVATE" ? theme.colors.primary : theme.colors.textSecondary}
-                    />
-                    <Text style={[styles.privacyOptionTitleHorizontal, { 
-                      color: privacyLevel === "PRIVATE" ? theme.colors.primary : theme.colors.textPrimary 
-                    }]}>
-                      Private
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.privacyOptionHorizontal,
-                      {
-                        borderColor: privacyLevel === "FRIENDS_ONLY" 
-                          ? theme.colors.primary 
-                          : theme.colors.textSecondary + '40',
-                        backgroundColor: privacyLevel === "FRIENDS_ONLY"
-                          ? (theme.isDark ? theme.colors.primary + '20' : theme.colors.primary + '15')
-                          : 'transparent',
-                        opacity: isLoading ? 0.6 : 1,
-                      },
-                    ]}
-                    onPress={() => !isLoading && setPrivacyLevel("FRIENDS_ONLY")}
-                    disabled={isLoading}
-                  >
-                    <Feather
-                      name="users"
-                      size={20}
-                      color={privacyLevel === "FRIENDS_ONLY" ? theme.colors.primary : theme.colors.textSecondary}
-                    />
-                    <Text style={[styles.privacyOptionTitleHorizontal, { 
-                      color: privacyLevel === "FRIENDS_ONLY" ? theme.colors.primary : theme.colors.textPrimary 
-                    }]}>
-                      Friends
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.privacyOptionHorizontal,
-                      {
-                        borderColor: privacyLevel === "PUBLIC" 
-                          ? theme.colors.primary 
-                          : theme.colors.textSecondary + '40',
-                        backgroundColor: privacyLevel === "PUBLIC"
-                          ? (theme.isDark ? theme.colors.primary + '20' : theme.colors.primary + '15')
-                          : 'transparent',
-                        opacity: isLoading ? 0.6 : 1,
-                      },
-                    ]}
-                    onPress={() => !isLoading && setPrivacyLevel("PUBLIC")}
-                    disabled={isLoading}
-                  >
-                    <Feather
-                      name="globe"
-                      size={20}
-                      color={privacyLevel === "PUBLIC" ? theme.colors.primary : theme.colors.textSecondary}
-                    />
-                    <Text style={[styles.privacyOptionTitleHorizontal, { 
-                      color: privacyLevel === "PUBLIC" ? theme.colors.primary : theme.colors.textPrimary 
-                    }]}>
-                      Public
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-            )}
-
-            {/* Share With Section */}
+            {/* Invite Friends Section */}
             <View style={styles.section}>
               <View style={styles.sectionContent}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-                  Share with
+                  Invite Friends
                 </Text>
                 
                 {/* Selected Friends Chips */}
-                {(wishlist?.collaborators && wishlist.collaborators.length > 0) || selectedFriends.size > 0 ? (
+                {selectedFriends.size > 0 && (
                   <View style={styles.selectedFriendsContainer}>
-                    {/* All Selected Friends (Existing Collaborators + Newly Selected) */}
-                    {allFriends
+                    {friends
                       .filter(friend => selectedFriends.has(friend.id))
                       .map((friend) => {
                         const displayName = getDisplayName(friend.firstName, friend.lastName) || friend.username || friend.email;
-                        const isExistingCollaborator = existingCollaboratorIds.has(friend.id);
-                        const collaborator = existingCollaborators.find(c => c.userId === friend.id);
-                        
                         return (
                           <View key={friend.id} style={[styles.friendChip, {
                             backgroundColor: theme.isDark ? theme.colors.primary + '20' : theme.colors.primary + '15',
@@ -525,7 +376,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
                               {displayName}
                             </Text>
                             <TouchableOpacity
-                              onPress={() => handleRemoveFromSelection(friend.id)}
+                              onPress={() => toggleFriendSelection(friend.id)}
                               hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                             >
                               <Feather name="x" size={14} color={theme.colors.textSecondary} />
@@ -534,19 +385,16 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
                         );
                       })}
                   </View>
-                ) : null}
+                )}
 
                 {/* Add/Manage Friends Button */}
                 <TouchableOpacity
                   style={styles.addPersonButton}
                   onPress={() => setShowFriendSelectionModal(true)}
-                  disabled={isLoading}
                 >
                   <Feather name={selectedFriends.size > 0 ? "edit-2" : "plus"} size={16} color={theme.colors.primary} />
                   <Text style={[styles.addPersonText, { color: theme.colors.primary }]}>
-                    {selectedFriends.size > 0 
-                      ? `Manage friends (${selectedFriends.size})` 
-                      : `Add person`}
+                    {selectedFriends.size > 0 ? `Manage friends (${selectedFriends.size})` : `Add friends`}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -570,7 +418,6 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
                   <ThemedSwitch 
                     value={allowReservations} 
                     onValueChange={setAllowReservations}
-                    disabled={isLoading}
                   />
                 </View>
               </View>
@@ -583,22 +430,22 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
           {/* Fixed Bottom Button */}
           <View style={[styles.bottomButtonContainer, { backgroundColor: theme.colors.background }]}>
             <TouchableOpacity
-              onPress={handleSave}
-              disabled={isLoading || !title.trim()}
+              onPress={handleCreate}
+              disabled={isLoading || !title.trim() || selectedFriends.size === 0}
               style={[
-                styles.saveButton,
+                styles.createButton,
                 {
-                  backgroundColor: (!title.trim() || isLoading) 
+                  backgroundColor: (!title.trim() || selectedFriends.size === 0 || isLoading) 
                     ? theme.colors.textSecondary + '40'
                     : theme.colors.primary,
-                  opacity: (!title.trim() || isLoading) ? 0.6 : 1,
+                  opacity: (!title.trim() || selectedFriends.size === 0 || isLoading) ? 0.6 : 1,
                 },
               ]}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+                <Text style={styles.createButtonText}>Create Group Gift</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -645,31 +492,6 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 0,
   },
-  imageContainer: {
-    alignItems: "center",
-    marginBottom: 24,
-    marginTop: -4,
-  },
-  imageWrapper: {
-    width: 120,
-    height: 120,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-  imageChangeButton: {
-    position: "absolute",
-    bottom: -4,
-    right: -4,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 3,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   titleContainer: {
     alignItems: "center",
     marginBottom: 24,
@@ -705,108 +527,6 @@ const styles = StyleSheet.create({
   textArea: {
     height: 100,
     paddingTop: 10,
-  },
-  privacyRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  privacyOptionHorizontal: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginHorizontal: 4,
-  },
-  privacyOptionTitleHorizontal: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: 6,
-  },
-  addPersonButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 0,
-  },
-  addPersonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: 6,
-  },
-  selectedFriendsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 12,
-  },
-  friendChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 5,
-    maxWidth: "100%",
-  },
-  chipAvatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chipAvatarText: {
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  chipText: {
-    fontSize: 13,
-    fontWeight: "500",
-    flexShrink: 1,
-  },
-  modalContainer: {
-    flex: 1,
-    flexDirection: "column",
-  },
-  modalHeader: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  modalHeaderTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  modalContent: {
-    flex: 1,
-  },
-  modalContentContainer: {
-    padding: 16,
-    paddingBottom: 16,
-  },
-  modalFooter: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 20,
-  },
-  modalDoneButton: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalDoneButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
   },
   friendItem: {
     flexDirection: "row",
@@ -872,6 +592,88 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
+  selectedFriendsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 12,
+  },
+  friendChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 5,
+    maxWidth: "100%",
+  },
+  chipAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chipAvatarText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: "500",
+    flexShrink: 1,
+  },
+  addPersonButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 0,
+  },
+  addPersonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+  modalContainer: {
+    flex: 1,
+    flexDirection: "column",
+  },
+  modalHeader: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  modalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  modalContent: {
+    flex: 1,
+  },
+  modalContentContainer: {
+    padding: 16,
+    paddingBottom: 16,
+  },
+  modalFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 20,
+  },
+  modalDoneButton: {
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalDoneButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -911,20 +713,17 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  saveButton: {
+  createButton: {
     width: "100%",
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  saveButtonText: {
+  createButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
   },
 });
-
-
-
 

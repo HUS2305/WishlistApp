@@ -1,4 +1,4 @@
-export type PrivacyLevel = "PRIVATE" | "FRIENDS_ONLY" | "PUBLIC";
+export type PrivacyLevel = "PRIVATE" | "FRIENDS_ONLY" | "PUBLIC" | "GROUP";
 export type Priority = "MUST_HAVE" | "NICE_TO_HAVE";
 export type ItemStatus = "WANTED" | "RESERVED" | "PURCHASED";
 export type FriendshipStatus = "PENDING" | "ACCEPTED" | "BLOCKED";
@@ -20,6 +20,17 @@ export interface User {
   updatedAt: string;
 }
 
+export type CollaboratorRole = "VIEWER" | "EDITOR" | "ADMIN";
+
+export interface Collaborator {
+  id: string;
+  role: CollaboratorRole;
+  createdAt: string;
+  wishlistId: string;
+  userId: string;
+  user: User;
+}
+
 export interface Wishlist {
   id: string;
   title: string;
@@ -33,13 +44,25 @@ export interface Wishlist {
   createdAt: string;
   updatedAt: string;
   ownerId: string;
+  isGroupWishlist?: boolean;
   items?: Item[];
+  collaborators?: Collaborator[];
+  owner?: User;
 }
 
 export interface Item {
   id: string;
   title: string;
   description?: string;
+  addedBy?: {
+    id: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    displayName?: string;
+  } | null;
+  isReservedByCurrentUser?: boolean;
+  hasReservations?: boolean;
   price?: number;
   currency: string;
   url: string;
@@ -52,5 +75,6 @@ export interface Item {
   updatedAt: string;
   wishlistId: string;
   addedById: string;
+  addedBy?: User;
 }
 

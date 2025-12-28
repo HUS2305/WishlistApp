@@ -5,6 +5,7 @@ import { Feather } from "@expo/vector-icons";
 import { PageHeader, HeaderButton } from "@/components/PageHeader";
 import { useState, useCallback } from "react";
 import { notificationsService, type Notification } from "@/services/notifications";
+import { wishlistsService } from "@/services/wishlists";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useNotificationContext } from "@/contexts/NotificationContext";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
@@ -75,7 +76,41 @@ export default function NotificationsScreen() {
           router.push("/(tabs)/friends");
           break;
         case "WISHLIST_SHARED":
-          if (notification.data?.wishlistId) {
+          // Check if this is a collaboration invitation
+          if (notification.data?.type === "COLLABORATOR_INVITATION" && notification.data?.wishlistId) {
+            // Show accept/decline dialog
+            Alert.alert(
+              "Group Gift Invitation",
+              notification.body,
+              [
+                {
+                  text: "Decline",
+                  style: "cancel",
+                  onPress: async () => {
+                    // Just navigate away, they can ignore it
+                    console.log("Invitation declined");
+                  },
+                },
+                {
+                  text: "Accept",
+                  onPress: async () => {
+                    try {
+                      await wishlistsService.acceptCollaboration(notification.data.wishlistId);
+                      Alert.alert("Success", "You've joined the group gift!");
+                      // Refresh notifications
+                      await fetchNotifications(false);
+                      // Navigate to the wishlist
+                      router.push(`/wishlist/${notification.data.wishlistId}`);
+                    } catch (error: any) {
+                      console.error("Error accepting collaboration:", error);
+                      Alert.alert("Error", error.response?.data?.message || "Failed to accept invitation");
+                    }
+                  },
+                },
+              ]
+            );
+          } else if (notification.data?.wishlistId) {
+            // Regular wishlist share - just navigate
             router.push(`/wishlist/${notification.data.wishlistId}`);
           }
           break;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import React from "react";
 import {
   View,
@@ -10,16 +10,19 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  FlatList,
 } from "react-native";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import type { PrivacyLevel } from "@/types";
 import { wishlistsService } from "@/services/wishlists";
+import { friendsService, type User as FriendUser } from "@/services/friends";
 import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
 import { wishlistEvents } from "@/utils/wishlistEvents";
 import { ThemedSwitch } from "./ThemedSwitch";
+import { getDisplayName } from "@/lib/utils";
 
 interface CreateWishlistSheetProps {
   visible: boolean;
@@ -37,10 +40,42 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [privacyLevel, setPrivacyLevel] = useState<PrivacyLevel>("PRIVATE");
-  const [allowComments, setAllowComments] = useState(true);
   const [allowReservations, setAllowReservations] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isTitleFocused, setIsTitleFocused] = useState(false);
+  const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
+  const [friends, setFriends] = useState<FriendUser[]>([]);
+  const [isLoadingFriends, setIsLoadingFriends] = useState(false);
+  const [showFriendSelectionModal, setShowFriendSelectionModal] = useState(false);
+
+  // Load friends when sheet opens
+  useEffect(() => {
+    if (visible) {
+      loadFriends();
+    }
+  }, [visible]);
+
+  const loadFriends = async () => {
+    setIsLoadingFriends(true);
+    try {
+      const friendsData = await friendsService.getFriends();
+      setFriends(friendsData);
+    } catch (error) {
+      console.error("Error loading friends:", error);
+    } finally {
+      setIsLoadingFriends(false);
+    }
+  };
+
+  const toggleFriendSelection = (friendId: string) => {
+    const newSelection = new Set(selectedFriends);
+    if (newSelection.has(friendId)) {
+      newSelection.delete(friendId);
+    } else {
+      newSelection.add(friendId);
+    }
+    setSelectedFriends(newSelection);
+  };
 
   // Pre-fill title when modal opens with initialTitle prop
   React.useEffect(() => {
@@ -62,18 +97,18 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
       title: title.trim(),
       description: description.trim() || undefined,
       privacyLevel,
-      allowComments,
       allowReservations,
     });
 
     setIsLoading(true);
     try {
+      const collaboratorIds = Array.from(selectedFriends);
       const wishlist = await wishlistsService.createWishlist({
         title: title.trim(),
         description: description.trim() || undefined,
-        privacyLevel,
-        allowComments,
+        privacyLevel, // Backend will change to GROUP if collaboratorIds are provided
         allowReservations,
+        collaboratorIds: collaboratorIds.length > 0 ? collaboratorIds : undefined,
       });
 
       console.log("✅ Wishlist created successfully:", wishlist);
@@ -82,8 +117,8 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
       setTitle("");
       setDescription("");
       setPrivacyLevel("PRIVATE");
-      setAllowComments(true);
       setAllowReservations(true);
+      setSelectedFriends(new Set());
       
       // Close the sheet first
       onClose();
@@ -119,18 +154,122 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
     setTitle("");
     setDescription("");
     setPrivacyLevel("PRIVATE");
-    setAllowComments(true);
     setAllowReservations(true);
+    setSelectedFriends(new Set());
     onClose();
   };
 
+  const renderFriendItem = ({ item, index, total }: { item: FriendUser; index: number; total: number }) => {
+    const isSelected = selectedFriends.has(item.id);
+    const displayName = getDisplayName(item.firstName, item.lastName) || item.username || item.email;
+
+    return (
+      <View key={item.id}>
+        <TouchableOpacity
+          style={styles.friendItem}
+          onPress={() => toggleFriendSelection(item.id)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.friendItemLeft}>
+            <View style={[styles.friendAvatar, { backgroundColor: isSelected ? theme.colors.primary + '20' : theme.colors.textSecondary + '20' }]}>
+              <Text style={[styles.friendAvatarText, { color: isSelected ? theme.colors.primary : theme.colors.textPrimary }]}>
+                {displayName[0]?.toUpperCase() || "?"}
+              </Text>
+            </View>
+            <View style={styles.friendItemInfo}>
+              <Text style={[styles.friendItemName, { color: theme.colors.textPrimary }]}>
+                {displayName}
+              </Text>
+              {item.username && (
+                <Text style={[styles.friendItemUsername, { color: theme.colors.textSecondary }]}>
+                  @{item.username}
+                </Text>
+              )}
+            </View>
+          </View>
+          {isSelected && (
+            <View style={[styles.checkIcon, { backgroundColor: theme.colors.primary }]}>
+              <Feather name="check" size={14} color="#fff" />
+            </View>
+          )}
+        </TouchableOpacity>
+        {index < total - 1 && (
+          <View style={[styles.friendDivider, { backgroundColor: theme.colors.textSecondary + '20' }]} />
+        )}
+      </View>
+    );
+  };
+
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
-      >
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <>
+      {/* Friend Selection Modal */}
+      <BottomSheet visible={showFriendSelectionModal} onClose={() => setShowFriendSelectionModal(false)}>
+        <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
+          <View style={styles.modalHeader}>
+            <Text style={[styles.modalHeaderTitle, { color: theme.colors.textPrimary }]}>
+              Select Friends
+            </Text>
+          </View>
+          
+          <ScrollView style={styles.modalContent} contentContainerStyle={styles.modalContentContainer}>
+            {isLoadingFriends ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+                  Loading friends...
+                </Text>
+              </View>
+            ) : friends.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Feather name="users" size={32} color={theme.colors.textSecondary} />
+                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                  No friends to invite. Add friends first!
+                </Text>
+              </View>
+            ) : (
+              friends.map((friend, index) => renderFriendItem({ item: friend, index, total: friends.length }))
+            )}
+          </ScrollView>
+
+          {/* Bottom Button */}
+          <View style={[styles.modalFooter, { 
+            backgroundColor: theme.colors.background,
+          }]}>
+            <TouchableOpacity
+              style={[
+                styles.modalDoneButton, 
+                { 
+                  backgroundColor: selectedFriends.size === 0 
+                    ? theme.colors.textSecondary + '40' 
+                    : theme.colors.primary 
+                }
+              ]}
+              onPress={() => {
+                if (selectedFriends.size > 0) {
+                  setShowFriendSelectionModal(false);
+                }
+              }}
+              activeOpacity={0.8}
+              disabled={selectedFriends.size === 0}
+            >
+              <Text style={styles.modalDoneButtonText}>
+                {selectedFriends.size === 0 
+                  ? "Select at least one friend" 
+                  : selectedFriends.size === 1 
+                    ? "Add friend" 
+                    : `Add ${selectedFriends.size} friends`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </BottomSheet>
+
+      <BottomSheet visible={visible} onClose={onClose}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.keyboardView}
+        >
+          <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
           {/* Header - Draggable area */}
           <View style={styles.header}>
             <View style={styles.headerSpacer} />
@@ -221,7 +360,8 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
               </View>
             </View>
 
-            {/* Privacy Settings - Horizontal Row */}
+            {/* Privacy Settings - Horizontal Row (hidden when friends are selected - becomes GROUP) */}
+            {selectedFriends.size === 0 && (
             <View style={styles.section}>
               <View style={styles.sectionContent}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>Privacy</Text>
@@ -306,74 +446,80 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
                 </View>
               </View>
             </View>
+            )}
 
             {/* Share With Section */}
             <View style={styles.section}>
               <View style={styles.sectionContent}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>Share with</Text>
-              <TouchableOpacity
-                style={[
-                  styles.addPersonButton,
-                  {
-                    backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
-                    borderColor: theme.colors.textSecondary + '40',
-                  },
-                ]}
-                onPress={() => {
-                  // TODO: Implement add person functionality
-                  console.log("Add person pressed");
-                }}
-              >
-                <Feather name="plus" size={20} color={theme.colors.primary} />
-                <Text style={[styles.addPersonText, { color: theme.colors.primary }]}>
-                  Add person
+                <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+                  Share with
                 </Text>
-              </TouchableOpacity>
+                
+                {/* Selected Friends Chips */}
+                {selectedFriends.size > 0 && (
+                  <View style={styles.selectedFriendsContainer}>
+                    {friends
+                      .filter(friend => selectedFriends.has(friend.id))
+                      .map((friend) => {
+                        const displayName = getDisplayName(friend.firstName, friend.lastName) || friend.username || friend.email;
+                        return (
+                          <View key={friend.id} style={[styles.friendChip, {
+                            backgroundColor: theme.isDark ? theme.colors.primary + '20' : theme.colors.primary + '15',
+                          }]}>
+                            <View style={[styles.chipAvatar, { backgroundColor: theme.colors.primary + '30' }]}>
+                              <Text style={[styles.chipAvatarText, { color: theme.colors.primary }]}>
+                                {displayName[0]?.toUpperCase() || "?"}
+                              </Text>
+                            </View>
+                            <Text style={[styles.chipText, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+                              {displayName}
+                            </Text>
+                            <TouchableOpacity
+                              onPress={() => toggleFriendSelection(friend.id)}
+                              hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+                            >
+                              <Feather name="x" size={14} color={theme.colors.textSecondary} />
+                            </TouchableOpacity>
+                          </View>
+                        );
+                      })}
+                  </View>
+                )}
+
+                {/* Add/Manage Friends Button */}
+                <TouchableOpacity
+                  style={styles.addPersonButton}
+                  onPress={() => setShowFriendSelectionModal(true)}
+                  disabled={isLoading}
+                >
+                  <Feather name={selectedFriends.size > 0 ? "edit-2" : "plus"} size={16} color={theme.colors.primary} />
+                  <Text style={[styles.addPersonText, { color: theme.colors.primary }]}>
+                    {selectedFriends.size > 0 ? `Manage friends (${selectedFriends.size})` : `Add person`}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
 
-            {/* Additional Settings */}
+            {/* Allow Reservations */}
             <View style={styles.section}>
               <View style={styles.sectionContent}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>Settings</Text>
-
-              <View style={styles.settingRow}>
-                <View style={styles.settingLeft}>
-                  <Feather name="message-circle" size={24} color={theme.colors.primary} />
-                  <View style={styles.settingText}>
-                    <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
-                      Allow Comments
-                    </Text>
-                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                      Let others comment on items
-                    </Text>
+                <View style={styles.settingRow}>
+                  <View style={styles.settingLeft}>
+                    <Feather name="bookmark" size={24} color={theme.colors.primary} />
+                    <View style={styles.settingText}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
+                        Allow Reservations
+                      </Text>
+                      <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
+                        Let others reserve items
+                      </Text>
+                    </View>
                   </View>
+                  <ThemedSwitch 
+                    value={allowReservations} 
+                    onValueChange={setAllowReservations}
+                  />
                 </View>
-                <ThemedSwitch 
-                  value={allowComments} 
-                  onValueChange={setAllowComments}
-                />
-              </View>
-
-              <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '40' }]} />
-
-              <View style={styles.settingRow}>
-                <View style={styles.settingLeft}>
-                  <Feather name="bookmark" size={24} color={theme.colors.primary} />
-                  <View style={styles.settingText}>
-                    <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
-                      Allow Reservations
-                    </Text>
-                    <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
-                      Let others reserve items
-                    </Text>
-                  </View>
-                </View>
-                <ThemedSwitch 
-                  value={allowReservations} 
-                  onValueChange={setAllowReservations}
-                />
-              </View>
               </View>
             </View>
 
@@ -403,9 +549,10 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
               )}
             </TouchableOpacity>
           </View>
-        </View>
-      </KeyboardAvoidingView>
-    </BottomSheet>
+          </View>
+        </KeyboardAvoidingView>
+      </BottomSheet>
+    </>
   );
 }
 
@@ -541,15 +688,147 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 0,
   },
   addPersonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+  friendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 0,
+  },
+  friendItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  friendAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  friendAvatarText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  friendItemInfo: {
+    flex: 1,
+  },
+  friendItemName: {
     fontSize: 16,
     fontWeight: "500",
-    marginLeft: 8,
+    marginBottom: 2,
+  },
+  friendItemUsername: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  friendDivider: {
+    height: 1,
+    marginVertical: 0,
+  },
+  checkIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingContainer: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 14,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  emptyText: {
+    marginTop: 12,
+    fontSize: 14,
+    textAlign: "center",
+  },
+  selectedFriendsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 12,
+  },
+  friendChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 5,
+    maxWidth: "100%",
+  },
+  chipAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chipAvatarText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: "500",
+    flexShrink: 1,
+  },
+  modalContainer: {
+    flex: 1,
+    flexDirection: "column",
+  },
+  modalHeader: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  modalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  modalContent: {
+    flex: 1,
+  },
+  modalContentContainer: {
+    padding: 16,
+    paddingBottom: 16,
+  },
+  modalFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 20,
+  },
+  modalDoneButton: {
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalDoneButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
   settingRow: {
     flexDirection: "row",

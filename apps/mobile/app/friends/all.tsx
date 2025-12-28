@@ -12,6 +12,7 @@ import { FriendMenu } from "@/components/FriendMenu";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { useAuth } from "@clerk/clerk-expo";
 import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
+import { CreateGroupGiftSheet } from "@/components/CreateGroupGiftSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 
 export default function AllFriendsScreen() {
@@ -29,6 +30,7 @@ export default function AllFriendsScreen() {
   const [birthdayGiftModalVisible, setBirthdayGiftModalVisible] = useState(false);
   const [selectedBirthdayFriend, setSelectedBirthdayFriend] = useState<{ id: string; name: string } | null>(null);
   const [createWishlistSheetVisible, setCreateWishlistSheetVisible] = useState(false);
+  const [createGroupGiftSheetVisible, setCreateGroupGiftSheetVisible] = useState(false);
   
   // Search state
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -666,11 +668,9 @@ export default function AllFriendsScreen() {
               ]}
               onPress={() => {
                 setBirthdayGiftModalVisible(false);
-                // TODO: Navigate to group gift creation
-                Alert.alert(
-                  "Coming Soon",
-                  "Group gift functionality will be available soon! You'll be able to create a shared wishlist with selected friends."
-                );
+                setTimeout(() => {
+                  setCreateGroupGiftSheetVisible(true);
+                }, 200);
               }}
               activeOpacity={0.7}
             >
@@ -699,6 +699,14 @@ export default function AllFriendsScreen() {
         visible={createWishlistSheetVisible}
         onClose={() => setCreateWishlistSheetVisible(false)}
         initialTitle={selectedBirthdayFriend ? `${selectedBirthdayFriend.name}'s Birthday` : undefined}
+      />
+      
+      {/* Create Group Gift Sheet */}
+      <CreateGroupGiftSheet
+        visible={createGroupGiftSheetVisible}
+        onClose={() => setCreateGroupGiftSheetVisible(false)}
+        initialTitle={selectedBirthdayFriend ? `${selectedBirthdayFriend.name}'s Birthday` : undefined}
+        initialFriendId={selectedBirthdayFriend?.id}
       />
     </View>
   );

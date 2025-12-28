@@ -17,6 +17,7 @@ interface QuickActionMenuProps {
   onClose: () => void;
   onCreateWishlist?: () => void;
   onAddItem?: () => void;
+  disableAddItem?: boolean;
 }
 
 interface ActionButton {
@@ -24,9 +25,10 @@ interface ActionButton {
   icon: keyof typeof Feather.glyphMap;
   color: string;
   onPress: () => void;
+  disabled?: boolean;
 }
 
-export function QuickActionMenu({ visible, onClose, onCreateWishlist, onAddItem }: QuickActionMenuProps) {
+export function QuickActionMenu({ visible, onClose, onCreateWishlist, onAddItem, disableAddItem = false }: QuickActionMenuProps) {
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const scaleAnim = React.useRef(new Animated.Value(0.8)).current;
 
@@ -81,12 +83,13 @@ export function QuickActionMenu({ visible, onClose, onCreateWishlist, onAddItem 
       color: "#FFB84D",
       onPress: () => {
         onClose();
-        if (onAddItem) {
+        if (onAddItem && !disableAddItem) {
           onAddItem();
         } else {
           console.log("Add gift/item - need to select wishlist first");
         }
       },
+      disabled: disableAddItem,
     },
     {
       label: "Search Friends",
@@ -139,12 +142,13 @@ export function QuickActionMenu({ visible, onClose, onCreateWishlist, onAddItem 
                 <TouchableOpacity
                   onPress={action.onPress}
                   activeOpacity={0.8}
-                  style={styles.actionButton}
+                  style={[styles.actionButton, action.disabled && styles.actionButtonDisabled]}
+                  disabled={action.disabled}
                 >
-                  <View style={[styles.iconContainer, { backgroundColor: action.color }]}>
+                  <View style={[styles.iconContainer, { backgroundColor: action.disabled ? "#CCCCCC" : action.color }]}>
                     <Feather name={action.icon} size={24} color="#fff" />
                   </View>
-                  <Text style={styles.actionLabel}>{action.label}</Text>
+                  <Text style={[styles.actionLabel, action.disabled && styles.actionLabelDisabled]}>{action.label}</Text>
                 </TouchableOpacity>
               </Animated.View>
             ))}
@@ -203,5 +207,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     flex: 1,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
+  actionLabelDisabled: {
+    color: "#999",
   },
 });

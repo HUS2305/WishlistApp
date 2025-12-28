@@ -57,5 +57,50 @@ export class WishlistsController {
   async getPublicWishlist(@Param("shareToken") shareToken: string) {
     return this.wishlistsService.findByShareToken(shareToken);
   }
+
+  // Collaborator endpoints
+  @Post(":id/collaborators/invite")
+  async inviteCollaborator(
+    @GetUserId() userId: string,
+    @Param("id") wishlistId: string,
+    @Body() body: { inviteeUserId: string }
+  ) {
+    return this.wishlistsService.inviteCollaborator(userId, wishlistId, body.inviteeUserId);
+  }
+
+  @Post(":id/collaborators/accept")
+  async acceptCollaboration(
+    @GetUserId() userId: string,
+    @Param("id") wishlistId: string
+  ) {
+    return this.wishlistsService.acceptCollaboration(userId, wishlistId);
+  }
+
+  @Delete(":id/collaborators/:collaboratorId")
+  async removeCollaborator(
+    @GetUserId() userId: string,
+    @Param("id") wishlistId: string,
+    @Param("collaboratorId") collaboratorId: string
+  ) {
+    return this.wishlistsService.removeCollaborator(userId, wishlistId, collaboratorId);
+  }
+
+  @Patch(":id/collaborators/:collaboratorId/role")
+  async updateCollaboratorRole(
+    @GetUserId() userId: string,
+    @Param("id") wishlistId: string,
+    @Param("collaboratorId") collaboratorId: string,
+    @Body() body: { role: "VIEWER" | "EDITOR" | "ADMIN" }
+  ) {
+    return this.wishlistsService.updateCollaboratorRole(userId, wishlistId, collaboratorId, body.role);
+  }
+
+  @Get(":id/collaborators")
+  async getCollaborators(
+    @GetUserId() userId: string,
+    @Param("id") wishlistId: string
+  ) {
+    return this.wishlistsService.getCollaborators(userId, wishlistId);
+  }
 }
 

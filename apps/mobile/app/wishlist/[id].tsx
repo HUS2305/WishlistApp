@@ -3,17 +3,21 @@ import {
   View,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
+  Pressable,
   Alert,
   Share,
   ActivityIndicator,
   Linking,
   RefreshControl,
+  Dimensions,
 } from "react-native";
 import { Text } from "@/components/Text";
 import { router, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import type { Item, Wishlist, User } from "@/types";
+import type { Item, Wishlist, User, Collaborator } from "@/types";
+import { getDisplayName } from "@/lib/utils";
 import { useWishlist, useWishlistItems, useDeleteWishlist, useUpdateItem, useDeleteItem } from "@/hooks/useWishlists";
 import { WishlistMenu } from "@/components/WishlistMenu";
 import { ItemMenu } from "@/components/ItemMenu";
@@ -59,6 +63,11 @@ export default function WishlistDetailScreen() {
   const [reservedItems, setReservedItems] = useState<Set<string>>(new Set());
   const [reservingItemId, setReservingItemId] = useState<string | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const [collaboratorsModalVisible, setCollaboratorsModalVisible] = useState(false);
+  const [removeCollaboratorModalVisible, setRemoveCollaboratorModalVisible] = useState(false);
+  const [collaboratorToRemove, setCollaboratorToRemove] = useState<Collaborator | null>(null);
+  const [isRemovingCollaborator, setIsRemovingCollaborator] = useState(false);
+  const [leaveWishlistModalVisible, setLeaveWishlistModalVisible] = useState(false);
 
   // Check if current user is the owner of the wishlist
   // Only determine ownership when we have both wishlist and currentUser
@@ -66,6 +75,14 @@ export default function WishlistDetailScreen() {
   const isOwner = wishlist && currentUser !== null 
     ? wishlist.ownerId === currentUser.id 
     : undefined;
+
+  // Check if current user is a collaborator (not owner)
+  const isCollaborator = wishlist && currentUser !== null && isOwner === false
+    ? wishlist.collaborators?.some(collab => collab.userId === currentUser.id)
+    : false;
+
+  // Check if user can add items (owner or collaborator)
+  const canAddItems = isOwner === true || isCollaborator === true;
 
   // Fetch current user to check ownership
   useEffect(() => {
@@ -172,6 +189,16 @@ export default function WishlistDetailScreen() {
     }
   };
 
+  // Handle leaving wishlist (for collaborators)
+  const handleLeaveWishlist = () => {
+    setMenuVisible(false);
+    // Small delay to let menu close before opening confirmation modal
+    setTimeout(() => {
+      setLeaveWishlistModalVisible(true);
+    }, 200);
+  };
+
+
 
   // For non-owners, only show wanted items. For owners, respect the sortFilter
   // Only filter when we know ownership status (isOwner !== undefined)
@@ -231,17 +258,19 @@ export default function WishlistDetailScreen() {
   };
 
   const handleItemPress = (item: Item) => {
-    // Non-owners can't interact with items (no menu, no status toggle)
-    if (isOwner === false) {
-      // Just open the item URL if available
+    // Check if user can edit this item (owner or item creator if collaborator)
+    const canEditItem = isOwner === true || (isCollaborator === true && item.addedById === currentUser?.id);
+    
+    // If user can't edit items, just open URL if available
+    if (!canEditItem) {
       if (item.url) {
         Linking.openURL(item.url);
       }
       return;
     }
     
-    // On purchased tab, clicking the item should restore it to wanted
-    if (sortFilter === "purchased") {
+    // On purchased tab, clicking the item should restore it to wanted (only for owners)
+    if (sortFilter === "purchased" && isOwner === true) {
       handleToggleItemStatus(item);
     } else {
       // On wanted tab, show menu
@@ -389,23 +418,24 @@ export default function WishlistDetailScreen() {
 
   // Initialize reserved items from backend data
   useEffect(() => {
-    if (!currentUser || !items.length || isOwner === true) return;
+    if (!currentUser || !items.length) return;
     
     // Initialize reservedItems from items that have isReservedByCurrentUser flag
     const reserved = new Set<string>();
     items.forEach(item => {
+      // @ts-ignore - isReservedByCurrentUser may exist on item but not in type definition
       if (item.isReservedByCurrentUser) {
         reserved.add(item.id);
       }
     });
     setReservedItems(reserved);
-  }, [items, currentUser]);
+  }, [items, currentUser, isOwner]);
 
 
-  // Check if item is reserved (by anyone - if status is RESERVED or if we've reserved it)
+  // Check if item is reserved (by anyone - if hasReservations flag is true or if we've reserved it)
   const isItemReserved = (item: Item) => {
-    // Item is reserved if status is RESERVED or if current user has reserved it
-    return item.status === "RESERVED" || reservedItems.has(item.id);
+    // Item is reserved if hasReservations is true or if current user has reserved it
+    return item.hasReservations === true || reservedItems.has(item.id);
   };
 
   // Check if current user has reserved the item
@@ -415,7 +445,8 @@ export default function WishlistDetailScreen() {
 
   // Check if item is reserved by someone else
   const isReservedBySomeoneElse = (item: Item) => {
-    return item.status === "RESERVED" && !reservedItems.has(item.id);
+    // Item is reserved by someone else if hasReservations is true but current user hasn't reserved it
+    return item.hasReservations === true && !reservedItems.has(item.id);
   };
 
   // Get reserve button text
@@ -680,12 +711,32 @@ export default function WishlistDetailScreen() {
                     </Text>
                   </View>
                 )}
+                
+                {/* Added By - Show for all items */}
+                {item.addedBy && (
+                  <View style={[styles.itemAddedByChip, { backgroundColor: theme.colors.primary + '15' }]}>
+                    <Feather 
+                      name="user" 
+                      size={10} 
+                      color={theme.colors.primary} 
+                      style={{ marginRight: 4 }} 
+                    />
+                    <Text style={[
+                      styles.itemAddedByChipText, 
+                      { 
+                        color: theme.colors.primary
+                      }
+                    ]}>
+                      {item.addedBy.displayName || item.addedBy.username || item.addedBy.firstName || 'Someone'}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           </View>
           
-          {/* Action Buttons - Only show for owner */}
-          {isOwner === true && (
+          {/* Action Buttons - Show for owner or collaborator who created the item */}
+          {(isOwner === true || (isCollaborator === true && item.addedById === currentUser?.id)) && (
             <View style={styles.itemOwnerActions}>
               {/* Link Button - only show if item has URL */}
               {hasUrl && (
@@ -736,12 +787,56 @@ export default function WishlistDetailScreen() {
                   color={theme.colors.textSecondary} 
                 />
               </TouchableOpacity>
+              
+              {/* Reserve Button - Show for everyone when reservations are allowed, but hide for owners in non-group wishlists who created the item */}
+              {wishlist?.allowReservations && !(isOwner === true && wishlist?.privacyLevel !== "GROUP" && item.addedById === currentUser?.id) && (
+                <TouchableOpacity
+                  style={[
+                    styles.itemReserveButtonOwner,
+                    { 
+                      borderColor: reservedByMe 
+                        ? theme.colors.primary
+                        : isReservedBySomeoneElse(item)
+                        ? theme.colors.textSecondary
+                        : theme.colors.primary,
+                      borderWidth: 2,
+                      backgroundColor: reservedByMe 
+                        ? theme.colors.primary
+                        : 'transparent',
+                    }
+                  ]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleReserveItem(item);
+                  }}
+                  disabled={isReserving}
+                  activeOpacity={0.7}
+                >
+                  {isReserving ? (
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                  ) : (
+                    <Text style={[
+                      styles.itemReserveButtonText,
+                      { 
+                        color: reservedByMe 
+                          ? '#FFFFFF'
+                          : isReservedBySomeoneElse(item)
+                          ? theme.colors.textSecondary
+                          : theme.colors.primary,
+                        fontSize: 12,
+                      }
+                    ]}>
+                      {getReserveButtonText(item)}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </TouchableOpacity>
 
-        {/* Action Buttons - Only show for non-owners (when we know for sure they're not the owner) */}
-        {isOwner === false && (
+        {/* Action Buttons - Only show for non-owners/collaborators who can't edit this item */}
+        {isOwner === false && !(isCollaborator === true && item.addedById === currentUser?.id) && (
           <View style={styles.itemActionButtons}>
             {/* Heart Button - Add to Wishlist */}
             <TouchableOpacity
@@ -944,6 +1039,7 @@ export default function WishlistDetailScreen() {
   }
 
   const cardBackgroundColor = theme.isDark ? '#2E2E2E' : '#D3D3D3';
+  const screenHeight = Dimensions.get('window').height;
 
   return (
     <View 
@@ -977,18 +1073,20 @@ export default function WishlistDetailScreen() {
             </Text>
           </View>
           
-          {isOwner === true && (
+          {(isOwner === true || isCollaborator === true) && (
             <View style={styles.headerRight}>
-              <TouchableOpacity 
-                onPress={handleShareWishlist} 
-                style={styles.headerButton}
-              >
-                <Feather 
-                  name="send" 
-                  size={20} 
-                  color={theme.colors.textPrimary} 
-                />
-              </TouchableOpacity>
+              {isOwner === true && (
+                <TouchableOpacity 
+                  onPress={handleShareWishlist} 
+                  style={styles.headerButton}
+                >
+                  <Feather 
+                    name="send" 
+                    size={20} 
+                    color={theme.colors.textPrimary} 
+                  />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity 
                 onPress={() => setMenuVisible(true)} 
                 style={styles.headerButton}
@@ -1004,92 +1102,202 @@ export default function WishlistDetailScreen() {
         </View>
       </View>
 
-      {/* Stats Section */}
-      <View style={[styles.statsSection, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.statsContentColumn}>
-          <View style={[styles.imagePlaceholder, { backgroundColor: cardBackgroundColor }]}>
-            <Feather name="image" size={48} color={theme.colors.textSecondary} />
-          </View>
-          
-          <View style={styles.statRow}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Active wishes</Text>
-              <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{activeWishes}</Text>
+      {/* Scrollable Content */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ 
+          flexGrow: 1,
+          minHeight: screenHeight - 100, // Ensure content fills viewport minus header
+          paddingBottom: 0,
+        }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={isRefreshing} 
+            onRefresh={onRefresh} 
+            colors={[theme.colors.primary]} 
+          />
+        }
+      >
+        {/* Stats Section */}
+        <View style={[styles.statsSection, { backgroundColor: theme.colors.background }]}>
+          <View style={styles.statsContentColumn}>
+            <View style={[styles.imagePlaceholder, { backgroundColor: cardBackgroundColor }]}>
+              <Feather name="image" size={48} color={theme.colors.textSecondary} />
             </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total value</Text>
-              <PriceDisplay
-                amount={totalPrice}
-                currency={currency}
-                textStyle={[styles.statValue, { color: theme.colors.textPrimary }]}
-                containerStyle={{ flexShrink: 0 }}
-              />
+            
+            <View style={styles.statRow}>
+              <View style={styles.statItem}>
+                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Active wishes</Text>
+                <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{activeWishes}</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total value</Text>
+                <PriceDisplay
+                  amount={totalPrice}
+                  currency={currency}
+                  textStyle={[styles.statValue, { color: theme.colors.textPrimary }]}
+                  containerStyle={{ flexShrink: 0 }}
+                />
+              </View>
             </View>
+            
+            {isOwner === true && (
+              <View style={styles.privacyBadgeInline}>
+                <Feather name={getPrivacyInfo(wishlist.privacyLevel).icon as any} size={14} color={theme.colors.primary} />
+                <Text style={[styles.privacyText, { color: theme.colors.primary }]}>
+                  {getPrivacyInfo(wishlist.privacyLevel).label}
+                </Text>
+              </View>
+            )}
           </View>
-          
+        </View>
+
+        {/* Collaborators Section - Show for group wishlists */}
+        {wishlist?.collaborators && wishlist.collaborators.length > 0 && (
+          <TouchableOpacity
+            style={styles.collaboratorsSection}
+            onPress={() => setCollaboratorsModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Feather name="users" size={18} strokeWidth={2.5} color={theme.colors.primary} />
+            <Text style={[styles.collaboratorsTitle, { color: theme.colors.textPrimary, marginLeft: 8 }]}>
+              Members
+            </Text>
+            <View style={styles.collaboratorsPreview}>
+              {/* Owner */}
+              {wishlist.owner && (
+                <View style={[styles.collaboratorBadge, { backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB', borderColor: theme.colors.background }]}>
+                  <Text style={[styles.collaboratorBadgeText, { color: theme.colors.primary }]}>
+                    {getDisplayName(wishlist.owner.firstName, wishlist.owner.lastName)?.[0]?.toUpperCase() || wishlist.owner.username?.[0]?.toUpperCase() || 'O'}
+                  </Text>
+                </View>
+              )}
+              {/* Collaborators preview (first 3) */}
+              {wishlist.collaborators.slice(0, 3).map((collab) => (
+                <View 
+                  key={collab.id} 
+                  style={[
+                    styles.collaboratorBadge, 
+                    { 
+                      backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
+                      borderColor: theme.colors.background, // Border matches background for clean overlap
+                      marginLeft: -8, // Overlap to the right
+                    }
+                  ]}
+                >
+                  <Text style={[styles.collaboratorBadgeText, { color: theme.colors.textPrimary }]}>
+                    {getDisplayName(collab.user.firstName, collab.user.lastName)?.[0]?.toUpperCase() || collab.user.username?.[0]?.toUpperCase() || collab.user.email?.[0]?.toUpperCase() || '?'}
+                  </Text>
+                </View>
+              ))}
+              {wishlist.collaborators.length > 3 && (
+                <>
+                  <Text style={[styles.collaboratorMore, { color: theme.colors.textSecondary, marginLeft: 4 }]}>
+                    +{wishlist.collaborators.length - 3}
+                  </Text>
+                  <Feather name="chevron-right" size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+                </>
+              )}
+            </View>
+            {wishlist.collaborators.length <= 3 && (
+              <Feather name="chevron-right" size={16} color={theme.colors.textSecondary} />
+            )}
+          </TouchableOpacity>
+        )}
+
+        {/* Card Container with rounded top corners */}
+        <View 
+          style={[
+            styles.cardContainer, 
+            { 
+              backgroundColor: cardBackgroundColor,
+              // Use flex: 1 to fill remaining space in ScrollView when there are items
+              flex: filteredItems.length > 0 ? 1 : undefined,
+              // Ensure minHeight for both empty and non-empty states to extend grey background to bottom
+              minHeight: Math.max(screenHeight - 350, 600),
+              // Add paddingBottom for FAB spacing when there are items
+              paddingBottom: filteredItems.length > 0 ? 100 : 0,
+            }
+          ]} 
+          collapsable={false}
+        >
+          {/* Filter/Sort Bar (Tabs) - Only show tabs for owner */}
           {isOwner === true && (
-            <View style={styles.privacyBadgeInline}>
-              <Feather name={getPrivacyInfo(wishlist.privacyLevel).icon as any} size={14} color={theme.colors.primary} />
-              <Text style={[styles.privacyText, { color: theme.colors.primary }]}>
-                {getPrivacyInfo(wishlist.privacyLevel).label}
+            <View style={styles.filterBar}>
+              <TouchableOpacity
+                style={[styles.filterSegment, sortFilter === "wanted" && { backgroundColor: theme.colors.primary + '20' }]}
+                onPress={() => setSortFilter("wanted")}
+              >
+                <Feather 
+                  name="star" 
+                  size={16} 
+                  color={sortFilter === "wanted" ? theme.colors.primary : theme.colors.textSecondary} 
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[
+                  styles.filterText,
+                  { color: sortFilter === "wanted" ? theme.colors.textPrimary : theme.colors.textSecondary }
+                ]}>
+                  Wanted
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.filterSegment, sortFilter === "purchased" && { backgroundColor: theme.colors.primary + '20' }]}
+                onPress={() => setSortFilter("purchased")}
+              >
+                <Feather 
+                  name="check-circle" 
+                  size={16} 
+                  color={sortFilter === "purchased" ? theme.colors.primary : theme.colors.textSecondary} 
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[
+                  styles.filterText,
+                  { color: sortFilter === "purchased" ? theme.colors.textPrimary : theme.colors.textSecondary }
+                ]}>
+                  Purchased
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Items List - Render items directly in ScrollView */}
+          {filteredItems.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Feather name="gift" size={64} color={theme.colors.primary} />
+              <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
+                {isOwner === false
+                  ? "No items yet" 
+                  : isOwner === true && sortFilter === "purchased" 
+                    ? "No items purchased yet" 
+                    : "No items yet"}
               </Text>
+              <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+                {isOwner === false
+                  ? "This wishlist doesn't have any items yet"
+                  : isOwner === true && sortFilter === "purchased" 
+                    ? "Items you mark as purchased will appear here" 
+                    : "Start adding items to your wishlist"}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.listContent}>
+              {filteredItems.map((item, index) => renderItem({ item, index }))}
             </View>
           )}
         </View>
-      </View>
-
-      {/* Card Container with rounded top corners */}
-      <View 
-        style={[styles.cardContainer, { backgroundColor: cardBackgroundColor }]} 
-        collapsable={false}
-      >
-        {/* Filter/Sort Bar (Tabs) - Only show tabs for owner */}
-        {isOwner === true && (
-          <View style={styles.filterBar}>
-            <TouchableOpacity
-              style={[styles.filterSegment, sortFilter === "wanted" && { backgroundColor: theme.colors.primary + '20' }]}
-              onPress={() => setSortFilter("wanted")}
-            >
-              <Feather 
-                name="star" 
-                size={16} 
-                color={sortFilter === "wanted" ? theme.colors.primary : theme.colors.textSecondary} 
-                style={{ marginRight: 6 }}
-              />
-              <Text style={[
-                styles.filterText,
-                { color: sortFilter === "wanted" ? theme.colors.textPrimary : theme.colors.textSecondary }
-              ]}>
-                Wanted
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.filterSegment, sortFilter === "purchased" && { backgroundColor: theme.colors.primary + '20' }]}
-              onPress={() => setSortFilter("purchased")}
-            >
-              <Feather 
-                name="check-circle" 
-                size={16} 
-                color={sortFilter === "purchased" ? theme.colors.primary : theme.colors.textSecondary} 
-                style={{ marginRight: 6 }}
-              />
-              <Text style={[
-                styles.filterText,
-                { color: sortFilter === "purchased" ? theme.colors.textPrimary : theme.colors.textSecondary }
-              ]}>
-                Purchased
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
+      </ScrollView>
 
       <WishlistMenu
         visible={menuVisible}
         onClose={() => setMenuVisible(false)}
-        onEdit={handleEditWishlist}
-        onDelete={handleDeleteWishlist}
+        onEdit={isOwner === true ? handleEditWishlist : undefined}
+        onDelete={isOwner === true ? handleDeleteWishlist : undefined}
+        onViewMembers={() => setCollaboratorsModalVisible(true)}
+        showMembersOption={wishlist?.collaborators && wishlist.collaborators.length > 0}
+        onLeave={isCollaborator === true ? handleLeaveWishlist : undefined}
       />
 
       <DeleteConfirmModal
@@ -1107,10 +1315,10 @@ export default function WishlistDetailScreen() {
           // Don't clear selectedItem immediately - it might be needed for edit/add/delete modals
           // The modals will clear it when they close
         }}
-        onEdit={selectedItem && sortFilter === "wanted" ? handleEditItem : undefined}
+        onEdit={selectedItem && sortFilter === "wanted" && (isOwner === true || (isCollaborator === true && selectedItem.addedById === currentUser?.id)) ? handleEditItem : undefined}
         onGoToLink={selectedItem?.url ? handleGoToLink : undefined}
-        onAddToWishlist={selectedItem && sortFilter === "wanted" ? handleAddToWishlist : undefined}
-        onRestoreToWanted={selectedItem && sortFilter === "purchased" ? handleRestoreToWanted : undefined}
+        onAddToWishlist={selectedItem && sortFilter === "wanted" && isOwner === true ? handleAddToWishlist : undefined}
+        onRestoreToWanted={selectedItem && sortFilter === "purchased" && isOwner === true ? handleRestoreToWanted : undefined}
         onDelete={handleDeleteItem}
         isPurchased={selectedItem?.status === "PURCHASED"}
         itemUrl={selectedItem?.url || null}
@@ -1229,6 +1437,112 @@ export default function WishlistDetailScreen() {
         onSuccess={handleEditWishlistSuccess}
       />
 
+      {/* Collaborators Modal */}
+      <BottomSheet visible={collaboratorsModalVisible} onClose={() => setCollaboratorsModalVisible(false)}>
+        <View style={[styles.collaboratorsModal, { backgroundColor: theme.colors.background }]}>
+          <View style={styles.collaboratorsModalHeader}>
+            <Text style={[styles.collaboratorsModalTitle, { color: theme.colors.textPrimary }]}>
+              Members
+            </Text>
+          </View>
+          
+          <ScrollView 
+            style={styles.collaboratorsModalContent}
+            scrollEnabled={true}
+            nestedScrollEnabled={true}
+          >
+            {/* Owner */}
+            {wishlist?.owner && (
+              <>
+                <View style={styles.collaboratorItem}>
+                  <View style={styles.collaboratorItemLeft}>
+                    <View style={[styles.collaboratorAvatar, { backgroundColor: theme.colors.primary + '20' }]}>
+                      <Text style={[styles.collaboratorAvatarText, { color: theme.colors.primary }]}>
+                        {getDisplayName(wishlist.owner.firstName, wishlist.owner.lastName)?.[0]?.toUpperCase() || wishlist.owner.username?.[0]?.toUpperCase() || 'O'}
+                      </Text>
+                    </View>
+                    <View style={styles.collaboratorItemInfo}>
+                      <Text style={[styles.collaboratorItemName, { color: theme.colors.textPrimary }]}>
+                        {getDisplayName(wishlist.owner.firstName, wishlist.owner.lastName) || wishlist.owner.username || 'Owner'}
+                      </Text>
+                      {wishlist.owner.username && (
+                        <Text style={[styles.collaboratorItemUsername, { color: theme.colors.textSecondary }]}>
+                          @{wishlist.owner.username}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <View style={[styles.roleBadge, { backgroundColor: theme.colors.primary + '20', marginRight: 8 }]}>
+                    <Text style={[styles.roleBadgeText, { color: theme.colors.primary }]}>
+                      Owner
+                    </Text>
+                  </View>
+                </View>
+                {wishlist?.collaborators && wishlist.collaborators.length > 0 && (
+                  <View style={[styles.collaboratorDivider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
+                )}
+              </>
+            )}
+            
+            {/* Collaborators */}
+            {wishlist?.collaborators?.map((collab, index) => {
+              const displayName = getDisplayName(collab.user.firstName, collab.user.lastName) || collab.user.username || collab.user.email || 'User';
+              const isCurrentUser = collab.userId === currentUser?.id;
+              const canManage = isOwner === true;
+              
+              return (
+                <View key={collab.id}>
+                  <View style={styles.collaboratorItem}>
+                    <View style={styles.collaboratorItemLeft}>
+                      <View style={[styles.collaboratorAvatar, { backgroundColor: theme.colors.textSecondary + '20' }]}>
+                        <Text style={[styles.collaboratorAvatarText, { color: theme.colors.textPrimary }]}>
+                          {displayName[0]?.toUpperCase() || '?'}
+                        </Text>
+                      </View>
+                      <View style={styles.collaboratorItemInfo}>
+                        <Text style={[styles.collaboratorItemName, { color: theme.colors.textPrimary }]}>
+                          {displayName} {isCurrentUser && '(You)'}
+                        </Text>
+                        {collab.user.username && (
+                          <Text style={[styles.collaboratorItemUsername, { color: theme.colors.textSecondary }]}>
+                            @{collab.user.username}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.collaboratorItemRight} pointerEvents="box-none">
+                      <View style={[styles.roleBadge, { backgroundColor: theme.colors.textSecondary + '20', marginRight: 5 }]}>
+                        <Text style={[styles.roleBadgeText, { color: theme.colors.textSecondary }]}>
+                          {collab.role}
+                        </Text>
+                      </View>
+                      {canManage && !isCurrentUser && (
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.collaboratorRemoveButton,
+                            pressed && { opacity: 0.5 }
+                          ]}
+                          onPress={() => {
+                            setCollaboratorToRemove(collab);
+                            setRemoveCollaboratorModalVisible(true);
+                          }}
+                          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                        >
+                          <Feather name="x" size={20} color={theme.colors.error} />
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                  {index < (wishlist?.collaborators?.length || 0) - 1 && (
+                    <View style={[styles.collaboratorDivider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
+                  )}
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </BottomSheet>
+
       {/* Delete confirmation only for wanted items - purchased items delete directly */}
       {sortFilter === "wanted" && (
         <DeleteConfirmModal
@@ -1245,55 +1559,70 @@ export default function WishlistDetailScreen() {
         />
       )}
 
-        {/* Items List - Scrollable content for each tab */}
-        <FlatList
-          data={filteredItems}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={[
-            styles.listContent,
-            filteredItems.length === 0 ? { flexGrow: 1, paddingBottom: 0 } : undefined
-          ]}
-          style={styles.list}
-          showsVerticalScrollIndicator={false}
-          showsHorizontalScrollIndicator={false}
-          horizontal={false}
-          scrollEnabled={true}
-          nestedScrollEnabled={false}
-          removeClippedSubviews={false}
-          bounces={true}
-          alwaysBounceVertical={false}
-          refreshControl={
-            <RefreshControl 
-              refreshing={isRefreshing} 
-              onRefresh={onRefresh} 
-              colors={[theme.colors.primary]} 
-            />
+      {/* Leave Wishlist Confirmation Modal */}
+      <DeleteConfirmModal
+        visible={leaveWishlistModalVisible}
+        title={wishlist?.title || "this wishlist"}
+        modalTitle="Leave Wishlist"
+        onConfirm={async () => {
+          if (!wishlist || !currentUser) return;
+          
+          try {
+            // Find the collaborator record for current user
+            const collaborator = wishlist.collaborators?.find(c => c.userId === currentUser.id);
+            if (!collaborator) {
+              Alert.alert("Error", "You are not a collaborator of this wishlist");
+              setLeaveWishlistModalVisible(false);
+              return;
+            }
+            
+            await wishlistsService.removeCollaborator(wishlistId, collaborator.userId);
+            setLeaveWishlistModalVisible(false);
+            Alert.alert("Success", "You have left the wishlist");
+            router.replace("/(tabs)/");
+          } catch (error: any) {
+            console.error("❌ Error leaving wishlist:", error);
+            Alert.alert("Error", error.response?.data?.message || "Failed to leave wishlist");
+            setLeaveWishlistModalVisible(false);
           }
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Feather name="gift" size={64} color={theme.colors.primary} />
-              <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
-                {isOwner === false
-                  ? "No items yet" 
-                  : isOwner === true && sortFilter === "purchased" 
-                    ? "No items purchased yet" 
-                    : "No items yet"}
-              </Text>
-              <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
-                {isOwner === false
-                  ? "This wishlist doesn't have any items yet"
-                  : isOwner === true && sortFilter === "purchased" 
-                    ? "Items you mark as purchased will appear here" 
-                    : "Start adding items to your wishlist"}
-              </Text>
-            </View>
-          }
-        />
-      </View>
+        }}
+        onCancel={() => {
+          setLeaveWishlistModalVisible(false);
+        }}
+        isDeleting={false}
+      />
 
-      {/* FAB Menu - positioned on the right for add item - Only show for owner */}
-      {isOwner === true && (
+      {/* Remove Collaborator Confirmation Modal */}
+      <DeleteConfirmModal
+        visible={removeCollaboratorModalVisible}
+        title={collaboratorToRemove ? (getDisplayName(collaboratorToRemove.user.firstName, collaboratorToRemove.user.lastName) || collaboratorToRemove.user.username || collaboratorToRemove.user.email || "Member") : "Member"}
+        modalTitle="Remove Member"
+        onConfirm={async () => {
+          if (!collaboratorToRemove) return;
+          setIsRemovingCollaborator(true);
+          try {
+            await wishlistsService.removeCollaborator(wishlistId, collaboratorToRemove.userId);
+            await refetchWishlist();
+            setRemoveCollaboratorModalVisible(false);
+            setCollaboratorToRemove(null);
+          } catch (error: any) {
+            console.error("Error removing collaborator:", error);
+            const errorMessage = error.response?.data?.message || error.message || "Failed to remove member";
+            Alert.alert("Error", errorMessage);
+          } finally {
+            setIsRemovingCollaborator(false);
+          }
+        }}
+        onCancel={() => {
+          setRemoveCollaboratorModalVisible(false);
+          setCollaboratorToRemove(null);
+        }}
+        isDeleting={isRemovingCollaborator}
+      />
+
+
+      {/* FAB Menu - positioned on the right for add item - Show for owner or collaborator */}
+      {canAddItems && (
         <FABMenu
           visible={fabMenuVisible}
           onToggle={() => setFabMenuVisible(!fabMenuVisible)}
@@ -1362,7 +1691,7 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 20,
     marginTop: 8,
-    marginBottom: 45,
+    marginBottom: 0,
     width: "100%",
     maxWidth: "100%",
     alignSelf: "stretch",
@@ -1430,12 +1759,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   cardContainer: {
-    flex: 1,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: "hidden",
-    minHeight: 0,
-    maxHeight: "100%",
     width: "100%",
     maxWidth: "100%",
     alignSelf: "stretch",
@@ -1477,7 +1803,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingTop: 5,
-    paddingBottom: 100,
+    paddingBottom: 0, // Padding handled inline based on content
     width: "100%",
   },
   itemCard: {
@@ -1575,6 +1901,144 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  itemAddedByContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  itemAddedBy: {
+    fontSize: 10,
+    fontStyle: "italic",
+  },
+  itemAddedByChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginTop: 4,
+    alignSelf: "flex-start",
+  },
+  itemAddedByChipText: {
+    fontSize: 10,
+    fontWeight: "500",
+  },
+  collaboratorsSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginTop: 0,
+    marginBottom: 10,
+    paddingVertical: 8,
+  },
+  collaboratorsTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  collaboratorsPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginLeft: 8,
+    marginRight: 8,
+  },
+  collaboratorBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+  },
+  collaboratorBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  collaboratorMore: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  collaboratorsModal: {
+    padding: 20,
+    paddingTop: 0,
+    maxHeight: '80%',
+  },
+  collaboratorsModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 25,
+    position: "relative",
+  },
+  collaboratorsModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  collaboratorsModalContent: {
+    maxHeight: 400,
+  },
+  collaboratorItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 0,
+  },
+  collaboratorDivider: {
+    height: 1,
+    marginVertical: 0,
+  },
+  collaboratorItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  collaboratorAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  collaboratorAvatarText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  collaboratorItemInfo: {
+    flex: 1,
+  },
+  collaboratorItemName: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  collaboratorItemUsername: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  collaboratorItemRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  roleBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  roleBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  collaboratorRemoveButton: {
+    padding: 8,
+    minWidth: 36,
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   itemPriority: {
     fontSize: 11,
     fontWeight: "500",
@@ -1646,6 +2110,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 12,
+  },
+  itemReserveButtonOwner: {
+    minWidth: 100,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    marginLeft: 8,
   },
   itemReserveButtonText: {
     fontSize: 14,

@@ -22,7 +22,7 @@ export class ItemsService {
     // Get user from database
     const user = await this.getOrCreateUser(userId);
 
-    // Check access: owner OR friend (if FRIENDS_ONLY) OR anyone (if PUBLIC)
+    // Check access: owner OR friend (if FRIENDS_ONLY) OR anyone (if PUBLIC) OR collaborator (if GROUP)
     if (wishlist.ownerId !== user.id) {
       if (wishlist.privacyLevel === "PRIVATE") {
         throw new ForbiddenException("You don't have access to this wishlist");
@@ -34,11 +34,54 @@ export class ItemsService {
           throw new ForbiddenException("You don't have access to this wishlist");
         }
       }
+      if (wishlist.privacyLevel === "GROUP") {
+        // Check if user is a collaborator
+        const isCollaborator = await this.prisma.wishlistCollaborator.findFirst({
+          where: {
+            wishlistId: wishlistId,
+            userId: user.id,
+          },
+        });
+        if (!isCollaborator) {
+          throw new ForbiddenException("You don't have access to this wishlist");
+        }
+      }
     }
 
-    return this.prisma.item.findMany({
+    const items = await this.prisma.item.findMany({
       where: { wishlistId },
+      include: {
+        addedBy: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        reservations: {
+          select: {
+            userId: true,
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
+    });
+
+    // Enrich items with displayName, isReservedByCurrentUser flag, and hasReservations flag
+    return items.map(item => {
+      const { reservations, ...itemWithoutReservations } = item;
+      const hasReservations = reservations.length > 0;
+      const isReservedByCurrentUser = reservations.some(r => r.userId === user.id);
+      return {
+        ...itemWithoutReservations,
+        addedBy: item.addedBy ? {
+          ...item.addedBy,
+          displayName: getDisplayName(item.addedBy.firstName, item.addedBy.lastName),
+        } : null,
+        isReservedByCurrentUser,
+        hasReservations, // Indicates if anyone has reserved this item
+      };
     });
   }
 
@@ -91,7 +134,7 @@ export class ItemsService {
   }
 
   async create(userId: string, wishlistId: string, data: CreateItemDto) {
-    // Verify wishlist exists and user owns it
+    // Verify wishlist exists and user can edit it
     const wishlist = await this.prisma.wishlist.findUnique({
       where: { id: wishlistId },
       select: { ownerId: true },
@@ -103,8 +146,12 @@ export class ItemsService {
 
     const user = await this.getOrCreateUser(userId);
 
-    if (wishlist.ownerId !== user.id) {
-      throw new ForbiddenException("You can only add items to your own wishlists");
+    // Check if user is owner or can edit (collaborator with EDITOR/ADMIN role)
+    const isOwner = wishlist.ownerId === user.id;
+    const canEdit = await this.canEditWishlist(userId, wishlistId);
+
+    if (!isOwner && !canEdit) {
+      throw new ForbiddenException("You don't have permission to add items to this wishlist");
     }
 
     // Use ItemUncheckedCreateInput since we're providing wishlistId directly
@@ -146,6 +193,37 @@ export class ItemsService {
     });
   }
 
+  // Helper method to check if user can edit wishlist
+  private async canEditWishlist(clerkUserId: string, wishlistId: string): Promise<boolean> {
+    const user = await this.getOrCreateUser(clerkUserId);
+    
+    const wishlist = await this.prisma.wishlist.findUnique({
+      where: { id: wishlistId },
+      select: { ownerId: true },
+    });
+
+    if (!wishlist) {
+      return false;
+    }
+
+    // Owner can always edit
+    if (wishlist.ownerId === user.id) {
+      return true;
+    }
+
+    // Check if user is a collaborator with EDITOR or ADMIN role
+    const collaborator = await this.prisma.wishlistCollaborator.findUnique({
+      where: {
+        wishlistId_userId: {
+          wishlistId,
+          userId: user.id,
+        },
+      },
+    });
+
+    return collaborator ? (collaborator.role === "EDITOR" || collaborator.role === "ADMIN") : false;
+  }
+
   async update(userId: string, id: string, data: UpdateItemDto) {
     // Get item with wishlist owner
     const item = await this.prisma.item.findUnique({
@@ -163,12 +241,15 @@ export class ItemsService {
 
     const user = await this.getOrCreateUser(userId);
 
-    // Only owner can update their items
-    if (item.wishlist.ownerId !== user.id) {
-      throw new ForbiddenException("You can only update your own items");
+    // Check if user can edit this wishlist (owner or collaborator with EDITOR/ADMIN role)
+    const isOwner = item.wishlist.ownerId === user.id;
+    const canEdit = await this.canEditWishlist(userId, item.wishlistId);
+
+    if (!isOwner && !canEdit) {
+      throw new ForbiddenException("You don't have permission to update items in this wishlist");
     }
 
-    // If wishlistId is being changed, verify user owns the target wishlist
+    // If wishlistId is being changed, verify user can edit the target wishlist
     if (data.wishlistId !== undefined && data.wishlistId !== item.wishlistId) {
       const targetWishlist = await this.prisma.wishlist.findUnique({
         where: { id: data.wishlistId },
@@ -179,8 +260,9 @@ export class ItemsService {
         throw new NotFoundException("Target wishlist not found");
       }
 
-      if (targetWishlist.ownerId !== user.id) {
-        throw new ForbiddenException("You can only move items to your own wishlists");
+      const canEditTarget = targetWishlist.ownerId === user.id || await this.canEditWishlist(userId, data.wishlistId);
+      if (!canEditTarget) {
+        throw new ForbiddenException("You don't have permission to move items to that wishlist");
       }
     }
 
@@ -228,9 +310,12 @@ export class ItemsService {
 
     const user = await this.getOrCreateUser(userId);
 
-    // Only owner can delete their items
-    if (item.wishlist.ownerId !== user.id) {
-      throw new ForbiddenException("You can only delete your own items");
+    // Check if user can edit this wishlist (owner or collaborator with EDITOR/ADMIN role)
+    const isOwner = item.wishlist.ownerId === user.id;
+    const canEdit = await this.canEditWishlist(userId, item.wishlistId);
+
+    if (!isOwner && !canEdit) {
+      throw new ForbiddenException("You don't have permission to delete items from this wishlist");
     }
 
     return this.prisma.item.delete({
@@ -280,19 +365,38 @@ export class ItemsService {
 
     const user = await this.getOrCreateUser(userId);
 
-    // Can't reserve your own items
-    if (item.wishlist.ownerId === user.id) {
-      throw new ForbiddenException("You cannot reserve your own items");
-    }
-
-    // Check if user has access (friends or public)
-    if (item.wishlist.privacyLevel === "PRIVATE") {
-      throw new ForbiddenException("Cannot reserve items from private wishlists");
-    }
-    if (item.wishlist.privacyLevel === "FRIENDS_ONLY") {
-      const areFriends = await this.areFriends(user.id, item.wishlist.ownerId);
-      if (!areFriends) {
-        throw new ForbiddenException("You must be friends to reserve this item");
+    // Check if user has access to reserve items
+    const isOwner = item.wishlist.ownerId === user.id;
+    
+    // For GROUP wishlists, check if user is owner or collaborator
+    if (item.wishlist.privacyLevel === "GROUP") {
+      if (!isOwner) {
+        const isCollaborator = await this.prisma.wishlistCollaborator.findFirst({
+          where: {
+            wishlistId: item.wishlistId,
+            userId: user.id,
+          },
+        });
+        if (!isCollaborator) {
+          throw new ForbiddenException("You don't have access to reserve items in this wishlist");
+        }
+      }
+      // In group wishlists, owners and collaborators can reserve any item
+    } else {
+      // For non-group wishlists: owners can't reserve their own items
+      if (isOwner) {
+        throw new ForbiddenException("You cannot reserve your own items");
+      }
+      
+      // Check access for non-group wishlists (friends or public)
+      if (item.wishlist.privacyLevel === "PRIVATE") {
+        throw new ForbiddenException("Cannot reserve items from private wishlists");
+      }
+      if (item.wishlist.privacyLevel === "FRIENDS_ONLY") {
+        const areFriends = await this.areFriends(user.id, item.wishlist.ownerId);
+        if (!areFriends) {
+          throw new ForbiddenException("You must be friends to reserve this item");
+        }
       }
     }
 

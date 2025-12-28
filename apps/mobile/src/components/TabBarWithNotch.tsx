@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, TouchableOpacity, Platform, StyleSheet, LayoutChangeEvent } from "react-native";
 import { Text } from "./Text";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
@@ -11,6 +11,8 @@ import { colors, typography, spacing } from "@/lib/theme";
 import { textStyle } from "@/lib/styles";
 import Svg, { Path } from "react-native-svg";
 import { BottomMenuBar } from "./BottomMenuBar";
+import { wishlistsService } from "@/services/wishlists";
+import { wishlistEvents } from "@/utils/wishlistEvents";
 
 // Creates a simple rectangle shape for non-main tab pages (no notch)
 const createTabShape = (width: number) => {
@@ -25,6 +27,7 @@ export default function TabBarWithNotch({ state, descriptors, navigation, insets
   const [shouldOpenSheet, setShouldOpenSheet] = useState(false);
   const [shouldOpenAddItemSheet, setShouldOpenAddItemSheet] = useState(false);
   const [width, setWidth] = useState(0);
+  const [hasWishlists, setHasWishlists] = useState(true); // Default to true to avoid blocking initially
   
   // Handle opening create sheet - trigger flag, menu will close
   const handleOpenCreateSheet = React.useCallback(() => {
@@ -71,6 +74,32 @@ export default function TabBarWithNotch({ state, descriptors, navigation, insets
   // Get current route name from state
   const currentRoute = state.routes[state.index];
   const currentRouteName = currentRoute?.name;
+
+  // Check if user has wishlists (only check on index tab to avoid unnecessary requests)
+  const checkWishlists = React.useCallback(async () => {
+    if (currentRouteName === "index") {
+      try {
+        const wishlists = await wishlistsService.getWishlists();
+        setHasWishlists(wishlists.length > 0);
+      } catch (error) {
+        console.error("Error checking wishlists:", error);
+        // On error, assume they have wishlists to avoid blocking
+        setHasWishlists(true);
+      }
+    }
+  }, [currentRouteName]);
+
+  useEffect(() => {
+    checkWishlists();
+  }, [checkWishlists]);
+
+  // Refresh wishlists count when a wishlist is created
+  useEffect(() => {
+    const unsubscribe = wishlistEvents.subscribe(() => {
+      checkWishlists();
+    });
+    return unsubscribe;
+  }, [checkWishlists]);
   
   // Hide tab bar on profile page
   if (currentRouteName === "profile") {
@@ -117,6 +146,7 @@ export default function TabBarWithNotch({ state, descriptors, navigation, insets
           onClose={() => setMenuVisible(false)}
           onCreateWishlist={handleOpenCreateSheet}
           onAddItem={handleOpenAddItemSheet}
+          disableAddItem={!hasWishlists}
         />
         <CreateWishlistSheet 
           visible={createSheetVisible} 

@@ -79,6 +79,7 @@ const loadThemeFromDatabase = async (getToken: (() => Promise<string | null>) | 
   
   try {
     const token = await getToken();
+    // Don't make request if no token - user is not authenticated
     if (!token) return null;
     
     const response = await api.get("/users/me");
@@ -89,7 +90,13 @@ const loadThemeFromDatabase = async (getToken: (() => Promise<string | null>) | 
     }
   } catch (error: any) {
     // Silently fail - will fall back to local storage
-    // Only log if it's not a 401 (unauthorized) error, as 401 is expected when user is not authenticated
+    // 401 (unauthorized) is expected when user is not authenticated or token is invalid
+    // Don't log 401 errors to avoid console noise
+    if (error?.response?.status === 401) {
+      // User not authenticated - this is normal, just return null
+      return null;
+    }
+    // Only log non-401 errors (network issues, server errors, etc.)
     if (error?.response?.status !== 401) {
       console.log('Failed to load theme from database, using local cache');
     }
@@ -120,7 +127,7 @@ const saveThemeToDatabase = async (
 // Simple theme provider that doesn't depend on Zustand to avoid web bundling issues
 // Accepts optional userId prop - if not provided, theme is not scoped to a user
 export function ThemeProvider({ children, userId }: { children: ReactNode; userId?: string | null }) {
-  const { getToken, isLoaded } = useAuth();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
   
   // Initialize with synchronous load on web (to avoid flash), async load will update for native
   const [themeName, setThemeNameState] = useState<ThemeName>(() => {
@@ -136,10 +143,15 @@ export function ThemeProvider({ children, userId }: { children: ReactNode; userI
     // 1. On mount - to get the real theme on native (since sync load returns default)
     // 2. When userId changes - to get the correct scoped theme for the new user
     const loadTheme = async () => {
-      // First try to load from database (if user is signed in)
+      // First try to load from database (if user is signed in and Clerk is loaded)
       let saved: ThemeName | null = null;
       
-      if (isLoaded && userId && getToken) {
+      // Only try to load from database if:
+      // 1. Clerk is loaded
+      // 2. User is actually signed in (isSignedIn is true)
+      // 3. User ID exists (user is signed in)
+      // 4. Token getter is available
+      if (isLoaded && isSignedIn && userId && getToken) {
         saved = await loadThemeFromDatabase(getToken);
       }
       
@@ -178,10 +190,14 @@ export function ThemeProvider({ children, userId }: { children: ReactNode; userI
       });
     };
     
-    if (isLoaded || !userId) {
+    // Wait for Clerk to be loaded before attempting to load theme
+    // This ensures isSignedIn is properly determined before we check it
+    if (isLoaded) {
       loadTheme();
     }
-  }, [userId, isLoaded, getToken]);
+    // If Clerk is not loaded yet, we'll use the synchronous default theme
+    // and this effect will re-run when isLoaded becomes true
+  }, [userId, isLoaded, isSignedIn, getToken]);
 
   // Listen for app state changes to reload theme (when app comes to foreground)
   useEffect(() => {
@@ -252,10 +268,10 @@ export function ThemeProvider({ children, userId }: { children: ReactNode; userI
     }
     
     // Also save to database (for cross-device sync)
-    if (isLoaded && userId && getToken) {
+    if (isLoaded && isSignedIn && userId && getToken) {
       await saveThemeToDatabase(name, getToken);
     }
-  }, [userId, isLoaded, getToken]);
+  }, [userId, isLoaded, isSignedIn, getToken]);
 
   // Get current theme based on theme name
   const getCurrentTheme = (): Theme => {

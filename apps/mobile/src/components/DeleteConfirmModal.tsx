@@ -78,6 +78,10 @@ export function DeleteConfirmModal({
               ? `Are you sure you want to block ${title}? You won't be able to see their profile or send them friend requests.`
               : modalTitle === "Remove Friend"
               ? `Are you sure you want to remove ${title}? This action cannot be undone.`
+              : modalTitle === "Remove Member"
+              ? `Are you sure you want to remove ${title} from this group wishlist? This action cannot be undone.`
+              : modalTitle === "Leave Wishlist"
+              ? `Are you sure you want to leave "${title}"? You will no longer be able to add items or see updates.`
               : `Are you sure you want to delete "${title}"? This action cannot be undone.`
             }
           </Text>

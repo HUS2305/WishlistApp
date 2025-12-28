@@ -7,6 +7,7 @@ interface CreateWishlistPayload {
   privacyLevel: PrivacyLevel;
   allowComments: boolean;
   allowReservations: boolean;
+  collaboratorIds?: string[]; // Optional: if provided, wishlist becomes GROUP privacy level
 }
 
 interface UpdateWishlistPayload extends Partial<CreateWishlistPayload> {
@@ -113,6 +114,32 @@ export const wishlistsService = {
 
   async unreserveItem(itemId: string): Promise<void> {
     await api.delete(`/items/${itemId}/reserve`);
+  },
+
+  // Collaborator operations
+  async inviteCollaborator(wishlistId: string, inviteeUserId: string): Promise<void> {
+    await api.post(`/wishlists/${wishlistId}/collaborators/invite`, { inviteeUserId });
+  },
+
+  async acceptCollaboration(wishlistId: string): Promise<void> {
+    await api.post(`/wishlists/${wishlistId}/collaborators/accept`);
+  },
+
+  async removeCollaborator(wishlistId: string, collaboratorId: string): Promise<void> {
+    await api.delete(`/wishlists/${wishlistId}/collaborators/${collaboratorId}`);
+  },
+
+  async updateCollaboratorRole(
+    wishlistId: string,
+    collaboratorId: string,
+    role: "VIEWER" | "EDITOR" | "ADMIN"
+  ): Promise<void> {
+    await api.patch(`/wishlists/${wishlistId}/collaborators/${collaboratorId}/role`, { role });
+  },
+
+  async getCollaborators(wishlistId: string) {
+    const response = await api.get(`/wishlists/${wishlistId}/collaborators`);
+    return response.data;
   },
 };
 

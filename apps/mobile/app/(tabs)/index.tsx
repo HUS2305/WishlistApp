@@ -1,5 +1,5 @@
 // This is now the Wishlists screen (home screen)
-import { View, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Dimensions } from "react-native";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -133,10 +133,26 @@ export default function WishlistsScreen() {
     loadSort();
   }, [userId]);
 
-  // Sort wishlists based on current sort option
-  const sortedWishlists = useMemo(() => {
-    return sortWishlists(wishlists, currentSort);
-  }, [wishlists, currentSort]);
+  // Separate wishlists into personal and group wishlists
+  const { personalWishlists, groupWishlists } = useMemo(() => {
+    const personal: Wishlist[] = [];
+    const group: Wishlist[] = [];
+    
+    wishlists.forEach(wishlist => {
+      // Group wishlists are those with privacyLevel === "GROUP"
+      // Personal wishlists are all others (PRIVATE, FRIENDS_ONLY, PUBLIC)
+      if (wishlist.privacyLevel === "GROUP") {
+        group.push(wishlist);
+      } else {
+        personal.push(wishlist);
+      }
+    });
+    
+    return {
+      personalWishlists: sortWishlists(personal, currentSort),
+      groupWishlists: sortWishlists(group, currentSort),
+    };
+  }, [wishlists, currentSort, userId]);
 
   // Handle sort change
   const handleSortChange = useCallback(async (sort: SortOption) => {
@@ -156,7 +172,7 @@ export default function WishlistsScreen() {
       const quantity = item.quantity || 1; // Default to 1 if no quantity specified
       return sum + (price * quantity);
     }, 0);
-    const currency = items.length > 0 ? items[0].currency : "$";
+    const currency = items.length > 0 ? items[0].currency : "USD";
     return { activeWishes, totalPrice, currency };
   };
 
@@ -169,10 +185,14 @@ export default function WishlistsScreen() {
         return { icon: "users", label: "Friends Only" };
       case "PRIVATE":
         return { icon: "lock", label: "Private" };
+      case "GROUP":
+        return { icon: "users", label: "Group" };
       default:
         return { icon: "lock", label: "Private" };
     }
   };
+
+  const screenHeight = Dimensions.get('window').height;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -212,76 +232,172 @@ export default function WishlistsScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={sortedWishlists}
-          keyExtractor={(item) => item.id}
-          key={`wishlist-list-${currentSort}`}
-          extraData={currentSort}
-          contentContainerStyle={styles.listContent}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.listContent,
+            { 
+              flexGrow: 1,
+              minHeight: screenHeight - 100, // Ensure content fills viewport minus header
+              paddingBottom: 0,
+            }
+          ]}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={["#4A90E2"]} />
           }
-          renderItem={({ item, index }) => {
-            const { activeWishes, totalPrice, currency } = getWishlistMetrics(item);
-            const privacyInfo = getPrivacyInfo(item.privacyLevel);
-            
-            return (
-              <View>
-                <TouchableOpacity
-                  onPress={() => router.push(`/wishlist/${item.id}`)}
-                  activeOpacity={0.7}
-                  style={styles.card}
-                >
-                  <View style={styles.cardContent}>
-                    <View style={styles.cardLeft}>
-                      <View style={styles.titleRow}>
-                        <Text 
-                          style={[styles.cardTitle, { color: theme.colors.textPrimary }]}
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                        >
-                          {item.title}
-                        </Text>
-                        <Feather 
-                          name={privacyInfo.icon as any} 
-                          size={16} 
-                          color={theme.colors.primary} 
-                        />
-                      </View>
-                      <View style={styles.metricsContainer}>
-                        <Text 
-                          style={[styles.metricLabel, { color: theme.colors.textSecondary }]}
-                          allowFontScaling={false}
-                        >
-                          Active wishes
-                        </Text>
-                        <Text 
-                          style={[styles.metricValue, { color: theme.colors.textPrimary }]}
-                          allowFontScaling={false}
-                        >
-                          {activeWishes}
-                        </Text>
-                        <View style={[styles.metricDivider, { backgroundColor: theme.colors.textSecondary + '40' }]} />
-                        <PriceDisplay
-                          amount={totalPrice}
-                          currency={currency}
-                          textStyle={[styles.metricValue, { color: theme.colors.textPrimary }]}
-                          containerStyle={{ margin: 0, padding: 0 }}
-                        />
-                      </View>
-                    </View>
-                    <View style={styles.imagePlaceholder}>
-                      <Feather name="image" size={24} color={theme.colors.textSecondary} />
-                    </View>
-                  </View>
-                </TouchableOpacity>
-                {index < sortedWishlists.length - 1 && (
-                  <View style={[styles.cardDivider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
-                )}
+        >
+          {/* Personal Wishlists Section */}
+          {personalWishlists.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Feather name="list" size={20} color={theme.colors.primary} />
+                <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+                  My Wishlists ({personalWishlists.length})
+                </Text>
               </View>
-            );
-          }}
-        />
+              {personalWishlists.map((item, index) => {
+                const { activeWishes, totalPrice, currency } = getWishlistMetrics(item);
+                const privacyInfo = getPrivacyInfo(item.privacyLevel);
+                
+                return (
+                  <View key={item.id}>
+                    <TouchableOpacity
+                      onPress={() => router.push(`/wishlist/${item.id}`)}
+                      activeOpacity={0.7}
+                      style={styles.card}
+                    >
+                      <View style={styles.cardContent}>
+                        <View style={styles.cardLeft}>
+                          <View style={styles.titleRow}>
+                            <Text 
+                              style={[styles.cardTitle, { color: theme.colors.textPrimary }]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {item.title}
+                            </Text>
+                            <Feather 
+                              name={privacyInfo.icon as any} 
+                              size={16} 
+                              color={theme.colors.primary} 
+                            />
+                          </View>
+                          <View style={styles.metricsContainer}>
+                            <Text 
+                              style={[styles.metricLabel, { color: theme.colors.textSecondary }]}
+                              allowFontScaling={false}
+                            >
+                              Active wishes
+                            </Text>
+                            <Text 
+                              style={[styles.metricValue, { color: theme.colors.textPrimary }]}
+                              allowFontScaling={false}
+                            >
+                              {activeWishes}
+                            </Text>
+                            <View style={[styles.metricDivider, { backgroundColor: theme.colors.textSecondary + '40' }]} />
+                            <PriceDisplay
+                              amount={totalPrice}
+                              currency={currency}
+                              textStyle={[styles.metricValue, { color: theme.colors.textPrimary }]}
+                              containerStyle={{ margin: 0, padding: 0 }}
+                            />
+                          </View>
+                        </View>
+                        <View style={styles.imagePlaceholder}>
+                          <Feather name="image" size={24} color={theme.colors.textSecondary} />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                    {index < personalWishlists.length - 1 && (
+                      <View style={[styles.cardDivider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Group Wishlists Section */}
+          {groupWishlists.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Feather name="users" size={20} color={theme.colors.primary} />
+                  <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+                    Group Wishlists ({groupWishlists.length})
+                  </Text>
+              </View>
+              {groupWishlists.map((item, index) => {
+                const { activeWishes, totalPrice, currency } = getWishlistMetrics(item);
+                const privacyInfo = getPrivacyInfo(item.privacyLevel);
+                const isOwner = item.ownerId === userId;
+                const collaboratorCount = item.collaborators?.length || 0;
+                
+                return (
+                  <View key={item.id}>
+                    <TouchableOpacity
+                      onPress={() => router.push(`/wishlist/${item.id}`)}
+                      activeOpacity={0.7}
+                      style={styles.card}
+                    >
+                      <View style={styles.cardContent}>
+                        <View style={styles.cardLeft}>
+                          <View style={styles.titleRow}>
+                            <Text 
+                              style={[styles.cardTitle, { color: theme.colors.textPrimary }]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {item.title}
+                            </Text>
+                            <Feather 
+                              name="users" 
+                              size={16} 
+                              color={theme.colors.primary} 
+                            />
+                          </View>
+                          <View style={styles.groupInfo}>
+                            <Text style={[styles.groupInfoText, { color: theme.colors.textSecondary }]}>
+                              {isOwner ? 'Owner' : 'Collaborator'} • {collaboratorCount + (isOwner ? 1 : 0)} {collaboratorCount + (isOwner ? 1 : 0) === 1 ? 'member' : 'members'}
+                            </Text>
+                          </View>
+                          <View style={styles.metricsContainer}>
+                            <Text 
+                              style={[styles.metricLabel, { color: theme.colors.textSecondary }]}
+                              allowFontScaling={false}
+                            >
+                              Active wishes
+                            </Text>
+                            <Text 
+                              style={[styles.metricValue, { color: theme.colors.textPrimary }]}
+                              allowFontScaling={false}
+                            >
+                              {activeWishes}
+                            </Text>
+                            <View style={[styles.metricDivider, { backgroundColor: theme.colors.textSecondary + '40' }]} />
+                            <PriceDisplay
+                              amount={totalPrice}
+                              currency={currency}
+                              textStyle={[styles.metricValue, { color: theme.colors.textPrimary }]}
+                              containerStyle={{ margin: 0, padding: 0 }}
+                            />
+                          </View>
+                        </View>
+                        <View style={styles.imagePlaceholder}>
+                          <Feather name="image" size={24} color={theme.colors.textSecondary} />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                    {index < groupWishlists.length - 1 && (
+                      <View style={[styles.cardDivider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
       )}
 
       {/* Sort Modal */}
@@ -317,9 +433,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
+  scrollView: {
+    flex: 1,
+  },
   listContent: {
     padding: 16,
     paddingBottom: 100,
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  groupInfo: {
+    marginBottom: 8,
+  },
+  groupInfoText: {
+    fontSize: 12,
   },
   card: {
     paddingVertical: 16,

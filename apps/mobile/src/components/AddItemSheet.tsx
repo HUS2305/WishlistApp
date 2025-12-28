@@ -21,9 +21,11 @@ import type { Priority, Item } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
 import { wishlistsService } from "@/services/wishlists";
-import { useWishlists } from "@/hooks/useWishlists";
+import { useWishlists, wishlistKeys } from "@/hooks/useWishlists";
 import { useUserCurrency } from "@/hooks/useUserCurrency";
 import { getCurrencyByCode } from "@/utils/currencies";
+import { useQueryClient } from "@tanstack/react-query";
+import { wishlistEvents } from "@/utils/wishlistEvents";
 
 interface AddItemSheetProps {
   visible: boolean;
@@ -37,9 +39,17 @@ interface AddItemSheetProps {
 
 export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, prefillItem, title: customTitle }: AddItemSheetProps) {
   const { theme } = useTheme();
-  const { data: wishlists = [] } = useWishlists();
+  const { data: wishlists = [], refetch: refetchWishlists } = useWishlists();
   const { userCurrency, isLoading: isLoadingCurrency } = useUserCurrency();
+  const queryClient = useQueryClient();
   const isEditMode = !!item;
+  
+  // Refetch wishlists when sheet opens to ensure we have the latest data including group wishlists
+  React.useEffect(() => {
+    if (visible) {
+      refetchWishlists();
+    }
+  }, [visible, refetchWishlists]);
   
   const [selectedWishlistId, setSelectedWishlistId] = useState(wishlistId || "");
   const [showWishlistBottomSheet, setShowWishlistBottomSheet] = useState(false);
@@ -175,6 +185,14 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
           quantity: quantity ? parseInt(quantity, 10) : undefined,
           priority,
         });
+
+        // Invalidate wishlists list query to refresh the wishlists page with updated item counts
+        queryClient.invalidateQueries({ queryKey: wishlistKeys.lists() });
+        // Also invalidate the specific wishlist detail and items
+        queryClient.invalidateQueries({ queryKey: wishlistKeys.detail(selectedWishlistId) });
+        queryClient.invalidateQueries({ queryKey: wishlistKeys.items(selectedWishlistId) });
+        // Emit event to notify wishlists page to refresh (for pages using custom state management)
+        wishlistEvents.emit();
 
         // Reset form
         setTitle("");
@@ -723,12 +741,26 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text 
-                    style={[styles.wishlistOptionText, { color: theme.colors.textPrimary }]}
-                    numberOfLines={1}
-                  >
-                    {item.title}
-                  </Text>
+                  <View style={styles.wishlistOptionLeft}>
+                    <Text 
+                      style={[styles.wishlistOptionText, { color: theme.colors.textPrimary }]}
+                      numberOfLines={1}
+                    >
+                      {item.title}
+                    </Text>
+                    {item.privacyLevel === "GROUP" && (
+                      <View style={[styles.groupBadge, { backgroundColor: theme.colors.primary + '15', marginLeft: 8 }]}>
+                        <Feather 
+                          name="users" 
+                          size={12} 
+                          color={theme.colors.primary}
+                        />
+                        <Text style={[styles.groupBadgeText, { color: theme.colors.primary }]}>
+                          Group
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   {selectedWishlistId === item.id ? (
                     <Feather
                       name="check"
@@ -1065,10 +1097,25 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
   },
+  wishlistOptionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
   wishlistOptionText: {
     fontSize: 16,
-    flex: 1,
-    marginRight: 12,
+  },
+  groupBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+  },
+  groupBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
   },
   modalEmptyState: {
     padding: 24,
