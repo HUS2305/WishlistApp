@@ -11,6 +11,8 @@ import { getDisplayName } from "@/lib/utils";
 import { FriendMenu } from "@/components/FriendMenu";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { useAuth } from "@clerk/clerk-expo";
+import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
+import { BottomSheet } from "@/components/BottomSheet";
 
 export default function AllFriendsScreen() {
   const { theme } = useTheme();
@@ -24,6 +26,9 @@ export default function AllFriendsScreen() {
   const [selectedFriendBlockStatus, setSelectedFriendBlockStatus] = useState<{ isBlockedByMe?: boolean; isBlockedByThem?: boolean }>({});
   const [removeConfirmVisible, setRemoveConfirmVisible] = useState(false);
   const [blockConfirmVisible, setBlockConfirmVisible] = useState(false);
+  const [birthdayGiftModalVisible, setBirthdayGiftModalVisible] = useState(false);
+  const [selectedBirthdayFriend, setSelectedBirthdayFriend] = useState<{ id: string; name: string } | null>(null);
+  const [createWishlistSheetVisible, setCreateWishlistSheetVisible] = useState(false);
   
   // Search state
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -480,12 +485,12 @@ export default function AllFriendsScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
-          {isLoading ? (
+          {isLoading && !hasLoadedOnce ? (
             <View style={styles.emptyState}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
               <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary, marginTop: 16 }]}>Loading friends...</Text>
             </View>
-          ) : friends.length === 0 ? (
+          ) : !isLoading && hasLoadedOnce && friends.length === 0 ? (
             <View style={styles.emptyState}>
               <Feather name="users" size={64} color={theme.colors.primary} />
               <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No friends yet</Text>
@@ -493,7 +498,7 @@ export default function AllFriendsScreen() {
                 Tap the search icon to find friends
               </Text>
             </View>
-          ) : (
+          ) : !isLoading && hasLoadedOnce && (
             <>
               <View style={styles.friendsListSection}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Friends ({friends.length})</Text>
@@ -556,7 +561,17 @@ export default function AllFriendsScreen() {
           }}
           onViewProfile={() => {
             setFriendMenuVisible(false);
-            handleViewProfile(selectedFriend.id);
+            router.push(`/friends/${selectedFriend.id}`);
+          }}
+          onGift={() => {
+            setFriendMenuVisible(false);
+            setSelectedBirthdayFriend({
+              id: selectedFriend.id,
+              name: getDisplayName(selectedFriend) || selectedFriend.username || "Friend"
+            });
+            setTimeout(() => {
+              setBirthdayGiftModalVisible(true);
+            }, 200);
           }}
           onRemoveFriend={handleRemoveFriend}
           onBlockUser={handleBlockUser}
@@ -594,6 +609,97 @@ export default function AllFriendsScreen() {
           }}
         />
       )}
+
+      {/* Birthday Gift Choice Modal */}
+      <BottomSheet visible={birthdayGiftModalVisible} onClose={() => setBirthdayGiftModalVisible(false)} autoHeight>
+        <View style={[styles.birthdayGiftModalContent, { backgroundColor: theme.colors.background }]}>
+          <View style={styles.birthdayGiftModalHeader}>
+            <Text style={[styles.birthdayGiftModalTitle, { color: theme.colors.textPrimary }]}>
+              Create Gift List for {selectedBirthdayFriend?.name}
+            </Text>
+          </View>
+          
+          <View style={styles.birthdayGiftOptions}>
+            {/* Regular Wishlist Option */}
+            <TouchableOpacity
+              style={[
+                styles.birthdayGiftOption,
+                { 
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.textSecondary + '40',
+                }
+              ]}
+              onPress={() => {
+                setBirthdayGiftModalVisible(false);
+                // Small delay to let the modal close before opening the next one
+                setTimeout(() => {
+                  setCreateWishlistSheetVisible(true);
+                }, 200);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[
+                styles.birthdayGiftOptionIcon,
+                { backgroundColor: theme.colors.primary + '15' }
+              ]}>
+                <Feather name="list" size={24} color={theme.colors.primary} />
+              </View>
+              <View style={styles.birthdayGiftOptionContent}>
+                <Text style={[styles.birthdayGiftOptionTitle, { color: theme.colors.textPrimary }]}>
+                  Create Wishlist
+                </Text>
+                <Text style={[styles.birthdayGiftOptionDescription, { color: theme.colors.textSecondary }]}>
+                  Create a personal wishlist for this friend's birthday
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Group Gift Option */}
+            <TouchableOpacity
+              style={[
+                styles.birthdayGiftOption,
+                { 
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.textSecondary + '40',
+                }
+              ]}
+              onPress={() => {
+                setBirthdayGiftModalVisible(false);
+                // TODO: Navigate to group gift creation
+                Alert.alert(
+                  "Coming Soon",
+                  "Group gift functionality will be available soon! You'll be able to create a shared wishlist with selected friends."
+                );
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[
+                styles.birthdayGiftOptionIcon,
+                { backgroundColor: theme.colors.primary + '15' }
+              ]}>
+                <Feather name="users" size={24} color={theme.colors.primary} />
+              </View>
+              <View style={styles.birthdayGiftOptionContent}>
+                <Text style={[styles.birthdayGiftOptionTitle, { color: theme.colors.textPrimary }]}>
+                  Create Group Gift
+                </Text>
+                <Text style={[styles.birthdayGiftOptionDescription, { color: theme.colors.textSecondary }]}>
+                  Create a shared wishlist with friends for group gifting
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </BottomSheet>
+
+      {/* Create Wishlist Sheet */}
+      <CreateWishlistSheet
+        visible={createWishlistSheetVisible}
+        onClose={() => setCreateWishlistSheetVisible(false)}
+        initialTitle={selectedBirthdayFriend ? `${selectedBirthdayFriend.name}'s Birthday` : undefined}
+      />
     </View>
   );
 }
@@ -791,6 +897,51 @@ const styles = StyleSheet.create({
     height: 1,
     width: "100%",
     marginLeft: 24,
+  },
+  birthdayGiftModalContent: {
+    padding: 20,
+    paddingTop: 0,
+  },
+  birthdayGiftModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+    marginTop: 8,
+  },
+  birthdayGiftModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  birthdayGiftOptions: {
+    gap: 12,
+  },
+  birthdayGiftOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  birthdayGiftOptionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  birthdayGiftOptionContent: {
+    flex: 1,
+  },
+  birthdayGiftOptionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  birthdayGiftOptionDescription: {
+    fontSize: 14,
   },
 });
 

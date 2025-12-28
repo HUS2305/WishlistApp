@@ -55,15 +55,22 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
+    // Silently handle 401 errors for /users/me endpoint (used for theme loading)
+    const isUsersMeEndpoint = error.config?.url?.includes('/users/me');
+    const is401 = error.response?.status === 401;
+    
     if (error.response) {
-      console.error("❌ API Error:", error.response.status, error.response.data);
+      // Don't log 401 errors for /users/me endpoint
+      if (!(is401 && isUsersMeEndpoint)) {
+        console.error("❌ API Error:", error.response.status, error.response.data);
+      }
     } else if (error.request) {
       console.error("❌ Network Error: No response received", error.message);
     } else {
       console.error("❌ Request Error:", error.message);
     }
     
-    if (error.response?.status === 401) {
+    if (is401 && !isUsersMeEndpoint) {
       console.warn("⚠️ Unauthorized - token may be invalid");
     }
     return Promise.reject(error);

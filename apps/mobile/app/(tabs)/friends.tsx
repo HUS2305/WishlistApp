@@ -12,6 +12,8 @@ import { FriendMenu } from "@/components/FriendMenu";
 import { useNotificationContext } from "@/contexts/NotificationContext";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { useAuth } from "@clerk/clerk-expo";
+import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
+import { BottomSheet } from "@/components/BottomSheet";
 
 export default function FriendsScreen() {
   const { theme } = useTheme();
@@ -31,6 +33,9 @@ export default function FriendsScreen() {
   const [selectedFriendBlockStatus, setSelectedFriendBlockStatus] = useState<{ isBlockedByMe?: boolean; isBlockedByThem?: boolean }>({});
   const [blockConfirmVisible, setBlockConfirmVisible] = useState(false);
   const [removeConfirmVisible, setRemoveConfirmVisible] = useState(false);
+  const [birthdayGiftModalVisible, setBirthdayGiftModalVisible] = useState(false);
+  const [selectedBirthdayFriend, setSelectedBirthdayFriend] = useState<{ id: string; name: string } | null>(null);
+  const [createWishlistSheetVisible, setCreateWishlistSheetVisible] = useState(false);
   
   // Search state
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -1028,7 +1033,7 @@ export default function FriendsScreen() {
       {/* Upcoming Birthdays Section */}
       {!isLoading && friends.length > 0 && (() => {
         const upcomingBirthdays = getUpcomingBirthdays(friends, 30);
-        const displayedBirthdays = upcomingBirthdays.slice(0, 4);
+        const displayedBirthdays = upcomingBirthdays.slice(0, 3);
         return (
           <View style={[styles.eventsSection, styles.birthdaysSection]}>
             <View style={styles.sectionHeaderRow}>
@@ -1039,58 +1044,75 @@ export default function FriendsScreen() {
             </View>
             {upcomingBirthdays.length > 0 ? (
               <>
-                {displayedBirthdays.map((birthday, index) => (
-                  <View key={birthday.friend.id}>
-                    <TouchableOpacity
-                      onPress={() => handleViewProfile(birthday.friend.id)}
-                      activeOpacity={0.7}
-                      style={styles.birthdayRow}
-                    >
-                      <View style={styles.friendInfo}>
-                        <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
-                          {birthday.friend.avatar ? (
-                            <Text style={styles.avatarText}>🖼️</Text>
-                          ) : (
-                            <Text style={styles.avatarText}>
-                              {(birthday.friend.displayName?.[0] || birthday.friend.username?.[0] || "?").toUpperCase()}
+                {displayedBirthdays.map((birthday, index) => {
+                  const daysText = birthday.daysUntil === 0 
+                    ? "Today" 
+                    : birthday.daysUntil === 1 
+                    ? "1 day"
+                    : `${birthday.daysUntil} days`;
+                  return (
+                    <View key={birthday.friend.id}>
+                      <View style={styles.birthdayLeaderboardRow}>
+                        <TouchableOpacity
+                          onPress={() => handleViewProfile(birthday.friend.id)}
+                          activeOpacity={0.7}
+                          style={styles.birthdayLeaderboardContent}
+                        >
+                          {/* Days Left Badge */}
+                          <View style={styles.birthdayDaysBadge}>
+                            <Text style={[styles.birthdayDaysText, { color: theme.colors.textPrimary }]}>
+                              {daysText}
                             </Text>
-                          )}
-                        </View>
-                        <View style={styles.friendDetails}>
-                          <Text style={[styles.friendName, { color: theme.colors.textPrimary }]}>
-                            {birthday.friend.displayName || birthday.friend.username || "Friend"}
-                          </Text>
-                          <View style={styles.birthdayDateRow}>
-                            <Feather name="calendar" size={12} color={theme.colors.textSecondary} />
-                            <Text style={[styles.birthdayDate, { color: theme.colors.textSecondary }]}>
+                          </View>
+                          
+                          {/* Small Avatar */}
+                          <View style={[styles.birthdayAvatarSmall, { backgroundColor: theme.colors.primary }]}>
+                            {birthday.friend.avatar ? (
+                              <Text style={styles.birthdayAvatarTextSmall}>🖼️</Text>
+                            ) : (
+                              <Text style={styles.birthdayAvatarTextSmall}>
+                                {(getDisplayName(birthday.friend) || birthday.friend.username?.[0] || "?").toUpperCase()}
+                              </Text>
+                            )}
+                          </View>
+                          
+                          {/* Name and Date */}
+                          <View style={styles.birthdayLeaderboardInfo}>
+                            <Text style={[styles.birthdayLeaderboardName, { color: theme.colors.textPrimary }]}>
+                              {getDisplayName(birthday.friend) || birthday.friend.username || "Friend"}
+                            </Text>
+                            <Text style={[styles.birthdayLeaderboardDate, { color: theme.colors.textSecondary }]}>
                               {birthday.formattedDate}
                             </Text>
                           </View>
-                        </View>
+                        </TouchableOpacity>
+                        
+                        {/* Group Gift/Wishlist Button */}
+                        <TouchableOpacity
+                          style={[styles.birthdayActionButton, { backgroundColor: theme.colors.primary }]}
+                          onPress={() => {
+                            setSelectedBirthdayFriend({
+                              id: birthday.friend.id,
+                              name: getDisplayName(birthday.friend) || birthday.friend.username || "Friend"
+                            });
+                            setBirthdayGiftModalVisible(true);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Feather name="gift" size={14} color="#FFFFFF" />
+                          <Text style={styles.birthdayActionButtonText}>Gift</Text>
+                        </TouchableOpacity>
                       </View>
-                      {(birthday.daysUntil === 0 || birthday.daysUntil === 1) && (
-                        <View style={[
-                          styles.birthdayBadgeCompact,
-                          { backgroundColor: birthday.daysUntil === 0 ? theme.colors.primary : theme.colors.primary + '80' }
-                        ]}>
-                          <Text style={[styles.birthdayBadgeTextCompact, { color: "#FFFFFF" }]}>
-                            {birthday.daysUntil === 0 ? "Today" : "Tomorrow"}
-                          </Text>
-                        </View>
+                      {index < displayedBirthdays.length - 1 && (
+                        <View style={[styles.birthdayDivider, { backgroundColor: theme.colors.textSecondary + '20' }]} />
                       )}
-                    </TouchableOpacity>
-                    {index < displayedBirthdays.length - 1 && (
-                      <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
-                    )}
-                  </View>
-                ))}
-                {upcomingBirthdays.length > 4 && (
+                    </View>
+                  );
+                })}
+                {friends.length > 3 && (
                   <TouchableOpacity
                     style={styles.seeMoreButton}
-                    onPress={() => {
-                      // TODO: Navigate to full birthdays list
-                      console.log("See all birthdays");
-                    }}
+                    onPress={() => router.push("/friends/birthdays")}
                   >
                     <Text style={[styles.seeMoreText, { color: theme.colors.primary }]}>
                       See All Birthdays
@@ -1208,6 +1230,16 @@ export default function FriendsScreen() {
             setFriendMenuVisible(false);
             handleViewProfile(selectedFriend.id);
           }}
+          onGift={() => {
+            setFriendMenuVisible(false);
+            setSelectedBirthdayFriend({
+              id: selectedFriend.id,
+              name: getDisplayName(selectedFriend) || selectedFriend.username || "Friend"
+            });
+            setTimeout(() => {
+              setBirthdayGiftModalVisible(true);
+            }, 200);
+          }}
           onRemoveFriend={handleRemoveFriend}
           onBlockUser={handleBlockUser}
           onUnblockUser={handleUnblockUser}
@@ -1244,6 +1276,97 @@ export default function FriendsScreen() {
           }}
         />
       )}
+
+      {/* Birthday Gift Choice Modal */}
+      <BottomSheet visible={birthdayGiftModalVisible} onClose={() => setBirthdayGiftModalVisible(false)} autoHeight>
+        <View style={[styles.birthdayGiftModalContent, { backgroundColor: theme.colors.background }]}>
+          <View style={styles.birthdayGiftModalHeader}>
+            <Text style={[styles.birthdayGiftModalTitle, { color: theme.colors.textPrimary }]}>
+              Create Gift List for {selectedBirthdayFriend?.name}
+            </Text>
+          </View>
+          
+          <View style={styles.birthdayGiftOptions}>
+            {/* Regular Wishlist Option */}
+            <TouchableOpacity
+              style={[
+                styles.birthdayGiftOption,
+                { 
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.textSecondary + '40',
+                }
+              ]}
+              onPress={() => {
+                setBirthdayGiftModalVisible(false);
+                // Small delay to let the modal close before opening the next one
+                setTimeout(() => {
+                  setCreateWishlistSheetVisible(true);
+                }, 200);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[
+                styles.birthdayGiftOptionIcon,
+                { backgroundColor: theme.colors.primary + '15' }
+              ]}>
+                <Feather name="list" size={24} color={theme.colors.primary} />
+              </View>
+              <View style={styles.birthdayGiftOptionContent}>
+                <Text style={[styles.birthdayGiftOptionTitle, { color: theme.colors.textPrimary }]}>
+                  Create Wishlist
+                </Text>
+                <Text style={[styles.birthdayGiftOptionDescription, { color: theme.colors.textSecondary }]}>
+                  Create a personal wishlist for this friend's birthday
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Group Gift Option */}
+            <TouchableOpacity
+              style={[
+                styles.birthdayGiftOption,
+                { 
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.textSecondary + '40',
+                }
+              ]}
+              onPress={() => {
+                setBirthdayGiftModalVisible(false);
+                // TODO: Navigate to group gift creation
+                Alert.alert(
+                  "Coming Soon",
+                  "Group gift functionality will be available soon! You'll be able to create a shared wishlist with selected friends."
+                );
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[
+                styles.birthdayGiftOptionIcon,
+                { backgroundColor: theme.colors.primary + '15' }
+              ]}>
+                <Feather name="users" size={24} color={theme.colors.primary} />
+              </View>
+              <View style={styles.birthdayGiftOptionContent}>
+                <Text style={[styles.birthdayGiftOptionTitle, { color: theme.colors.textPrimary }]}>
+                  Create Group Gift
+                </Text>
+                <Text style={[styles.birthdayGiftOptionDescription, { color: theme.colors.textSecondary }]}>
+                  Create a shared wishlist with friends for group gifting
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </BottomSheet>
+
+      {/* Create Wishlist Sheet */}
+      <CreateWishlistSheet
+        visible={createWishlistSheetVisible}
+        onClose={() => setCreateWishlistSheetVisible(false)}
+        initialTitle={selectedBirthdayFriend ? `${selectedBirthdayFriend.name}'s Birthday` : undefined}
+      />
     </View>
   );
 }
@@ -1266,7 +1389,7 @@ const styles = StyleSheet.create({
   eventsSection: {
     paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 8,
+    paddingBottom: 0,
   },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -1282,33 +1405,76 @@ const styles = StyleSheet.create({
   birthdaysContainer: {
     gap: 8,
   },
-  birthdayRow: {
+  birthdayLeaderboardRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 0,
   },
-  birthdayDateRow: {
+  birthdayLeaderboardContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginTop: 2,
+    flex: 1,
+    gap: 10,
   },
-  birthdayDate: {
+  birthdayDaysBadge: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    width: 60,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
+  birthdayDaysText: {
     fontSize: 13,
-  },
-  birthdayBadgeCompact: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  birthdayBadgeTextCompact: {
-    fontSize: 11,
     fontWeight: "600",
   },
+  birthdayAvatarSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  birthdayAvatarTextSmall: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  birthdayLeaderboardInfo: {
+    flex: 1,
+  },
+  birthdayLeaderboardName: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  birthdayLeaderboardDate: {
+    fontSize: 12,
+  },
+  birthdayActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginLeft: 8,
+    gap: 6,
+  },
+  birthdayActionButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  birthdayDivider: {
+    height: 1,
+    width: "100%",
+    marginVertical: 4,
+  },
   birthdaysSection: {
-    marginTop: 24,
+    marginTop: 48,
+    paddingBottom: 0,
   },
   emptyStateSmall: {
     alignItems: "center",
@@ -1362,7 +1528,7 @@ const styles = StyleSheet.create({
   },
   friendsListSection: {
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 48,
     paddingBottom: 8,
   },
   requestRow: {
@@ -1612,5 +1778,51 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     width: '100%',
+  },
+  birthdayGiftModalContent: {
+    padding: 20,
+    paddingTop: 0,
+  },
+  birthdayGiftModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+    marginTop: 8,
+  },
+  birthdayGiftModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  birthdayGiftOptions: {
+    gap: 12,
+  },
+  birthdayGiftOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 12,
+  },
+  birthdayGiftOptionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  birthdayGiftOptionContent: {
+    flex: 1,
+  },
+  birthdayGiftOptionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  birthdayGiftOptionDescription: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

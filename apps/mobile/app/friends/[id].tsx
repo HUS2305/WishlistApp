@@ -15,6 +15,8 @@ import { FriendMenu } from "@/components/FriendMenu";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { useAuth } from "@clerk/clerk-expo";
 import { PriceDisplay } from "@/components/PriceDisplay";
+import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
+import { BottomSheet } from "@/components/BottomSheet";
 
 interface UserProfile {
   profile: User & {
@@ -55,6 +57,9 @@ export default function FriendProfileScreen() {
   const [isBlockingUser, setIsBlockingUser] = useState(false);
   const [sortModalVisible, setSortModalVisible] = useState(false);
   const [currentSort, setCurrentSort] = useState<SortOption>("last_added");
+  const [birthdayGiftModalVisible, setBirthdayGiftModalVisible] = useState(false);
+  const [selectedBirthdayFriend, setSelectedBirthdayFriend] = useState<{ id: string; name: string } | null>(null);
+  const [createWishlistSheetVisible, setCreateWishlistSheetVisible] = useState(false);
 
   const fetchProfile = async () => {
     if (!id || !isAuthLoaded) return;
@@ -511,6 +516,16 @@ export default function FriendProfileScreen() {
         <FriendMenu
           visible={menuVisible}
           onClose={() => setMenuVisible(false)}
+          onGift={() => {
+            setMenuVisible(false);
+            setSelectedBirthdayFriend({
+              id: profile.profile.id,
+              name: getDisplayName(profile.profile) || profile.profile.username || "Friend"
+            });
+            setTimeout(() => {
+              setBirthdayGiftModalVisible(true);
+            }, 200);
+          }}
           onRemoveFriend={profile.areFriends ? handleRemoveFriend : undefined}
           onBlockUser={handleBlockUser}
           onUnblockUser={handleUnblockUser}
@@ -549,6 +564,97 @@ export default function FriendProfileScreen() {
         onClose={() => setSortModalVisible(false)}
         currentSort={currentSort}
         onSortChange={handleSortChange}
+      />
+
+      {/* Birthday Gift Choice Modal */}
+      <BottomSheet visible={birthdayGiftModalVisible} onClose={() => setBirthdayGiftModalVisible(false)} autoHeight>
+        <View style={[styles.birthdayGiftModalContent, { backgroundColor: theme.colors.background }]}>
+          <View style={styles.birthdayGiftModalHeader}>
+            <Text style={[styles.birthdayGiftModalTitle, { color: theme.colors.textPrimary }]}>
+              Create Gift List for {selectedBirthdayFriend?.name}
+            </Text>
+          </View>
+          
+          <View style={styles.birthdayGiftOptions}>
+            {/* Regular Wishlist Option */}
+            <TouchableOpacity
+              style={[
+                styles.birthdayGiftOption,
+                { 
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.textSecondary + '40',
+                }
+              ]}
+              onPress={() => {
+                setBirthdayGiftModalVisible(false);
+                // Small delay to let the modal close before opening the next one
+                setTimeout(() => {
+                  setCreateWishlistSheetVisible(true);
+                }, 200);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[
+                styles.birthdayGiftOptionIcon,
+                { backgroundColor: theme.colors.primary + '15' }
+              ]}>
+                <Feather name="list" size={24} color={theme.colors.primary} />
+              </View>
+              <View style={styles.birthdayGiftOptionContent}>
+                <Text style={[styles.birthdayGiftOptionTitle, { color: theme.colors.textPrimary }]}>
+                  Create Wishlist
+                </Text>
+                <Text style={[styles.birthdayGiftOptionDescription, { color: theme.colors.textSecondary }]}>
+                  Create a personal wishlist for this friend's birthday
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Group Gift Option */}
+            <TouchableOpacity
+              style={[
+                styles.birthdayGiftOption,
+                { 
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.textSecondary + '40',
+                }
+              ]}
+              onPress={() => {
+                setBirthdayGiftModalVisible(false);
+                // TODO: Navigate to group gift creation
+                Alert.alert(
+                  "Coming Soon",
+                  "Group gift functionality will be available soon! You'll be able to create a shared wishlist with selected friends."
+                );
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[
+                styles.birthdayGiftOptionIcon,
+                { backgroundColor: theme.colors.primary + '15' }
+              ]}>
+                <Feather name="users" size={24} color={theme.colors.primary} />
+              </View>
+              <View style={styles.birthdayGiftOptionContent}>
+                <Text style={[styles.birthdayGiftOptionTitle, { color: theme.colors.textPrimary }]}>
+                  Create Group Gift
+                </Text>
+                <Text style={[styles.birthdayGiftOptionDescription, { color: theme.colors.textSecondary }]}>
+                  Create a shared wishlist with friends for group gifting
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </BottomSheet>
+
+      {/* Create Wishlist Sheet */}
+      <CreateWishlistSheet
+        visible={createWishlistSheetVisible}
+        onClose={() => setCreateWishlistSheetVisible(false)}
+        initialTitle={selectedBirthdayFriend ? `${selectedBirthdayFriend.name}'s Birthday` : undefined}
       />
     </View>
   );
@@ -826,6 +932,51 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     padding: 4,
+  },
+  birthdayGiftModalContent: {
+    padding: 20,
+    paddingTop: 0,
+  },
+  birthdayGiftModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+    marginTop: 8,
+  },
+  birthdayGiftModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  birthdayGiftOptions: {
+    gap: 12,
+  },
+  birthdayGiftOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  birthdayGiftOptionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  birthdayGiftOptionContent: {
+    flex: 1,
+  },
+  birthdayGiftOptionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  birthdayGiftOptionDescription: {
+    fontSize: 14,
   },
 });
 

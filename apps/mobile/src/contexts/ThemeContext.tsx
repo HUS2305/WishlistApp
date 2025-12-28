@@ -87,9 +87,12 @@ const loadThemeFromDatabase = async (getToken: (() => Promise<string | null>) | 
     if (theme && validThemes.includes(theme as ThemeName)) {
       return theme as ThemeName;
     }
-  } catch (error) {
+  } catch (error: any) {
     // Silently fail - will fall back to local storage
-    console.log('Failed to load theme from database, using local cache');
+    // Only log if it's not a 401 (unauthorized) error, as 401 is expected when user is not authenticated
+    if (error?.response?.status !== 401) {
+      console.log('Failed to load theme from database, using local cache');
+    }
   }
   
   return null;

@@ -25,9 +25,10 @@ interface CreateWishlistSheetProps {
   visible: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  initialTitle?: string;
 }
 
-export function CreateWishlistSheet({ visible, onClose, onSuccess }: CreateWishlistSheetProps) {
+export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle }: CreateWishlistSheetProps) {
   const { theme } = useTheme();
   
   React.useEffect(() => {
@@ -40,6 +41,16 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess }: CreateWishl
   const [allowReservations, setAllowReservations] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isTitleFocused, setIsTitleFocused] = useState(false);
+
+  // Pre-fill title when modal opens with initialTitle prop
+  React.useEffect(() => {
+    if (visible && initialTitle) {
+      setTitle(initialTitle);
+    } else if (visible && !initialTitle) {
+      // Reset title if no initialTitle and modal opens
+      setTitle("");
+    }
+  }, [visible, initialTitle]);
   
   const handleCreate = async () => {
     if (!title.trim()) {

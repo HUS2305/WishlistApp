@@ -13,6 +13,7 @@ interface FriendMenuProps {
   visible: boolean;
   onClose: () => void;
   onViewProfile?: () => void;
+  onGift?: () => void;
   onRemoveFriend?: () => void;
   onBlockUser?: () => void;
   onUnblockUser?: () => void;
@@ -25,6 +26,7 @@ export function FriendMenu({
   visible, 
   onClose, 
   onViewProfile,
+  onGift,
   onRemoveFriend,
   onBlockUser,
   onUnblockUser,
@@ -41,8 +43,18 @@ export function FriendMenu({
     }, 100);
   };
 
+  const handleGift = () => {
+    if (!onGift) return;
+    onClose();
+    setTimeout(() => {
+      onGift();
+    }, 100);
+  };
+
   const handleRemoveFriend = () => {
-    onRemoveFriend();
+    if (onRemoveFriend) {
+      onRemoveFriend();
+    }
   };
 
   const handleBlockUser = () => {
@@ -65,17 +77,9 @@ export function FriendMenu({
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerSpacer} />
           <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
             Options
           </Text>
-          <TouchableOpacity
-            onPress={onClose}
-            style={styles.closeButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Feather name="x" size={24} color={theme.colors.textPrimary} />
-          </TouchableOpacity>
         </View>
 
         {/* Menu Options */}
@@ -105,6 +109,41 @@ export function FriendMenu({
                   ]}
                 >
                   View Profile
+                </Text>
+              </View>
+              <Feather
+                name="chevron-right"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
+
+          {areFriends && !isBlockedByMe && !isBlockedByThem && onGift && (
+            <TouchableOpacity
+              style={[
+                styles.optionRow,
+                {
+                  borderBottomColor: theme.colors.textSecondary + '20',
+                },
+              ]}
+              onPress={handleGift}
+              activeOpacity={0.7}
+            >
+              <View style={styles.optionLeft}>
+                <Feather 
+                  name="gift" 
+                  size={20} 
+                  color={theme.colors.textPrimary} 
+                  style={styles.optionIcon}
+                />
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Gift
                 </Text>
               </View>
               <Feather
@@ -233,27 +272,17 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 0,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0, 0, 0, 0.1)",
-    position: "relative",
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    position: "absolute",
-    left: 0,
-    right: 0,
     textAlign: "center",
-  },
-  headerSpacer: {
-    width: 24, // Same width as close button to center the title
-  },
-  closeButton: {
-    padding: 4,
-    zIndex: 1,
   },
   content: {
     paddingVertical: 8,
