@@ -1,10 +1,10 @@
 import { View, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Image, Alert } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { PageHeader } from "@/components/PageHeader";
+import { useState, useEffect, useCallback, useMemo, useLayoutEffect } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
+import { getHeaderOptions, HeaderButtons } from "@/lib/navigation";
 import { useNotificationContext } from "@/contexts/NotificationContext";
 import { friendsService } from "@/services/friends";
 import { getDisplayName } from "@/lib/utils";
@@ -43,11 +43,32 @@ interface UserProfile {
 
 export default function FriendProfileScreen() {
   const { theme } = useTheme();
+  const navigation = useNavigation();
   const { isLoaded: isAuthLoaded } = useAuth();
   const cardBackgroundColor = theme.isDark ? '#2E2E2E' : '#D3D3D3';
   const { refreshPendingRequestsCount, refreshUnreadNotificationsCount } = useNotificationContext();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  // Configure native header
+  useLayoutEffect(() => {
+    const displayName = profile?.profile ? getDisplayName(profile.profile) : "Profile";
+    navigation.setOptions(
+      getHeaderOptions(theme, {
+        title: displayName,
+        headerRight: profile ? () => (
+          <HeaderButtons
+            buttons={[
+              {
+                icon: "more-horizontal",
+                onPress: () => setMenuVisible(true),
+              },
+            ]}
+          />
+        ) : undefined,
+      })
+    );
+  }, [navigation, theme, profile]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -259,7 +280,6 @@ export default function FriendProfileScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <PageHeader title="" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
@@ -270,7 +290,6 @@ export default function FriendProfileScreen() {
   if (!profile) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <PageHeader title="" />
         <View style={styles.loadingContainer}>
           <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
             Profile not found
@@ -282,19 +301,6 @@ export default function FriendProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <PageHeader 
-        title=""
-        onBack={handleBack}
-        rightActions={
-          <TouchableOpacity
-            onPress={() => setMenuVisible(true)}
-            style={styles.menuButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Feather name="more-horizontal" size={24} color={theme.colors.textPrimary} />
-          </TouchableOpacity>
-        }
-      />
       
       {/* Profile Header - Centered Column Layout */}
       <View style={styles.profileHeader}>

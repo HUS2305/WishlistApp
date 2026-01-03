@@ -16,8 +16,13 @@
       "package": "com.wishlistapp.mobile"
     },
     "plugins": [
+      "expo-dev-client",
       "expo-router",
-      "expo-notifications"
+      "expo-notifications",
+      "@react-native-community/datetimepicker",
+      "expo-secure-store",
+      "expo-web-browser",
+      "@sentry/react-native"
     ],
     "scheme": "wishlistapp",
     "extra": {
@@ -27,4 +32,3 @@
     }
   }
 }
-

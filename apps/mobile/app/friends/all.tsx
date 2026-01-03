@@ -1,10 +1,9 @@
-import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList, Animated } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useNavigation } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useLayoutEffect } from "react";
 import { friendsService, type SearchResult } from "@/services/friends";
-import { HeaderButton } from "@/components/PageHeader";
 import type { User } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getDisplayName } from "@/lib/utils";
@@ -14,9 +13,11 @@ import { useAuth } from "@clerk/clerk-expo";
 import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
 import { CreateGroupGiftSheet } from "@/components/CreateGroupGiftSheet";
 import { BottomSheet } from "@/components/BottomSheet";
+import { getHeaderOptions, HeaderButton } from "@/lib/navigation";
 
 export default function AllFriendsScreen() {
   const { theme } = useTheme();
+  const navigation = useNavigation();
   const { isLoaded: isClerkLoaded, userId } = useAuth();
   const [friends, setFriends] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -39,14 +40,36 @@ export default function AllFriendsScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
   const isSearchActiveRef = useRef(false);
-  
-  // Animation for search icon transition
-  const searchIconOpacity = useRef(new Animated.Value(1)).current;
-  const searchIconRotation = useRef(new Animated.Value(0)).current;
-  const searchBarOpacity = useRef(new Animated.Value(0)).current;
-  const searchBarScale = useRef(new Animated.Value(0.95)).current;
-  const xButtonRotation = useRef(new Animated.Value(0)).current;
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleSearchPress = useCallback(() => {
+    if (isSearchActive) {
+      setIsSearchActive(false);
+      setSearchQuery("");
+      setSearchResults([]);
+      searchInputRef.current?.blur();
+    } else {
+      setIsSearchActive(true);
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+    }
+  }, [isSearchActive]);
+
+  // Configure native header
+  useLayoutEffect(() => {
+    navigation.setOptions(
+      getHeaderOptions(theme, {
+        title: "All Friends",
+        headerRight: !isSearchActive ? () => (
+          <HeaderButton
+            icon="search"
+            onPress={handleSearchPress}
+          />
+        ) : undefined,
+      })
+    );
+  }, [navigation, theme, isSearchActive, handleSearchPress]);
 
   const fetchFriends = useCallback(async (showLoader = true) => {
     try {
@@ -156,84 +179,6 @@ export default function AllFriendsScreen() {
     }
   };
 
-  const handleSearchPress = () => {
-    if (isSearchActive) {
-      Animated.parallel([
-        Animated.timing(searchIconOpacity, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(searchIconRotation, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(xButtonRotation, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(searchBarOpacity, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(searchBarScale, {
-          toValue: 0.95,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setIsSearchActive(false);
-        setSearchQuery("");
-        setSearchResults([]);
-        searchInputRef.current?.blur();
-        xButtonRotation.setValue(0);
-      });
-    } else {
-      setIsSearchActive(true);
-      searchIconOpacity.setValue(1);
-      searchIconRotation.setValue(0);
-      searchBarOpacity.setValue(0);
-      searchBarScale.setValue(0.95);
-      xButtonRotation.setValue(0);
-      
-      setTimeout(() => {
-        Animated.parallel([
-          Animated.timing(searchIconOpacity, {
-            toValue: 0,
-            duration: 150,
-            useNativeDriver: true,
-          }),
-          Animated.timing(searchIconRotation, {
-            toValue: 1,
-            duration: 150,
-            useNativeDriver: true,
-          }),
-          Animated.timing(xButtonRotation, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(searchBarOpacity, {
-            toValue: 1,
-            duration: 150,
-            useNativeDriver: true,
-          }),
-          Animated.timing(searchBarScale, {
-            toValue: 1,
-            duration: 150,
-            useNativeDriver: true,
-          }),
-        ]).start(() => {
-          setTimeout(() => {
-            searchInputRef.current?.focus();
-          }, 50);
-        });
-      }, 10);
-    }
-  };
 
   const handleSearch = useCallback((query: string) => {
     if (!query.trim() || query.trim().length < 1) {
@@ -351,96 +296,29 @@ export default function AllFriendsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.headerContainer, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.headerContent}>
-          {!isSearchActive && (
-            <TouchableOpacity 
-              onPress={() => router.push("/(tabs)/friends")} 
-              style={styles.backButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Feather name="chevron-left" size={24} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
-          )}
-          
-          {!isSearchActive && (
-            <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>All Friends</Text>
-          )}
-          
-          {!isSearchActive && (
-            <Animated.View 
-              style={{ 
-                opacity: searchIconOpacity, 
-                marginLeft: 'auto',
-                transform: [{
-                  rotate: searchIconRotation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ['0deg', '180deg'],
-                  })
-                }]
-              }}
-            >
-              <HeaderButton
-                icon="search"
-                onPress={handleSearchPress}
-                style={{ marginRight: 0 }}
-              />
-            </Animated.View>
-          )}
-          
-          {isSearchActive && (
-            <Animated.View 
-              style={[
-                styles.searchBarContainer,
-                {
-                  opacity: searchBarOpacity,
-                  transform: [{ scale: searchBarScale }],
-                }
-              ]}
-            >
-              <View style={[styles.headerSearchBar, { backgroundColor: theme.colors.background, borderColor: theme.colors.primary, borderWidth: 1 }]}>
-                <Feather name="search" size={20} color={theme.colors.primary} />
-                <TextInput
-                  ref={searchInputRef}
-                  style={[styles.headerSearchInput, { color: theme.colors.textPrimary }]}
-                  placeholder="Search by name or username"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={searchQuery}
-                  onChangeText={handleSearchQueryChange}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => handleSearchQueryChange("")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <Feather name="x" size={18} color={theme.colors.primary} />
-                  </TouchableOpacity>
-                )}
-              </View>
-              <Animated.View 
-                style={[
-                  styles.closeSearchButtonWrapper,
-                  {
-                    transform: [{
-                      rotate: xButtonRotation.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['180deg', '0deg'],
-                      })
-                    }]
-                  }
-                ]}
-              >
-                <TouchableOpacity
-                  onPress={handleSearchPress}
-                  style={styles.closeSearchButton}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Feather name="x" size={24} color={theme.colors.textPrimary} />
-                </TouchableOpacity>
-              </Animated.View>
-            </Animated.View>
-          )}
+      {/* Search Bar - shown in content area when active */}
+      {isSearchActive && (
+        <View style={[styles.searchContainer, { backgroundColor: theme.colors.background }]}>
+          <View style={[styles.searchBar, { backgroundColor: theme.colors.background, borderColor: theme.colors.primary, borderWidth: 1 }]}>
+            <Feather name="search" size={20} color={theme.colors.primary} />
+            <TextInput
+              ref={searchInputRef}
+              style={[styles.searchInput, { color: theme.colors.textPrimary }]}
+              placeholder="Search by name or username"
+              placeholderTextColor={theme.colors.textSecondary}
+              value={searchQuery}
+              onChangeText={handleSearchQueryChange}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => handleSearchQueryChange("")} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Feather name="x" size={18} color={theme.colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
+      )}
 
       {/* Search Results */}
       {isSearchActive && (
@@ -716,56 +594,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  headerContainer: {
-    paddingTop: 48,
-    paddingBottom: 16,
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingLeft: 16,
-    paddingRight: 26,
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 4,
-  },
-  headerTitle: {
-    fontSize: 20,
-    lineHeight: 24,
-    fontWeight: "700",
-    flex: 1,
-  },
-  searchBarContainer: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  headerSearchBar: {
-    flex: 1,
+  searchBar: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
     gap: 8,
+    minHeight: 44,
   },
-  headerSearchInput: {
+  searchInput: {
     flex: 1,
     fontSize: 16,
-  },
-  closeSearchButtonWrapper: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  closeSearchButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
   },
   searchResultsContainer: {
     flex: 1,

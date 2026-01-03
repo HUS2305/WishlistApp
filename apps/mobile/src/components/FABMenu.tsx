@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   TouchableOpacity,
@@ -7,6 +7,7 @@ import {
   Dimensions,
   Pressable,
   Modal,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Text } from "./Text";
@@ -51,6 +52,9 @@ export function FABMenu({
   const { theme } = useTheme();
   const segments = useSegments();
   const isBottomRight = variant === "bottom-right";
+  
+  // Keep Modal mounted during close animation to allow rotation to complete
+  const [modalVisible, setModalVisible] = useState(false);
 
   // Calculate FAB position
   const centerX = SCREEN_WIDTH / 2 - FAB_SIZE / 2;
@@ -58,12 +62,12 @@ export function FABMenu({
   const targetX = isBottomRight ? rightX : centerX;
   
   // Animated position values for smooth transitions
-  // Always start from center position to allow smooth transition from wishlists page
-  const fabPositionX = useRef(new Animated.Value(centerX)).current;
+  // Use translateX offset from initial position (0 = no offset from initial left)
+  const fabPositionX = useRef(new Animated.Value(0)).current;
 
   // Animation values
   const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const fabRotation = useRef(new Animated.Value(0)).current;
+  const fabRotation = useRef(new Animated.Value(0)).current; // For plus to X rotation animation
   
   // Track if we're on a detail page and update shared state
   const isDetailPage = segments.includes("wishlist") && segments.length > 1;
@@ -86,21 +90,27 @@ export function FABMenu({
     const wasDetailPage = previousIsDetailPageRef.current;
     const wasMainPage = previousRouteRef.current === "" || previousRouteRef.current === "(tabs)/index" || previousRouteRef.current.includes("(tabs)");
     
+    // Calculate the offset needed from initial position
+    const baseLeft = isBottomRight ? rightX : centerX;
+    const targetOffset = targetX - baseLeft;
+    
     // Detect navigation direction
     if (isDetailPage && wasMainPage && isBottomRight) {
-      // Navigating TO detail page: start from center and animate to right
-      fabPositionX.setValue(centerX);
+      // Navigating TO detail page: start from center offset and animate to right offset
+      const centerOffset = centerX - baseLeft;
+      fabPositionX.setValue(centerOffset);
     } else if (!isDetailPage && wasDetailPage && !isBottomRight) {
-      // Navigating BACK from detail page: start from right and animate to center
-      fabPositionX.setValue(rightX);
+      // Navigating BACK from detail page: start from right offset and animate to center offset
+      const rightOffset = rightX - baseLeft;
+      fabPositionX.setValue(rightOffset);
     }
     
-    // Animate to target X position (center or right)
+    // Animate to target X offset (0 = no offset from base position)
     Animated.spring(fabPositionX, {
-      toValue: targetX,
+      toValue: targetOffset,
       tension: 100,
       friction: 9,
-      useNativeDriver: false, // Position animations don't support native driver
+      useNativeDriver: true, // translateX supports native driver!
     }).start();
     
     // Update previous state
@@ -157,23 +167,54 @@ export function FABMenu({
       icon: "edit-3",
       color: theme.colors.primary,
       onPress: () => {
-        onClose();
-        onManualAdd();
+        console.log("✅ Add manually button pressed!");
+        onManualAdd(); // Call this first so it can set state before menu closes
+        onClose(); // Then close the menu
       },
     },
   ];
 
+  // Sync modal visibility with visible prop
+  // Delay hiding modal slightly to allow smooth transition, but not too long
   useEffect(() => {
     if (visible) {
-      // Open animations - faster and more responsive
-      Animated.parallel([
+      setModalVisible(true);
+    } else {
+      // Hide modal after a very short delay to allow FAB rotation to start smoothly
+      // This ensures the rotation animation transfers properly from modal FAB to outside FAB
+      const timeoutId = setTimeout(() => {
+        setModalVisible(false);
+      }, 50); // 50ms delay - short enough to feel instant, long enough for smooth transition
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    if (visible && modalVisible) {
+      // Reset values to starting position before animating
+      backdropOpacity.setValue(0);
+      fabRotation.setValue(0);
+      option1Translate.setValue(0);
+      option2Translate.setValue(0);
+      option3Translate.setValue(0);
+      option4Translate.setValue(0);
+      option1Opacity.setValue(0);
+      option2Opacity.setValue(0);
+      option3Opacity.setValue(0);
+      option4Opacity.setValue(0);
+      
+      // Small delay to ensure Modal is fully mounted before animating
+      const timeoutId = setTimeout(() => {
+        // Open animations - faster and more responsive
+        Animated.parallel([
         // Backdrop
         Animated.timing(backdropOpacity, {
           toValue: 1,
           duration: 150,
           useNativeDriver: true,
         }),
-        // FAB rotation (45 degrees = π/4 radians)
+        // FAB rotation (45 degrees = π/4 radians) - rotates plus to X
         Animated.spring(fabRotation, {
           toValue: 1,
           tension: 100,
@@ -236,14 +277,15 @@ export function FABMenu({
           ]),
         ]),
       ]).start();
-    } else {
+      }, 10); // 10ms delay to ensure Modal is mounted
+      
+      return () => clearTimeout(timeoutId);
+    } else if (!visible) {
       // Close animations (reverse) - faster
+      // Start rotation animation immediately, then hide modal after short delay
+      // This ensures smooth rotation transition from modal FAB to outside FAB
       Animated.parallel([
-        Animated.timing(backdropOpacity, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
+        // FAB rotation back to plus (0 degrees) - this is the important one
         Animated.spring(fabRotation, {
           toValue: 0,
           tension: 100,
@@ -296,14 +338,30 @@ export function FABMenu({
             useNativeDriver: true,
           }),
         ]),
-      ]).start();
+      ]).start(() => {
+        // After close animation completes, reset all values
+        backdropOpacity.setValue(0);
+        fabRotation.setValue(0);
+        option1Translate.setValue(0);
+        option2Translate.setValue(0);
+        option3Translate.setValue(0);
+        option4Translate.setValue(0);
+        option1Opacity.setValue(0);
+        option2Opacity.setValue(0);
+        option3Opacity.setValue(0);
+        option4Opacity.setValue(0);
+      });
     }
-  }, [visible, backdropOpacity, fabRotation, option1Translate, option2Translate, option3Translate, option4Translate, option1Opacity, option2Opacity, option3Opacity, option4Opacity]);
+  }, [visible, modalVisible, backdropOpacity, fabRotation, option1Translate, option2Translate, option3Translate, option4Translate, option1Opacity, option2Opacity, option3Opacity, option4Opacity]);
 
+  // Rotation interpolation for smooth plus to X transition
   const rotation = fabRotation.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0deg", "45deg"],
+    outputRange: ["0deg", "45deg"], // Rotate plus icon 45deg to make it look like X
   });
+  
+  // Always show plus icon, rotation makes it look like X when rotated 45deg
+  const iconName: keyof typeof Feather.glyphMap = "plus";
 
   const getOptionStyle = (
     translate: Animated.Value,
@@ -331,6 +389,9 @@ export function FABMenu({
   };
 
   const getFabContainerStyle = () => {
+    // Use left position for initial placement, then translateX for animation
+    const baseLeft = isBottomRight ? rightX : centerX;
+    
     if (positionStyle === "tab-bar") {
       // For tab-bar, use absolute positioning with animated center position
       return {
@@ -339,6 +400,7 @@ export function FABMenu({
         height: FAB_SIZE,
         zIndex: 1000,
         bottom: FAB_BOTTOM_POSITION,
+        left: baseLeft, // Initial position
       };
     } else {
       // For screen positioning, use absolute with animated position
@@ -348,6 +410,7 @@ export function FABMenu({
         height: FAB_SIZE,
         zIndex: 10000,
         bottom: FAB_BOTTOM_POSITION,
+        left: baseLeft, // Initial position
       };
     }
   };
@@ -360,8 +423,10 @@ export function FABMenu({
           style={[
             getFabContainerStyle(),
             {
-              left: fabPositionX, // Animated horizontal position
-              transform: [{ rotate: rotation }],
+              transform: [
+                { translateX: fabPositionX },
+                { rotate: rotation },
+              ],
               pointerEvents: "box-none",
             },
           ]}
@@ -377,17 +442,17 @@ export function FABMenu({
               },
             ]}
           >
-            <Feather name="plus" size={32} color="#FFFFFF" />
+            <Feather name={iconName} size={32} color="#FFFFFF" />
           </TouchableOpacity>
         </Animated.View>
       )}
 
       {/* Menu Overlay - only visible when menu is open */}
-      {visible && (
-        <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      {modalVisible && (
+        <Modal visible={modalVisible} transparent animationType="none" onRequestClose={onClose}>
           <View style={styles.container} pointerEvents="box-none">
-            {/* Backdrop */}
-            <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose}>
+            {/* Backdrop - rendered first so buttons can be on top */}
+            <TouchableWithoutFeedback onPress={onClose}>
               <Animated.View
                 style={[
                   StyleSheet.absoluteFillObject,
@@ -397,15 +462,17 @@ export function FABMenu({
                   },
                 ]}
               />
-            </Pressable>
+            </TouchableWithoutFeedback>
 
             {/* FAB Button with rotation - shown in overlay so it appears above backdrop */}
             <Animated.View
               style={[
                 getFabContainerStyle(),
                 {
-                  left: fabPositionX, // Animated horizontal position
-                  transform: [{ rotate: rotation }],
+                  transform: [
+                    { translateX: fabPositionX },
+                    { rotate: rotation },
+                  ],
                   pointerEvents: "box-none",
                   zIndex: 10001,
                 },
@@ -422,13 +489,13 @@ export function FABMenu({
                   },
                 ]}
               >
-                <Feather name="plus" size={32} color="#FFFFFF" />
+                <Feather name={iconName} size={32} color="#FFFFFF" />
               </TouchableOpacity>
             </Animated.View>
 
 
-        {/* Option Buttons */}
-        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+        {/* Option Buttons - Must be rendered after backdrop to be on top */}
+        <View style={[StyleSheet.absoluteFillObject, { zIndex: 10002 }]} pointerEvents="box-none">
           {menuItems.map((item, index) => {
             const translate = [option1Translate, option2Translate, option3Translate, option4Translate][index];
             const opacity = [option1Opacity, option2Opacity, option3Opacity, option4Opacity][index];
@@ -441,13 +508,22 @@ export function FABMenu({
                   styles.optionContainer,
                   getOptionStyle(translate, opacity, index),
                   position,
+                  { zIndex: 10002 }, // Ensure buttons are above backdrop
                 ]}
                 pointerEvents="box-none"
               >
-                <View style={[
-                  styles.optionRow,
-                  { width: targetX + FAB_SIZE - 20 } // Width from left padding to FAB right edge
-                ]}>
+                <TouchableOpacity
+                  onPress={() => {
+                    console.log(`✅ ${item.label} button pressed!`);
+                    item.onPress();
+                  }}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.optionRow,
+                    { width: targetX + FAB_SIZE - 20 } // Width from left padding to FAB right edge
+                  ]}
+                  hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                >
                   <View style={styles.optionLabelContainer}>
                     <View style={[styles.optionLabelBackground, { backgroundColor: theme.isDark ? '#2E2E2E' : '#FFFFFF' }]}>
                       <Text 
@@ -459,14 +535,10 @@ export function FABMenu({
                       </Text>
                     </View>
                   </View>
-                  <TouchableOpacity
-                    onPress={item.onPress}
-                    activeOpacity={0.8}
-                    style={[styles.optionButton, { backgroundColor: item.color }]}
-                  >
+                  <View style={[styles.optionButton, { backgroundColor: item.color }]}>
                     <Feather name={item.icon} size={24} color="#fff" />
-                  </TouchableOpacity>
-                </View>
+                  </View>
+                </TouchableOpacity>
               </Animated.View>
             );
           })}

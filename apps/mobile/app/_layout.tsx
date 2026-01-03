@@ -11,6 +11,8 @@ import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700
 import * as SplashScreen from "expo-splash-screen";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 
 // Get the publishable key from environment variables
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || "";
@@ -77,16 +79,16 @@ function AppWithAuth() {
     console.error("❌ Clerk failed to initialize. Check your Clerk dashboard and publishable key.");
   }
 
-  if (!fontsLoaded) {
-    return null;
-  }
-
+  // Always render providers, even while fonts load
+  // Render a minimal view while fonts load to ensure providers are mounted
   return (
-    <ThemeProvider userId={userId}>
-      <NotificationProvider>
-        <Slot />
-      </NotificationProvider>
-    </ThemeProvider>
+    <BottomSheetModalProvider>
+      <ThemeProvider userId={userId}>
+        <NotificationProvider>
+          <Slot />
+        </NotificationProvider>
+      </ThemeProvider>
+    </BottomSheetModalProvider>
   );
 }
 
@@ -110,16 +112,16 @@ function AppWithoutAuth() {
     }
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) {
-    return null;
-  }
-
+  // Always render providers, even while fonts load
+  // Render a minimal view while fonts load to ensure providers are mounted
   return (
-    <ThemeProvider userId={undefined}>
-      <NotificationProvider>
-        <Slot />
-      </NotificationProvider>
-    </ThemeProvider>
+    <BottomSheetModalProvider>
+      <ThemeProvider userId={undefined}>
+        <NotificationProvider>
+          <Slot />
+        </NotificationProvider>
+      </ThemeProvider>
+    </BottomSheetModalProvider>
   );
 }
 
@@ -130,17 +132,21 @@ export default function RootLayout() {
   if (!publishableKey) {
     console.warn("CLERK_PUBLISHABLE_KEY is not set. Authentication will not work.");
     return (
-      <QueryClientProvider client={queryClient}>
-        <AppWithoutAuth />
-      </QueryClientProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <QueryClientProvider client={queryClient}>
+          <AppWithoutAuth />
+        </QueryClientProvider>
+      </GestureHandlerRootView>
     );
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-        <AppWithAuth />
-      </ClerkProvider>
-    </QueryClientProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <QueryClientProvider client={queryClient}>
+        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+          <AppWithAuth />
+        </ClerkProvider>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }

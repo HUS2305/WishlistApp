@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -9,18 +9,19 @@ import {
   Alert,
 } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useNavigation } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { friendsService, type SearchResult } from "@/services/friends";
-import { PageHeader } from "@/components/PageHeader";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getDisplayName } from "@/lib/utils";
 import { FriendMenu } from "@/components/FriendMenu";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { useNotificationContext } from "@/contexts/NotificationContext";
+import { getHeaderOptions } from "@/lib/navigation";
 
 export default function FriendSearchScreen() {
   const { theme } = useTheme();
+  const navigation = useNavigation();
   const { refreshUnreadNotificationsCount } = useNotificationContext();
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -30,6 +31,15 @@ export default function FriendSearchScreen() {
   const [blockConfirmVisible, setBlockConfirmVisible] = useState(false);
   const [removeConfirmVisible, setRemoveConfirmVisible] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
+
+  // Configure native header
+  useLayoutEffect(() => {
+    navigation.setOptions(
+      getHeaderOptions(theme, {
+        title: "Find Friends",
+      })
+    );
+  }, [navigation, theme]);
 
   // Debounce search
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -330,9 +340,6 @@ export default function FriendSearchScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <PageHeader title="Find Friends" />
-
       {/* Search Bar */}
       <View style={[styles.searchContainer, { backgroundColor: theme.colors.background }]}>
         <View style={[styles.searchBar, { backgroundColor: theme.colors.background, borderColor: theme.colors.primary, borderWidth: 1 }]}>

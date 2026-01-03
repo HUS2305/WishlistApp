@@ -1,24 +1,52 @@
 import { View, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useNavigation } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { PageHeader, HeaderButton } from "@/components/PageHeader";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useLayoutEffect } from "react";
 import { notificationsService, type Notification } from "@/services/notifications";
 import { wishlistsService } from "@/services/wishlists";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useNotificationContext } from "@/contexts/NotificationContext";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
+import { getHeaderOptions, HeaderButtons } from "@/lib/navigation";
 
 export default function NotificationsScreen() {
   const { theme } = useTheme();
   const { refreshUnreadNotificationsCount } = useNotificationContext();
+  const navigation = useNavigation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(false); // Start as false to prevent flash
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Configure native header
+  useLayoutEffect(() => {
+    navigation.setOptions(
+      getHeaderOptions(theme, {
+        title: "Notifications",
+        headerRight: () => (
+          <HeaderButtons
+            buttons={[
+              {
+                icon: "check",
+                onPress: handleMarkAllRead,
+              },
+              {
+                icon: "trash-2",
+                onPress: () => {
+                  console.log("🗑️ Delete all button pressed");
+                  handleDeleteAll();
+                },
+                disabled: notifications.length === 0,
+              },
+            ]}
+          />
+        ),
+      })
+    );
+  }, [navigation, theme, notifications.length]);
 
   const fetchNotifications = useCallback(async (showLoader = true) => {
     try {
@@ -245,25 +273,6 @@ export default function NotificationsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <PageHeader
-        title="Notifications"
-        rightActions={
-          <>
-            <HeaderButton
-              icon="trash-2"
-              onPress={() => {
-                console.log("🗑️ Delete all button pressed");
-                handleDeleteAll();
-              }}
-            />
-            <HeaderButton
-              icon="check"
-              onPress={handleMarkAllRead}
-            />
-          </>
-        }
-      />
 
       {isLoading ? (
         <View style={styles.emptyState}>

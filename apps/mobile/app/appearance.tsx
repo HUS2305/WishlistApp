@@ -1,13 +1,24 @@
 import { View, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
-import { PageHeader } from "@/components/PageHeader";
 import { ThemeName, themes, getThemeDisplayName } from "@/lib/themes";
 import { useTheme } from "@/contexts/ThemeContext";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
+import { useLayoutEffect } from "react";
+import { getHeaderOptions } from "@/lib/navigation";
 
 export default function AppearanceScreen() {
   const { themeName, setTheme, theme: currentTheme } = useTheme();
+  const navigation = useNavigation();
+
+  // Configure native header
+  useLayoutEffect(() => {
+    navigation.setOptions(
+      getHeaderOptions(currentTheme, {
+        title: "Appearance",
+      })
+    );
+  }, [navigation, currentTheme]);
 
   const handleThemeSelect = async (name: ThemeName) => {
     await setTheme(name);
@@ -34,11 +45,6 @@ export default function AppearanceScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.colors.background }]}>
-      <PageHeader
-        title="Appearance"
-        backButton={true}
-        onBack={() => router.push("/(tabs)/settings")}
-      />
 
       <ScrollView 
         style={styles.content}

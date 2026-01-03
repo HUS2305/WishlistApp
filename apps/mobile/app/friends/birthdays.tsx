@@ -1,8 +1,8 @@
 import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useNavigation } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect } from "react";
 import { friendsService } from "@/services/friends";
 import type { User } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -12,9 +12,11 @@ import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
 import { CreateGroupGiftSheet } from "@/components/CreateGroupGiftSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 import { Alert } from "react-native";
+import { getHeaderOptions } from "@/lib/navigation";
 
 export default function AllBirthdaysScreen() {
   const { theme } = useTheme();
+  const navigation = useNavigation();
   const { isLoaded: isClerkLoaded, userId } = useAuth();
   const [friends, setFriends] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +26,15 @@ export default function AllBirthdaysScreen() {
   const [selectedBirthdayFriend, setSelectedBirthdayFriend] = useState<{ id: string; name: string } | null>(null);
   const [createWishlistSheetVisible, setCreateWishlistSheetVisible] = useState(false);
   const [createGroupGiftSheetVisible, setCreateGroupGiftSheetVisible] = useState(false);
+
+  // Configure native header
+  useLayoutEffect(() => {
+    navigation.setOptions(
+      getHeaderOptions(theme, {
+        title: "Upcoming Birthdays",
+      })
+    );
+  }, [navigation, theme]);
 
   const fetchFriends = useCallback(async (showLoader = true) => {
     try {
@@ -76,19 +87,6 @@ export default function AllBirthdaysScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.headerContainer, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity 
-            onPress={() => router.push("/(tabs)/friends")} 
-            style={styles.backButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Feather name="chevron-left" size={24} color={theme.colors.textPrimary} />
-          </TouchableOpacity>
-          
-          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Upcoming Birthdays</Text>
-        </View>
-      </View>
 
       <ScrollView 
         style={styles.mainContent}

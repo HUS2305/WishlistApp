@@ -162,14 +162,63 @@ export const typography = {
 export const spacing = {
   xs: 4,
   sm: 8,
-  md: 12,
-  base: 16,
-  lg: 20,
-  xl: 24,
-  "2xl": 32,
-  "3xl": 40,
-  "4xl": 48,
-  "5xl": 64,
+  md: 16, // Standardized to 16px for consistency (was 12)
+  base: 16, // Alias for md
+  lg: 24, // Standardized to 24px (was 20)
+  xl: 32,
+  "2xl": 40,
+  "3xl": 48,
+  "4xl": 64,
+} as const;
+
+// ============================================================================
+// ICON SIZES
+// ============================================================================
+
+export const iconSizes = {
+  xs: 12,
+  sm: 16,
+  md: 20,
+  base: 24, // Default icon size
+  lg: 28,
+  xl: 32,
+  "2xl": 40,
+} as const;
+
+// ============================================================================
+// BUTTON SIZES
+// ============================================================================
+
+export const buttonSizes = {
+  sm: {
+    height: 36,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: typography.fontSize.sm,
+  },
+  md: {
+    height: 44,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    fontSize: typography.fontSize.base,
+  },
+  lg: {
+    height: 52,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+    fontSize: typography.fontSize.md,
+  },
+} as const;
+
+// ============================================================================
+// HEADER SIZES
+// ============================================================================
+
+export const headerSizes = {
+  height: 44, // Standard header button touch target
+  paddingHorizontal: spacing.md, // 16px
+  iconSize: iconSizes.base, // 24px
+  titleFontSize: typography.fontSize.xl, // 20px
 } as const;
 
 // ============================================================================
@@ -286,6 +335,9 @@ export type Theme = {
   colors: Color;
   typography: Typography;
   spacing: Spacing;
+  iconSizes: typeof iconSizes;
+  buttonSizes: typeof buttonSizes;
+  headerSizes: typeof headerSizes;
   borderRadius: typeof borderRadius;
   shadows: typeof shadows;
 };
@@ -295,6 +347,9 @@ export const theme: Theme = {
   colors,
   typography,
   spacing,
+  iconSizes,
+  buttonSizes,
+  headerSizes,
   borderRadius,
   shadows,
 };

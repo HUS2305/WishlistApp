@@ -4,6 +4,7 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Text } from "./Text";
 import { useTheme } from "@/contexts/ThemeContext";
+import { spacing, iconSizes, headerSizes } from "@/lib/theme";
 
 interface PageHeaderProps {
   title: string;
@@ -43,11 +44,11 @@ export function PageHeader({
       <View style={styles.headerContent}>
         {backButton && (
           <TouchableOpacity onPress={handleBack} style={styles.headerButton}>
-            <Feather name="chevron-left" size={24} color={theme.colors.textPrimary} />
+            <Feather name="chevron-left" size={iconSizes.base} color={theme.colors.textPrimary} />
           </TouchableOpacity>
         )}
         
-        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary, fontSize: titleSize || 20 }]} numberOfLines={1}>
+        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary, fontSize: titleSize || headerSizes.titleFontSize }]} numberOfLines={1}>
           {title}
         </Text>
         
@@ -89,7 +90,7 @@ export function HeaderButton({
           color={disabled ? theme.colors.textSecondary : theme.colors.textPrimary} 
         />
       ) : icon ? (
-        <Feather name={icon} size={24} color={disabled ? theme.colors.textSecondary : theme.colors.textPrimary} />
+        <Feather name={icon} size={iconSizes.base} color={disabled ? theme.colors.textSecondary : theme.colors.textPrimary} />
       ) : (
         children
       )}
@@ -100,30 +101,30 @@ export function HeaderButton({
 const styles = StyleSheet.create({
   header: {
     paddingTop: 48,
-    paddingBottom: 16,
+    paddingBottom: spacing.md,
   },
   headerContent: {
     flexDirection: "row",
     alignItems: "center",
-    paddingLeft: 16, // Match main content padding
-    paddingRight: 26, // Reduced right padding to move menu closer to edge
+    paddingLeft: spacing.md,
+    paddingRight: spacing.md,
   },
   headerButton: {
     padding: 0,
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 40,
-    minHeight: 40,
+    minWidth: headerSizes.height,
+    minHeight: headerSizes.height,
   },
   headerButtonDisabled: {
     opacity: 0.5,
   },
   headerTitle: {
     flex: 1,
-    fontSize: 20,
+    fontSize: headerSizes.titleFontSize,
     lineHeight: 24,
     fontWeight: "700",
-    marginHorizontal: 12,
+    marginHorizontal: spacing.md,
     textAlign: "left",
   },
   headerRight: {

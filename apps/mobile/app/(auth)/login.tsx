@@ -52,18 +52,36 @@ export default function LoginScreen() {
         password,
       });
 
+      console.log("Sign-in status:", completeSignIn.status);
+      console.log("Sign-in supported strategies:", completeSignIn.supportedSecondFactorStrategies);
+
       if (completeSignIn.status === "complete") {
         await signInHook.setActive({ session: completeSignIn.createdSessionId });
         
         // Check if user has completed profile in database
         // The index page will handle the redirect, so just go to root
         router.replace("/");
+      } else if (completeSignIn.status === "needs_second_factor") {
+        // User needs to complete 2FA/MFA
+        console.log("Navigating to 2FA verification");
+        router.push("/(auth)/verify-signin");
+      } else if (completeSignIn.status === "needs_email_address_verification") {
+        // User needs to verify their email
+        console.log("Navigating to email verification");
+        router.push("/(auth)/verify-signin");
+      } else if (completeSignIn.status === "needs_new_password") {
+        // User needs to reset their password
+        setError("Your password needs to be reset. Please use the 'Forgot Password' option.");
       } else {
-        setError("Additional verification required");
+        // Unknown status - log it for debugging
+        console.warn("Unknown sign-in status:", completeSignIn.status);
+        setError(`Additional verification required (status: ${completeSignIn.status}). Please check your email or authenticator app.`);
       }
     } catch (err: any) {
-      setError(err.errors?.[0]?.message || "Failed to sign in");
+      const errorMessage = err.errors?.[0]?.message || "Failed to sign in";
+      setError(errorMessage);
       console.error("Error signing in:", err);
+      console.error("Error details:", JSON.stringify(err, null, 2));
     } finally {
       setLoading(false);
     }

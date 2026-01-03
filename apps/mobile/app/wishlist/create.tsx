@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useLayoutEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -10,22 +10,51 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Text } from "@/components/Text";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { Card } from "@/components/ui";
 import type { PrivacyLevel } from "@/types";
-import { PageHeader } from "@/components/PageHeader";
 import { wishlistsService } from "@/services/wishlists";
 import { useTheme } from "@/contexts/ThemeContext";
+import { getHeaderOptions } from "@/lib/navigation";
 
 export default function CreateWishlistScreen() {
   const { theme } = useTheme();
+  const navigation = useNavigation();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [privacyLevel, setPrivacyLevel] = useState<PrivacyLevel>("PRIVATE");
   const [allowComments, setAllowComments] = useState(true);
   const [allowReservations, setAllowReservations] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Configure native header
+  useLayoutEffect(() => {
+    navigation.setOptions(
+      getHeaderOptions(theme, {
+        title: "Create Wishlist",
+        headerRight: () => (
+          <TouchableOpacity
+            onPress={handleCreate}
+            disabled={isLoading || !title.trim()}
+            style={[
+              styles.saveButton,
+              {
+                backgroundColor: theme.colors.surface,
+                opacity: (!title.trim() || isLoading) ? 0.5 : 1,
+              },
+            ]}
+          >
+            {isLoading ? (
+              <ActivityIndicator color={theme.colors.primary} size="small" />
+            ) : (
+              <Text style={[styles.saveButtonText, { color: theme.colors.primary }]}>Create</Text>
+            )}
+          </TouchableOpacity>
+        ),
+      })
+    );
+  }, [navigation, theme, isLoading, title]);
 
   const handleCreate = async () => {
     if (!title.trim()) {
@@ -71,30 +100,6 @@ export default function CreateWishlistScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <PageHeader
-        title="Create Wishlist"
-        rightActions={
-          <TouchableOpacity
-            onPress={handleCreate}
-            disabled={isLoading || !title.trim()}
-            style={[
-              styles.saveButton,
-              {
-                backgroundColor: theme.colors.surface,
-                opacity: (!title.trim() || isLoading) ? 0.5 : 1,
-              },
-            ]}
-          >
-            {isLoading ? (
-              <ActivityIndicator color={theme.colors.primary} />
-            ) : (
-              <Text style={[styles.saveButtonText, { color: theme.colors.primary }]}>Create</Text>
-            )}
-          </TouchableOpacity>
-        }
-      />
-
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* Basic Info */}
         <Card style={styles.section}>
@@ -296,6 +301,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
+    minWidth: 70,
+    alignItems: "center",
+    justifyContent: "center",
   },
   saveButtonText: {
     fontWeight: "600",

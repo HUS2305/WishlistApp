@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -9,17 +9,18 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { Card } from "@/components/ui";
 import type { Priority } from "@/types";
-import { PageHeader } from "@/components/PageHeader";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useUserCurrency } from "@/hooks/useUserCurrency";
 import { getCurrencyByCode } from "@/utils/currencies";
+import { getHeaderOptions } from "@/lib/navigation";
 
 export default function AddItemScreen() {
   const { theme } = useTheme();
+  const navigation = useNavigation();
   const { userCurrency } = useUserCurrency();
   const { id: wishlistId } = useLocalSearchParams<{ id: string }>();
   
@@ -32,6 +33,34 @@ export default function AddItemScreen() {
   const [priority, setPriority] = useState<Priority>("NICE_TO_HAVE");
   const [isLoading, setIsLoading] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
+
+  // Configure native header
+  useLayoutEffect(() => {
+    navigation.setOptions(
+      getHeaderOptions(theme, {
+        title: "Add Item",
+        headerRight: () => (
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={isLoading || !title.trim() || !url.trim()}
+            style={[
+              styles.saveButton,
+              {
+                backgroundColor: theme.colors.surface,
+                opacity: (isLoading || !title.trim() || !url.trim()) ? 0.5 : 1,
+              },
+            ]}
+          >
+            {isLoading ? (
+              <ActivityIndicator color={theme.colors.primary} size="small" />
+            ) : (
+              <Text style={[styles.saveButtonText, { color: theme.colors.primary }]}>Add</Text>
+            )}
+          </TouchableOpacity>
+        ),
+      })
+    );
+  }, [navigation, theme, isLoading, title, url]);
 
   // Update currency when userCurrency loads (if form is empty and currency is still default)
   useEffect(() => {
@@ -104,27 +133,6 @@ export default function AddItemScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <PageHeader
-        title="Add Item"
-        rightActions={
-          <TouchableOpacity
-            onPress={handleSave}
-            disabled={isLoading || !title.trim() || !url.trim()}
-            style={[
-              styles.saveButton,
-              (isLoading || !title.trim() || !url.trim()) && styles.saveButtonDisabled,
-            ]}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.saveButtonText}>Add</Text>
-            )}
-          </TouchableOpacity>
-        }
-      />
-
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* URL Input */}
         <Card style={styles.section}>
@@ -298,15 +306,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
     minWidth: 60,
     alignItems: "center",
-  },
-  saveButtonDisabled: {
-    opacity: 0.5,
+    justifyContent: "center",
   },
   saveButtonText: {
-    color: "#4A90E2",
     fontWeight: "600",
     fontSize: 16,
   },

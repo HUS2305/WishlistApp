@@ -6,7 +6,21 @@ import api from "@/services/api";
 import { useTheme } from "@/contexts/ThemeContext";
 
 export default function Index() {
-  const { theme } = useTheme();
+  // Safely get theme with fallback
+  let theme;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+  } catch (error) {
+    // ThemeProvider not available yet, use default colors
+    theme = {
+      colors: {
+        background: "#ffffff",
+        primary: "#007AFF",
+      },
+    };
+  }
+  
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const [checkingProfile, setCheckingProfile] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -14,7 +14,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import type { Item, Wishlist, User, Collaborator } from "@/types";
 import { getDisplayName } from "@/lib/utils";
@@ -31,6 +31,7 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { useAuth } from "@clerk/clerk-expo";
 import api from "@/services/api";
 import { PriceDisplay } from "@/components/PriceDisplay";
+import { getHeaderOptions, HeaderButtons } from "@/lib/navigation";
 
 export default function WishlistDetailScreen() {
   const { theme } = useTheme();
@@ -84,6 +85,45 @@ export default function WishlistDetailScreen() {
   // Check if user can add items (owner or collaborator)
   const canAddItems = isOwner === true || isCollaborator === true;
 
+  // Configure native header
+  const navigation = useNavigation();
+  useLayoutEffect(() => {
+    // During loading, show basic header with title
+    if (!wishlist) {
+      navigation.setOptions(
+        getHeaderOptions(theme, {
+          title: "Wishlist",
+          headerRight: undefined,
+        })
+      );
+      return;
+    }
+
+    // When wishlist is loaded, show full header with actions
+    const headerButtons = [];
+    if (isOwner === true || isCollaborator === true) {
+      if (isOwner === true) {
+        headerButtons.push({
+          icon: "send" as const,
+          onPress: handleShareWishlist,
+        });
+      }
+      headerButtons.push({
+        icon: "more-horizontal" as const,
+        onPress: () => setMenuVisible(true),
+      });
+    }
+
+    navigation.setOptions(
+      getHeaderOptions(theme, {
+        title: wishlist.title,
+        headerRight: headerButtons.length > 0
+          ? () => <HeaderButtons buttons={headerButtons} />
+          : undefined,
+      })
+    );
+  }, [navigation, wishlist, isOwner, isCollaborator, theme, handleShareWishlist]);
+
   // Fetch current user to check ownership
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -121,8 +161,13 @@ export default function WishlistDetailScreen() {
   }, [addToWishlistModalVisible]);
 
   const handleAddItem = () => {
+    console.log("🔵 handleAddItem called - closing FAB menu and opening add item sheet");
     setFabMenuVisible(false);
-    setAddItemSheetVisible(true);
+    // Small delay to ensure FAB menu closes first, then sheet can animate up smoothly
+    setTimeout(() => {
+      console.log("🔵 Setting addItemSheetVisible to true");
+      setAddItemSheetVisible(true);
+    }, 150);
   };
 
   const handleEditWishlist = () => {
@@ -542,6 +587,7 @@ export default function WishlistDetailScreen() {
     
     return (
       <View
+        key={item.id}
         style={[
           styles.itemCard,
           { 
@@ -963,41 +1009,11 @@ export default function WishlistDetailScreen() {
 
   // Show loading if we're still determining ownership
   const isLoadingOwnership = isLoadingUser || (wishlist && currentUser === null && isAuthLoaded);
-  
+
   if (isLoadingWishlist || isLoadingItems || isLoadingOwnership) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
-          <View style={styles.headerContent}>
-            <TouchableOpacity 
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace("/(tabs)/");
-                }
-              }} 
-              style={styles.headerButton}
-            >
-              <Feather name="chevron-left" size={24} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
-            
-            <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-              {wishlist?.title || ""}
-            </Text>
-            
-            <View style={styles.headerRight}>
-              <TouchableOpacity style={styles.headerButton}>
-                <Feather 
-                  name="send" 
-                  size={20} 
-                  color={theme.colors.textPrimary} 
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-        
+        {/* Native header is handled by useLayoutEffect above */}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading wishlist...</Text>
@@ -1009,27 +1025,7 @@ export default function WishlistDetailScreen() {
   if (!wishlist) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
-          <View style={styles.headerContent}>
-            <TouchableOpacity 
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.replace("/(tabs)/");
-                }
-              }} 
-              style={styles.headerButton}
-            >
-              <Feather name="chevron-left" size={24} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
-            
-            <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Wishlist</Text>
-            
-            <View style={styles.headerRight} />
-          </View>
-        </View>
-        
+        {/* Native header is handled by useLayoutEffect above */}
         <View style={styles.loadingContainer}>
           <Feather name="alert-circle" size={48} color={theme.colors.error} />
           <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Wishlist not found</Text>
@@ -1051,57 +1047,6 @@ export default function WishlistDetailScreen() {
       ]} 
       collapsable={false}
     >
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity 
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace("/(tabs)/");
-              }
-            }} 
-            style={styles.headerButton}
-          >
-            <Feather name="chevron-left" size={24} color={theme.colors.textPrimary} />
-          </TouchableOpacity>
-          
-          <View style={styles.headerTitleContainer}>
-            <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
-              {wishlist.title}
-            </Text>
-          </View>
-          
-          {(isOwner === true || isCollaborator === true) && (
-            <View style={styles.headerRight}>
-              {isOwner === true && (
-                <TouchableOpacity 
-                  onPress={handleShareWishlist} 
-                  style={styles.headerButton}
-                >
-                  <Feather 
-                    name="send" 
-                    size={20} 
-                    color={theme.colors.textPrimary} 
-                  />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity 
-                onPress={() => setMenuVisible(true)} 
-                style={styles.headerButton}
-              >
-                <Feather 
-                  name="more-horizontal" 
-                  size={20} 
-                  color={theme.colors.textPrimary} 
-                />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </View>
-
       {/* Scrollable Content */}
       <ScrollView
         style={{ flex: 1 }}
