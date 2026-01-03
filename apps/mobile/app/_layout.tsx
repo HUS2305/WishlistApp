@@ -15,9 +15,19 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 
 // Get the publishable key from environment variables
+// In Expo, environment variables are available at build time
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || "";
 
-console.log("Clerk Publishable Key loaded:", publishableKey ? `${publishableKey.substring(0, 20)}...` : "MISSING");
+// Debug logging
+if (__DEV__) {
+  console.log("🔑 Clerk Key Check:");
+  console.log("  - Key exists:", !!publishableKey);
+  console.log("  - Key length:", publishableKey.length);
+  console.log("  - Key starts with pk_:", publishableKey.startsWith("pk_"));
+  if (publishableKey) {
+    console.log("  - Key preview:", `${publishableKey.substring(0, 20)}...`);
+  }
+}
 
 // Create a QueryClient instance
 const queryClient = new QueryClient({
@@ -80,15 +90,15 @@ function AppWithAuth() {
   }
 
   // Always render providers, even while fonts load
-  // Render a minimal view while fonts load to ensure providers are mounted
+  // ThemeProvider must wrap BottomSheetModalProvider so bottom sheet portals have access to theme context
   return (
-    <BottomSheetModalProvider>
-      <ThemeProvider userId={userId}>
+    <ThemeProvider userId={userId}>
+      <BottomSheetModalProvider>
         <NotificationProvider>
           <Slot />
         </NotificationProvider>
-      </ThemeProvider>
-    </BottomSheetModalProvider>
+      </BottomSheetModalProvider>
+    </ThemeProvider>
   );
 }
 
@@ -113,38 +123,46 @@ function AppWithoutAuth() {
   }, [fontsLoaded]);
 
   // Always render providers, even while fonts load
-  // Render a minimal view while fonts load to ensure providers are mounted
+  // ThemeProvider must wrap BottomSheetModalProvider so bottom sheet portals have access to theme context
   return (
-    <BottomSheetModalProvider>
-      <ThemeProvider userId={undefined}>
+    <ThemeProvider userId={undefined}>
+      <BottomSheetModalProvider>
         <NotificationProvider>
           <Slot />
         </NotificationProvider>
-      </ThemeProvider>
-    </BottomSheetModalProvider>
+      </BottomSheetModalProvider>
+    </ThemeProvider>
   );
 }
 
 export default function RootLayout() {
   // Font is loaded and will be applied via global styles and Tailwind config
 
-  // If Clerk is not configured, render without provider (for testing)
-  if (!publishableKey) {
-    console.warn("CLERK_PUBLISHABLE_KEY is not set. Authentication will not work.");
-    return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <QueryClientProvider client={queryClient}>
-          <AppWithoutAuth />
-        </QueryClientProvider>
-      </GestureHandlerRootView>
-    );
+  // Check if we have a valid Clerk key
+  const hasValidClerkKey = publishableKey && publishableKey.startsWith("pk_");
+  
+  if (!hasValidClerkKey) {
+    console.warn("⚠️ CLERK_PUBLISHABLE_KEY is not set or invalid. Authentication will not work.");
+    console.warn("   Set EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in your .env file");
+    console.warn("   Current value:", publishableKey ? `"${publishableKey.substring(0, 20)}..."` : "undefined");
+  } else {
+    console.log("✅ Clerk key is valid, initializing ClerkProvider");
   }
+
+  // ALWAYS render ClerkProvider if we have any key (even if invalid format)
+  // This ensures useAuth() hooks don't crash
+  // ClerkProvider will handle invalid keys gracefully
+  const clerkKey = publishableKey || "pk_test_placeholder_invalid_key";
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
-        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-          <AppWithAuth />
+        <ClerkProvider publishableKey={clerkKey} tokenCache={tokenCache}>
+          {hasValidClerkKey ? (
+            <AppWithAuth />
+          ) : (
+            <AppWithoutAuth />
+          )}
         </ClerkProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>

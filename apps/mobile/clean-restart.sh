@@ -30,3 +30,5 @@ echo ""
 echo "⚠️  Important: Make sure to completely close and reopen the app on the simulator"
 echo "   (not just reload - actually kill it and launch it fresh)"
 
+
+

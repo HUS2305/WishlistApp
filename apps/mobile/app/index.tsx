@@ -1,6 +1,6 @@
 import { Redirect } from "expo-router";
-import { useAuth } from "@clerk/clerk-expo";
-import { View, ActivityIndicator } from "react-native";
+import { useAuth, useClerk } from "@clerk/clerk-expo";
+import { View, ActivityIndicator, Text } from "react-native";
 import { useState, useEffect } from "react";
 import api from "@/services/api";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -21,6 +21,21 @@ export default function Index() {
     };
   }
   
+  // Check if Clerk is available (ClerkProvider mounted)
+  let clerk;
+  try {
+    clerk = useClerk();
+  } catch (error) {
+    // ClerkProvider not mounted yet - show loading state
+    // This can happen during initial app load with Expo Router
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.background }}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+  
+  // ClerkProvider is available, safe to use useAuth
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const [checkingProfile, setCheckingProfile] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);

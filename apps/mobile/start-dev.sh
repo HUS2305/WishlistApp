@@ -17,3 +17,5 @@ echo "🚀 Starting Metro bundler with dev client..."
 export SENTRY_DISABLE_AUTO_UPLOAD=true
 npx expo start --dev-client --clear
 
+
+

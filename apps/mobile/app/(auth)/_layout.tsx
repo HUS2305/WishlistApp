@@ -2,6 +2,7 @@ import { Stack, Redirect, useSegments } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 
 export default function AuthLayout() {
+  // ClerkProvider is always rendered in _layout.tsx, so useAuth is safe to call
   const { isSignedIn, isLoaded } = useAuth();
   const segments = useSegments();
 

@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo, useRef, useEffect } from "react";
 import { View, StyleSheet, Dimensions } from "react-native";
-import BottomSheetModal, {
+import {
+  BottomSheetModal,
   BottomSheetBackdrop,
   BottomSheetView,
-  useBottomSheetDynamicSnapPoints,
 } from "@gorhom/bottom-sheet";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -22,23 +22,18 @@ export function BottomSheet({ visible, onClose, children, height = 0.9, autoHeig
   const bottomSheetRef = useRef<BottomSheetModal>(null);
   
   // Calculate snap points based on props
-  const staticSnapPoints = useMemo(() => {
+  // In @gorhom/bottom-sheet v5, dynamic sizing is done via enableDynamicSizing prop
+  // For autoHeight, we use dynamic sizing; otherwise use static snap points
+  const snapPoints = useMemo(() => {
+    if (autoHeight) {
+      // Return undefined to let enableDynamicSizing handle it
+      return undefined;
+    }
     const targetHeight = SCREEN_HEIGHT * height;
-  const maxHeight = SCREEN_HEIGHT * 0.9;
+    const maxHeight = SCREEN_HEIGHT * 0.9;
     const clampedHeight = Math.min(targetHeight, maxHeight);
     return [clampedHeight];
-  }, [height]);
-
-  // For autoHeight, use dynamic snap points
-  const {
-    animatedContentHeight,
-    animatedHandleHeight,
-    animatedSnapPoints,
-    handleContentLayout,
-  } = useBottomSheetDynamicSnapPoints(useMemo(() => ["CONTENT_HEIGHT"], []));
-
-  // Use dynamic snap points for autoHeight, static otherwise
-  const snapPoints = autoHeight ? animatedSnapPoints : staticSnapPoints;
+  }, [height, autoHeight]);
 
   // Handle visibility changes
   useEffect(() => {
@@ -96,6 +91,8 @@ export function BottomSheet({ visible, onClose, children, height = 0.9, autoHeig
       enablePanDownToClose={true}
       enableOverDrag={false}
       enableDismissOnClose={true}
+      enableDynamicSizing={autoHeight}
+      maxDynamicContentSize={SCREEN_HEIGHT * 0.9}
       backgroundStyle={{ backgroundColor: theme.colors.background }}
       handleIndicatorStyle={{ backgroundColor: theme.colors.textSecondary + "40" }}
       backdropComponent={renderBackdrop}
@@ -105,15 +102,9 @@ export function BottomSheet({ visible, onClose, children, height = 0.9, autoHeig
       android_keyboardInputMode="adjustResize"
       style={styles.sheet}
     >
-          {autoHeight ? (
-        <BottomSheetView onLayout={handleContentLayout} style={styles.content}>
-              {children}
-        </BottomSheetView>
-          ) : (
-        <BottomSheetView style={styles.content}>
-              {children}
-        </BottomSheetView>
-          )}
+      <BottomSheetView style={styles.content}>
+        {children}
+      </BottomSheetView>
     </BottomSheetModal>
   );
 }
