@@ -2,7 +2,6 @@ import { useState, useEffect, useLayoutEffect } from "react";
 import {
   View,
   StyleSheet,
-  FlatList,
   ScrollView,
   TouchableOpacity,
   Pressable,
@@ -27,7 +26,10 @@ import { FABMenu } from "@/components/FABMenu";
 import { useTheme } from "@/contexts/ThemeContext";
 import { AddItemSheet } from "@/components/AddItemSheet";
 import { EditWishlistSheet } from "@/components/EditWishlistSheet";
+import { AddByLinkSheet } from "@/components/AddByLinkSheet";
 import { BottomSheet } from "@/components/BottomSheet";
+import { MembersSheet } from "@/components/MembersSheet";
+import { SelectWishlistSheet } from "@/components/SelectWishlistSheet";
 import { useAuth } from "@clerk/clerk-expo";
 import api from "@/services/api";
 import { PriceDisplay } from "@/components/PriceDisplay";
@@ -52,10 +54,10 @@ export default function WishlistDetailScreen() {
   const [sortFilter, setSortFilter] = useState<"wanted" | "purchased">("wanted");
   const [editItemSheetVisible, setEditItemSheetVisible] = useState(false);
   const [addToWishlistModalVisible, setAddToWishlistModalVisible] = useState(false);
-  const [allWishlists, setAllWishlists] = useState<Wishlist[]>([]);
   const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
   const [fabMenuVisible, setFabMenuVisible] = useState(false);
   const [addItemSheetVisible, setAddItemSheetVisible] = useState(false);
+  const [addByLinkSheetVisible, setAddByLinkSheetVisible] = useState(false);
   const [editWishlistSheetVisible, setEditWishlistSheetVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -145,20 +147,6 @@ export default function WishlistDetailScreen() {
     fetchCurrentUser();
   }, [isAuthLoaded, clerkUserId]);
 
-  // Load all wishlists for the "Add to Another Wishlist" modal
-  useEffect(() => {
-    const loadAllWishlists = async () => {
-      try {
-        const wishlists = await wishlistsService.getWishlists();
-        setAllWishlists(wishlists);
-      } catch (error) {
-        console.error("Error loading wishlists:", error);
-      }
-    };
-    if (addToWishlistModalVisible) {
-      loadAllWishlists();
-    }
-  }, [addToWishlistModalVisible]);
 
   const handleAddItem = () => {
     console.log("🔵 handleAddItem called - closing FAB menu and opening add item sheet");
@@ -1269,69 +1257,21 @@ export default function WishlistDetailScreen() {
         itemUrl={selectedItem?.url || null}
       />
 
-      {/* Wishlist Selector BottomSheet for Duplicating Item */}
-      <BottomSheet 
-        visible={addToWishlistModalVisible} 
+      {/* Select Wishlist Sheet */}
+      <SelectWishlistSheet
+        visible={addToWishlistModalVisible}
         onClose={() => {
           setAddToWishlistModalVisible(false);
           setSelectedItem(null);
         }}
-        autoHeight={true}
-      >
-        <View style={[styles.bottomSheetContainer, { backgroundColor: theme.colors.background }]}>
-          {/* Header */}
-          <View style={styles.bottomSheetHeader}>
-            <View style={styles.headerSpacer} />
-            <Text style={[styles.bottomSheetTitle, { color: theme.colors.textPrimary }]}>
-              Select Wishlist
-            </Text>
-            <TouchableOpacity
-              onPress={() => {
-                setAddToWishlistModalVisible(false);
-                setSelectedItem(null);
-              }}
-              style={styles.closeButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Feather name="x" size={24} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Wishlist List */}
-          <FlatList
-            data={allWishlists.filter(w => w.id !== wishlistId)}
-            keyExtractor={(item) => item.id}
-            style={{ flex: 1 }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.wishlistOptionRow, { borderBottomColor: theme.colors.textSecondary + '20' }]}
-                onPress={() => {
-                  if (selectedItem) {
-                    handleDuplicateToWishlist(item.id);
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.wishlistOptionText, { color: theme.colors.textPrimary }]}>
-                  {item.title}
-                </Text>
-                <Feather
-                  name="chevron-right"
-                  size={20}
-                  color={theme.colors.textSecondary}
-                />
-              </TouchableOpacity>
-            )}
-            ListEmptyComponent={
-              <View style={styles.modalEmptyState}>
-                <Text style={[styles.modalEmptyText, { color: theme.colors.textSecondary }]}>
-                  No other wishlists available
-                </Text>
-              </View>
-            }
-          />
-        </View>
-      </BottomSheet>
+        onSelect={(targetWishlistId) => {
+          if (selectedItem) {
+            handleDuplicateToWishlist(targetWishlistId);
+          }
+        }}
+        excludeWishlistId={wishlistId}
+        emptyMessage="No other wishlists available"
+      />
 
       {/* Edit Item Sheet */}
       <AddItemSheet
@@ -1382,111 +1322,25 @@ export default function WishlistDetailScreen() {
         onSuccess={handleEditWishlistSuccess}
       />
 
-      {/* Collaborators Modal */}
-      <BottomSheet visible={collaboratorsModalVisible} onClose={() => setCollaboratorsModalVisible(false)}>
-        <View style={[styles.collaboratorsModal, { backgroundColor: theme.colors.background }]}>
-          <View style={styles.collaboratorsModalHeader}>
-            <Text style={[styles.collaboratorsModalTitle, { color: theme.colors.textPrimary }]}>
-              Members
-            </Text>
-          </View>
-          
-          <ScrollView 
-            style={styles.collaboratorsModalContent}
-            scrollEnabled={true}
-            nestedScrollEnabled={true}
-          >
-            {/* Owner */}
-            {wishlist?.owner && (
-              <>
-                <View style={styles.collaboratorItem}>
-                  <View style={styles.collaboratorItemLeft}>
-                    <View style={[styles.collaboratorAvatar, { backgroundColor: theme.colors.primary + '20' }]}>
-                      <Text style={[styles.collaboratorAvatarText, { color: theme.colors.primary }]}>
-                        {getDisplayName(wishlist.owner.firstName, wishlist.owner.lastName)?.[0]?.toUpperCase() || wishlist.owner.username?.[0]?.toUpperCase() || 'O'}
-                      </Text>
-                    </View>
-                    <View style={styles.collaboratorItemInfo}>
-                      <Text style={[styles.collaboratorItemName, { color: theme.colors.textPrimary }]}>
-                        {getDisplayName(wishlist.owner.firstName, wishlist.owner.lastName) || wishlist.owner.username || 'Owner'}
-                      </Text>
-                      {wishlist.owner.username && (
-                        <Text style={[styles.collaboratorItemUsername, { color: theme.colors.textSecondary }]}>
-                          @{wishlist.owner.username}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                  <View style={[styles.roleBadge, { backgroundColor: theme.colors.primary + '20', marginRight: 8 }]}>
-                    <Text style={[styles.roleBadgeText, { color: theme.colors.primary }]}>
-                      Owner
-                    </Text>
-                  </View>
-                </View>
-                {wishlist?.collaborators && wishlist.collaborators.length > 0 && (
-                  <View style={[styles.collaboratorDivider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
-                )}
-              </>
-            )}
-            
-            {/* Collaborators */}
-            {wishlist?.collaborators?.map((collab, index) => {
-              const displayName = getDisplayName(collab.user.firstName, collab.user.lastName) || collab.user.username || collab.user.email || 'User';
-              const isCurrentUser = collab.userId === currentUser?.id;
-              const canManage = isOwner === true;
-              
-              return (
-                <View key={collab.id}>
-                  <View style={styles.collaboratorItem}>
-                    <View style={styles.collaboratorItemLeft}>
-                      <View style={[styles.collaboratorAvatar, { backgroundColor: theme.colors.textSecondary + '20' }]}>
-                        <Text style={[styles.collaboratorAvatarText, { color: theme.colors.textPrimary }]}>
-                          {displayName[0]?.toUpperCase() || '?'}
-                        </Text>
-                      </View>
-                      <View style={styles.collaboratorItemInfo}>
-                        <Text style={[styles.collaboratorItemName, { color: theme.colors.textPrimary }]}>
-                          {displayName} {isCurrentUser && '(You)'}
-                        </Text>
-                        {collab.user.username && (
-                          <Text style={[styles.collaboratorItemUsername, { color: theme.colors.textSecondary }]}>
-                            @{collab.user.username}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                    <View style={styles.collaboratorItemRight} pointerEvents="box-none">
-                      <View style={[styles.roleBadge, { backgroundColor: theme.colors.textSecondary + '20', marginRight: 5 }]}>
-                        <Text style={[styles.roleBadgeText, { color: theme.colors.textSecondary }]}>
-                          {collab.role}
-                        </Text>
-                      </View>
-                      {canManage && !isCurrentUser && (
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.collaboratorRemoveButton,
-                            pressed && { opacity: 0.5 }
-                          ]}
-                          onPress={() => {
-                            setCollaboratorToRemove(collab);
-                            setRemoveCollaboratorModalVisible(true);
-                          }}
-                          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-                        >
-                          <Feather name="x" size={20} color={theme.colors.error} />
-                        </Pressable>
-                      )}
-                    </View>
-                  </View>
-                  {index < (wishlist?.collaborators?.length || 0) - 1 && (
-                    <View style={[styles.collaboratorDivider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
-                  )}
-                </View>
-              );
-            })}
-          </ScrollView>
-        </View>
-      </BottomSheet>
+      {/* Test: Add by Link Sheet */}
+      <AddByLinkSheet
+        visible={addByLinkSheetVisible}
+        onClose={() => setAddByLinkSheetVisible(false)}
+        wishlistId={wishlistId}
+      />
+
+      {/* Members Sheet */}
+      <MembersSheet
+        visible={collaboratorsModalVisible}
+        onClose={() => setCollaboratorsModalVisible(false)}
+        wishlist={wishlist}
+        currentUserId={currentUser?.id}
+        isOwner={isOwner === true}
+        onRemoveCollaborator={(collaborator) => {
+          setCollaboratorToRemove(collaborator);
+          setRemoveCollaboratorModalVisible(true);
+        }}
+      />
 
       {/* Delete confirmation only for wanted items - purchased items delete directly */}
       {sortFilter === "wanted" && (
@@ -1573,6 +1427,12 @@ export default function WishlistDetailScreen() {
           onToggle={() => setFabMenuVisible(!fabMenuVisible)}
           onClose={() => setFabMenuVisible(false)}
           onManualAdd={handleAddItem}
+          onAddByLink={() => {
+            setFabMenuVisible(false);
+            setTimeout(() => {
+              setAddByLinkSheetVisible(true);
+            }, 150);
+          }}
           variant="bottom-right"
           positionStyle="screen"
         />
@@ -1903,87 +1763,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "500",
   },
-  collaboratorsModal: {
-    padding: 20,
-    paddingTop: 0,
-    maxHeight: '80%',
-  },
-  collaboratorsModalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 25,
-    position: "relative",
-  },
-  collaboratorsModalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  collaboratorsModalContent: {
-    maxHeight: 400,
-  },
-  collaboratorItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 0,
-  },
-  collaboratorDivider: {
-    height: 1,
-    marginVertical: 0,
-  },
-  collaboratorItemLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  collaboratorAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  collaboratorAvatarText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  collaboratorItemInfo: {
-    flex: 1,
-  },
-  collaboratorItemName: {
-    fontSize: 16,
-    fontWeight: "500",
-    marginBottom: 2,
-  },
-  collaboratorItemUsername: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  collaboratorItemRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  roleBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  roleBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
-  collaboratorRemoveButton: {
-    padding: 8,
-    minWidth: 36,
-    minHeight: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   itemPriority: {
     fontSize: 11,
     fontWeight: "500",
@@ -2095,53 +1874,5 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-  },
-  bottomSheetContainer: {
-    flex: 1,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  bottomSheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0, 0, 0, 0.1)",
-    position: "relative",
-  },
-  bottomSheetTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-  },
-  headerSpacer: {
-    width: 24,
-  },
-  closeButton: {
-    padding: 4,
-    zIndex: 1,
-  },
-  wishlistOptionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  wishlistOptionText: {
-    fontSize: 16,
-  },
-  modalEmptyState: {
-    padding: 24,
-    alignItems: "center",
-  },
-  modalEmptyText: {
-    fontSize: 14,
   },
 });

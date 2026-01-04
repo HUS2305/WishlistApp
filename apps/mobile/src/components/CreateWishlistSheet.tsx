@@ -1,28 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import React from "react";
 import {
   View,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  FlatList,
 } from "react-native";
+import {
+  BottomSheetScrollView,
+  BottomSheetTextInput,
+} from "@gorhom/bottom-sheet";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import type { PrivacyLevel } from "@/types";
 import { wishlistsService } from "@/services/wishlists";
-import { friendsService, type User as FriendUser } from "@/services/friends";
 import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
 import { wishlistEvents } from "@/utils/wishlistEvents";
 import { ThemedSwitch } from "./ThemedSwitch";
 import { getDisplayName } from "@/lib/utils";
+import { SelectFriendsSheet } from "./SelectFriendsSheet";
+import { friendsService } from "@/services/friends";
+import type { User as FriendUser } from "@/types";
 
 interface CreateWishlistSheetProps {
   visible: boolean;
@@ -45,37 +46,7 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
   const [isTitleFocused, setIsTitleFocused] = useState(false);
   const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
   const [friends, setFriends] = useState<FriendUser[]>([]);
-  const [isLoadingFriends, setIsLoadingFriends] = useState(false);
   const [showFriendSelectionModal, setShowFriendSelectionModal] = useState(false);
-
-  // Load friends when sheet opens
-  useEffect(() => {
-    if (visible) {
-      loadFriends();
-    }
-  }, [visible]);
-
-  const loadFriends = async () => {
-    setIsLoadingFriends(true);
-    try {
-      const friendsData = await friendsService.getFriends();
-      setFriends(friendsData);
-    } catch (error) {
-      console.error("Error loading friends:", error);
-    } finally {
-      setIsLoadingFriends(false);
-    }
-  };
-
-  const toggleFriendSelection = (friendId: string) => {
-    const newSelection = new Set(selectedFriends);
-    if (newSelection.has(friendId)) {
-      newSelection.delete(friendId);
-    } else {
-      newSelection.add(friendId);
-    }
-    setSelectedFriends(newSelection);
-  };
 
   // Pre-fill title when modal opens with initialTitle prop
   React.useEffect(() => {
@@ -85,7 +56,20 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
       // Reset title if no initialTitle and modal opens
       setTitle("");
     }
+    // Load friends when sheet opens
+    if (visible) {
+      loadFriends();
+    }
   }, [visible, initialTitle]);
+
+  const loadFriends = async () => {
+    try {
+      const friendsData = await friendsService.getFriends();
+      setFriends(friendsData);
+    } catch (error) {
+      console.error("Error loading friends:", error);
+    }
+  };
   
   const handleCreate = async () => {
     if (!title.trim()) {
@@ -108,6 +92,7 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
         description: description.trim() || undefined,
         privacyLevel, // Backend will change to GROUP if collaboratorIds are provided
         allowReservations,
+        allowComments: true,
         collaboratorIds: collaboratorIds.length > 0 ? collaboratorIds : undefined,
       });
 
@@ -159,134 +144,41 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
     onClose();
   };
 
-  const renderFriendItem = ({ item, index, total }: { item: FriendUser; index: number; total: number }) => {
-    const isSelected = selectedFriends.has(item.id);
-    const displayName = getDisplayName(item.firstName, item.lastName) || item.username || item.email;
+  const handleFriendSelection = (selectedFriendIds: Set<string>) => {
+    setSelectedFriends(selectedFriendIds);
+  };
 
-    return (
-      <View key={item.id}>
-        <TouchableOpacity
-          style={styles.friendItem}
-          onPress={() => toggleFriendSelection(item.id)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.friendItemLeft}>
-            <View style={[styles.friendAvatar, { backgroundColor: isSelected ? theme.colors.primary + '20' : theme.colors.textSecondary + '20' }]}>
-              <Text style={[styles.friendAvatarText, { color: isSelected ? theme.colors.primary : theme.colors.textPrimary }]}>
-                {displayName[0]?.toUpperCase() || "?"}
-              </Text>
-            </View>
-            <View style={styles.friendItemInfo}>
-              <Text style={[styles.friendItemName, { color: theme.colors.textPrimary }]}>
-                {displayName}
-              </Text>
-              {item.username && (
-                <Text style={[styles.friendItemUsername, { color: theme.colors.textSecondary }]}>
-                  @{item.username}
-                </Text>
-              )}
-            </View>
-          </View>
-          {isSelected && (
-            <View style={[styles.checkIcon, { backgroundColor: theme.colors.primary }]}>
-              <Feather name="check" size={14} color="#fff" />
-            </View>
-          )}
-        </TouchableOpacity>
-        {index < total - 1 && (
-          <View style={[styles.friendDivider, { backgroundColor: theme.colors.textSecondary + '20' }]} />
-        )}
-      </View>
-    );
+  const toggleFriendSelection = (friendId: string) => {
+    const newSelection = new Set(selectedFriends);
+    if (newSelection.has(friendId)) {
+      newSelection.delete(friendId);
+    } else {
+      newSelection.add(friendId);
+    }
+    setSelectedFriends(newSelection);
   };
 
   return (
     <>
-      {/* Friend Selection Modal */}
-      <BottomSheet visible={showFriendSelectionModal} onClose={() => setShowFriendSelectionModal(false)}>
-        <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
-          <View style={styles.modalHeader}>
-            <Text style={[styles.modalHeaderTitle, { color: theme.colors.textPrimary }]}>
-              Select Friends
-            </Text>
-          </View>
-          
-          <ScrollView style={styles.modalContent} contentContainerStyle={styles.modalContentContainer}>
-            {isLoadingFriends ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-                <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
-                  Loading friends...
-                </Text>
-              </View>
-            ) : friends.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Feather name="users" size={32} color={theme.colors.textSecondary} />
-                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                  No friends to invite. Add friends first!
-                </Text>
-              </View>
-            ) : (
-              friends.map((friend, index) => renderFriendItem({ item: friend, index, total: friends.length }))
-            )}
-          </ScrollView>
+      {/* Friend Selection Sheet */}
+      <SelectFriendsSheet
+        visible={showFriendSelectionModal}
+        onClose={() => setShowFriendSelectionModal(false)}
+        onConfirm={handleFriendSelection}
+        initialSelection={selectedFriends}
+      />
 
-          {/* Bottom Button */}
-          <View style={[styles.modalFooter, { 
-            backgroundColor: theme.colors.background,
-          }]}>
-            <TouchableOpacity
-              style={[
-                styles.modalDoneButton, 
-                { 
-                  backgroundColor: selectedFriends.size === 0 
-                    ? theme.colors.textSecondary + '40' 
-                    : theme.colors.primary 
-                }
-              ]}
-              onPress={() => {
-                if (selectedFriends.size > 0) {
-                  setShowFriendSelectionModal(false);
-                }
-              }}
-              activeOpacity={0.8}
-              disabled={selectedFriends.size === 0}
-            >
-              <Text style={styles.modalDoneButtonText}>
-                {selectedFriends.size === 0 
-                  ? "Select at least one friend" 
-                  : selectedFriends.size === 1 
-                    ? "Add friend" 
-                    : `Add ${selectedFriends.size} friends`}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </BottomSheet>
-
-      <BottomSheet visible={visible} onClose={onClose}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.keyboardView}
-        >
-          <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-          {/* Header - Draggable area */}
+      <BottomSheet visible={visible} onClose={onClose} stackBehavior="switch">
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+          {/* Header - Standard pattern: centered title, no X button */}
           <View style={styles.header}>
-            <View style={styles.headerSpacer} />
             <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
               Create Wishlist
             </Text>
-            <TouchableOpacity
-              onPress={handleClose}
-              style={styles.closeButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Feather name="x" size={24} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
           </View>
 
           {/* Scrollable Content */}
-          <ScrollView 
+          <BottomSheetScrollView 
             style={styles.content} 
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={false}
@@ -313,7 +205,7 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
 
             {/* Title Input - Centered */}
             <View style={styles.titleContainer}>
-              <TextInput
+              <BottomSheetTextInput
                 style={[
                   styles.titleInput,
                   {
@@ -339,7 +231,7 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
                 <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
                   Description
                 </Text>
-                <TextInput
+                <BottomSheetTextInput
                   style={[
                     styles.input,
                     styles.textArea,
@@ -525,7 +417,7 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
 
             {/* Bottom spacing for button */}
             <View style={{ height: 100 }} />
-          </ScrollView>
+          </BottomSheetScrollView>
 
           {/* Fixed Bottom Button */}
           <View style={[styles.bottomButtonContainer, { backgroundColor: theme.colors.background }]}>
@@ -549,8 +441,7 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
               )}
             </TouchableOpacity>
           </View>
-          </View>
-        </KeyboardAvoidingView>
+        </View>
       </BottomSheet>
     </>
   );
@@ -566,24 +457,14 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    position: "relative",
+    minHeight: 56,
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "600",
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-  },
-  headerSpacer: {
-    width: 24, // Same width as close button to center the title
-  },
-  closeButton: {
-    padding: 4,
   },
   content: {
     flex: 1,
@@ -790,45 +671,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "500",
     flexShrink: 1,
-  },
-  modalContainer: {
-    flex: 1,
-    flexDirection: "column",
-  },
-  modalHeader: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  modalHeaderTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  modalContent: {
-    flex: 1,
-  },
-  modalContentContainer: {
-    padding: 16,
-    paddingBottom: 16,
-  },
-  modalFooter: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 20,
-  },
-  modalDoneButton: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalDoneButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
   },
   settingRow: {
     flexDirection: "row",

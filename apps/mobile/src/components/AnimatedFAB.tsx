@@ -130,7 +130,7 @@ const getFabContainerStyle = (positionStyle: "tab-bar" | "screen") => {
       position: "relative" as const,
       width: FAB_SIZE,
       height: FAB_SIZE,
-      zIndex: 1000,
+      zIndex: 100,
       alignSelf: "center" as const,
     };
   } else {
@@ -140,7 +140,7 @@ const getFabContainerStyle = (positionStyle: "tab-bar" | "screen") => {
       position: "absolute" as const,
       width: FAB_SIZE,
       height: FAB_SIZE,
-      zIndex: 9999, // Higher zIndex to ensure it's above modals
+      zIndex: 100, // Lower zIndex so bottom sheets (portals) appear above
       left: SCREEN_WIDTH / 2 - FAB_SIZE / 2, // Start from center (will be translated right)
       bottom: FAB_BOTTOM_POSITION,
     };

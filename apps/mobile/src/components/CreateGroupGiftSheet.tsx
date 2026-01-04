@@ -3,25 +3,26 @@ import React from "react";
 import {
   View,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  FlatList,
 } from "react-native";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { wishlistsService } from "@/services/wishlists";
-import { friendsService, type User as FriendUser } from "@/services/friends";
+import { friendsService } from "@/services/friends";
+import type { User as FriendUser } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
 import { wishlistEvents } from "@/utils/wishlistEvents";
 import { ThemedSwitch } from "./ThemedSwitch";
 import { getDisplayName } from "@/lib/utils";
+import { SelectFriendsSheet } from "./SelectFriendsSheet";
+import {
+  BottomSheetScrollView,
+  BottomSheetTextInput,
+} from "@gorhom/bottom-sheet";
 
 interface CreateGroupGiftSheetProps {
   visible: boolean;
@@ -46,10 +47,9 @@ export function CreateGroupGiftSheet({
   const [isTitleFocused, setIsTitleFocused] = useState(false);
   const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
   const [friends, setFriends] = useState<FriendUser[]>([]);
-  const [isLoadingFriends, setIsLoadingFriends] = useState(false);
   const [showFriendSelectionModal, setShowFriendSelectionModal] = useState(false);
 
-  // Load friends when sheet opens
+  // Load friends when sheet opens (for displaying chips)
   useEffect(() => {
     if (visible) {
       loadFriends();
@@ -70,25 +70,22 @@ export function CreateGroupGiftSheet({
   }, [visible, initialTitle]);
 
   const loadFriends = async () => {
-    setIsLoadingFriends(true);
     try {
       const friendsData = await friendsService.getFriends();
       setFriends(friendsData);
     } catch (error) {
       console.error("Error loading friends:", error);
-    } finally {
-      setIsLoadingFriends(false);
     }
   };
 
-  const toggleFriendSelection = (friendId: string) => {
-    const newSelection = new Set(selectedFriends);
-    if (newSelection.has(friendId)) {
-      newSelection.delete(friendId);
-    } else {
-      newSelection.add(friendId);
-    }
-    setSelectedFriends(newSelection);
+  const handleFriendSelection = (selectedFriendIds: Set<string>) => {
+    setSelectedFriends(selectedFriendIds);
+  };
+
+  const handleRemoveFromSelection = (userId: string) => {
+    const newSelected = new Set(selectedFriends);
+    newSelected.delete(userId);
+    setSelectedFriends(newSelected);
   };
 
   const handleCreate = async () => {
@@ -167,117 +164,19 @@ export function CreateGroupGiftSheet({
     onClose();
   };
 
-  const renderFriendItem = ({ item, index, total }: { item: FriendUser; index: number; total: number }) => {
-    const isSelected = selectedFriends.has(item.id);
-    const displayName = getDisplayName(item.firstName, item.lastName) || item.username || item.email;
-
-    return (
-      <View key={item.id}>
-        <TouchableOpacity
-          style={styles.friendItem}
-          onPress={() => toggleFriendSelection(item.id)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.friendItemLeft}>
-            <View style={[styles.friendAvatar, { backgroundColor: isSelected ? theme.colors.primary + '20' : theme.colors.textSecondary + '20' }]}>
-              <Text style={[styles.friendAvatarText, { color: isSelected ? theme.colors.primary : theme.colors.textPrimary }]}>
-                {displayName[0]?.toUpperCase() || "?"}
-              </Text>
-            </View>
-            <View style={styles.friendItemInfo}>
-              <Text style={[styles.friendItemName, { color: theme.colors.textPrimary }]}>
-                {displayName}
-              </Text>
-              {item.username && (
-                <Text style={[styles.friendItemUsername, { color: theme.colors.textSecondary }]}>
-                  @{item.username}
-                </Text>
-              )}
-            </View>
-          </View>
-          {isSelected && (
-            <View style={[styles.checkIcon, { backgroundColor: theme.colors.primary }]}>
-              <Feather name="check" size={14} color="#fff" />
-            </View>
-          )}
-        </TouchableOpacity>
-        {index < total - 1 && (
-          <View style={[styles.friendDivider, { backgroundColor: theme.colors.textSecondary + '20' }]} />
-        )}
-      </View>
-    );
-  };
-
   return (
     <>
-      {/* Friend Selection Modal */}
-      <BottomSheet visible={showFriendSelectionModal} onClose={() => setShowFriendSelectionModal(false)}>
-        <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
-          <View style={styles.modalHeader}>
-            <Text style={[styles.modalHeaderTitle, { color: theme.colors.textPrimary }]}>
-              Select Friends
-            </Text>
-          </View>
-          
-          <ScrollView style={styles.modalContent} contentContainerStyle={styles.modalContentContainer}>
-            {isLoadingFriends ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-                <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
-                  Loading friends...
-                </Text>
-              </View>
-            ) : friends.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Feather name="users" size={32} color={theme.colors.textSecondary} />
-                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                  No friends to invite. Add friends first!
-                </Text>
-              </View>
-            ) : (
-              friends.map((friend, index) => renderFriendItem({ item: friend, index, total: friends.length }))
-            )}
-          </ScrollView>
+      {/* Friend Selection Sheet */}
+      <SelectFriendsSheet
+        visible={showFriendSelectionModal}
+        onClose={() => setShowFriendSelectionModal(false)}
+        onConfirm={handleFriendSelection}
+        initialSelection={selectedFriends}
+        emptyMessage="No friends to invite. Add friends first!"
+      />
 
-          {/* Bottom Button */}
-          <View style={[styles.modalFooter, { 
-            backgroundColor: theme.colors.background,
-          }]}>
-            <TouchableOpacity
-              style={[
-                styles.modalDoneButton, 
-                { 
-                  backgroundColor: selectedFriends.size === 0 
-                    ? theme.colors.textSecondary + '40' 
-                    : theme.colors.primary 
-                }
-              ]}
-              onPress={() => {
-                if (selectedFriends.size > 0) {
-                  setShowFriendSelectionModal(false);
-                }
-              }}
-              activeOpacity={0.8}
-              disabled={selectedFriends.size === 0}
-            >
-              <Text style={styles.modalDoneButtonText}>
-                {selectedFriends.size === 0 
-                  ? "Select at least one friend" 
-                  : selectedFriends.size === 1 
-                    ? "Add friend" 
-                    : `Add ${selectedFriends.size} friends`}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </BottomSheet>
-
-      <BottomSheet visible={visible} onClose={onClose}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.keyboardView}
-        >
-          <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <BottomSheet visible={visible} onClose={handleClose} stackBehavior="switch">
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerSpacer} />
@@ -294,7 +193,7 @@ export function CreateGroupGiftSheet({
           </View>
 
           {/* Scrollable Content */}
-          <ScrollView 
+          <BottomSheetScrollView 
             style={styles.content} 
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={false}
@@ -302,7 +201,7 @@ export function CreateGroupGiftSheet({
           >
             {/* Title Input */}
             <View style={styles.titleContainer}>
-              <TextInput
+              <BottomSheetTextInput
                 style={[
                   styles.titleInput,
                   {
@@ -328,7 +227,7 @@ export function CreateGroupGiftSheet({
                 <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
                   Description
                 </Text>
-                <TextInput
+                <BottomSheetTextInput
                   style={[
                     styles.input,
                     styles.textArea,
@@ -376,7 +275,7 @@ export function CreateGroupGiftSheet({
                               {displayName}
                             </Text>
                             <TouchableOpacity
-                              onPress={() => toggleFriendSelection(friend.id)}
+                              onPress={() => handleRemoveFromSelection(friend.id)}
                               hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                             >
                               <Feather name="x" size={14} color={theme.colors.textSecondary} />
@@ -425,7 +324,7 @@ export function CreateGroupGiftSheet({
 
             {/* Bottom spacing for button */}
             <View style={{ height: 100 }} />
-          </ScrollView>
+          </BottomSheetScrollView>
 
           {/* Fixed Bottom Button */}
           <View style={[styles.bottomButtonContainer, { backgroundColor: theme.colors.background }]}>
@@ -449,17 +348,13 @@ export function CreateGroupGiftSheet({
               )}
             </TouchableOpacity>
           </View>
-          </View>
-        </KeyboardAvoidingView>
+        </View>
       </BottomSheet>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardView: {
-    flex: 1,
-  },
   container: {
     flex: 1,
   },
@@ -528,70 +423,6 @@ const styles = StyleSheet.create({
     height: 100,
     paddingTop: 10,
   },
-  friendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 0,
-  },
-  friendItemLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  friendAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  friendAvatarText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  friendItemInfo: {
-    flex: 1,
-  },
-  friendItemName: {
-    fontSize: 16,
-    fontWeight: "500",
-    marginBottom: 2,
-  },
-  friendItemUsername: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  friendDivider: {
-    height: 1,
-    marginVertical: 0,
-  },
-  checkIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingContainer: {
-    alignItems: "center",
-    paddingVertical: 20,
-  },
-  loadingText: {
-    marginTop: 8,
-    fontSize: 14,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  emptyText: {
-    marginTop: 12,
-    fontSize: 14,
-    textAlign: "center",
-  },
   selectedFriendsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -634,45 +465,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     marginLeft: 6,
-  },
-  modalContainer: {
-    flex: 1,
-    flexDirection: "column",
-  },
-  modalHeader: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  modalHeaderTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  modalContent: {
-    flex: 1,
-  },
-  modalContentContainer: {
-    padding: 16,
-    paddingBottom: 16,
-  },
-  modalFooter: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 20,
-  },
-  modalDoneButton: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalDoneButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
   },
   settingRow: {
     flexDirection: "row",

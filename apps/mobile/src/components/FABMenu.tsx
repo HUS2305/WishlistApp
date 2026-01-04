@@ -37,6 +37,7 @@ interface FABMenuProps {
   onToggle: () => void;
   onClose: () => void;
   onManualAdd: () => void;
+  onAddByLink?: () => void;
   variant?: "center" | "bottom-right";
   positionStyle?: "tab-bar" | "screen";
 }
@@ -46,6 +47,7 @@ export function FABMenu({
   onToggle,
   onClose,
   onManualAdd,
+  onAddByLink,
   variant = "bottom-right",
   positionStyle = "screen",
 }: FABMenuProps) {
@@ -55,6 +57,10 @@ export function FABMenu({
   
   // Keep Modal mounted during close animation to allow rotation to complete
   const [modalVisible, setModalVisible] = useState(false);
+  
+  // Track external sheets to fade FAB when they're open
+  // This will be set via a prop or context if needed
+  const externalSheetOpen = false; // Can be enhanced later if needed
 
   // Calculate FAB position
   const centerX = SCREEN_WIDTH / 2 - FAB_SIZE / 2;
@@ -158,8 +164,11 @@ export function FABMenu({
       color: "#EF4444",
       onPress: () => {
         onClose();
-        // TODO: Implement add by link
-        console.log("Add by link");
+        if (onAddByLink) {
+          onAddByLink();
+        } else {
+          console.log("Add by link");
+        }
       },
     },
     {
@@ -398,7 +407,7 @@ export function FABMenu({
         position: "absolute" as const,
         width: FAB_SIZE,
         height: FAB_SIZE,
-        zIndex: 1000,
+        zIndex: 1, // Low z-index - bottom sheets use portals and render above
         bottom: FAB_BOTTOM_POSITION,
         left: baseLeft, // Initial position
       };
@@ -408,7 +417,7 @@ export function FABMenu({
         position: "absolute" as const,
         width: FAB_SIZE,
         height: FAB_SIZE,
-        zIndex: 10000,
+        zIndex: 1, // Low z-index - bottom sheets use portals and render above
         bottom: FAB_BOTTOM_POSITION,
         left: baseLeft, // Initial position
       };
@@ -474,7 +483,7 @@ export function FABMenu({
                     { rotate: rotation },
                   ],
                   pointerEvents: "box-none",
-                  zIndex: 10001,
+                  zIndex: 2, // Slightly higher than base FAB but still lower than bottom sheets (portals)
                 },
               ]}
             >

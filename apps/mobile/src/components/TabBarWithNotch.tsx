@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     width: FAB_SIZE,
     height: FAB_SIZE,
-    zIndex: 1000,
+    zIndex: 1, // Low z-index - bottom sheets use portals and render above
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "transparent",

@@ -3,16 +3,17 @@ import React from "react";
 import {
   View,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Image,
-  FlatList,
 } from "react-native";
+import {
+  BottomSheetScrollView,
+  BottomSheetFlatList,
+  BottomSheetTextInput,
+} from "@gorhom/bottom-sheet";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -20,6 +21,7 @@ import * as ImagePicker from "expo-image-picker";
 import type { Priority, Item } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
+import { SelectWishlistSheet } from "./SelectWishlistSheet";
 import { wishlistsService } from "@/services/wishlists";
 import { useWishlists, wishlistKeys } from "@/hooks/useWishlists";
 import { useUserCurrency } from "@/hooks/useUserCurrency";
@@ -229,28 +231,24 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
-      >
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerSpacer} />
-            <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-              {isEditMode ? "Edit Item" : (customTitle || "Add Item")}
-            </Text>
-            <TouchableOpacity
-              onPress={handleClose}
-              style={styles.closeButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Feather name="x" size={24} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerSpacer} />
+          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
+            {isEditMode ? "Edit Item" : (customTitle || "Add Item")}
+          </Text>
+          <TouchableOpacity
+            onPress={handleClose}
+            style={styles.closeButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Feather name="x" size={24} color={theme.colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
 
-          {/* Scrollable Content */}
-          <ScrollView 
+        {/* Scrollable Content */}
+        <BottomSheetScrollView 
             style={styles.content} 
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={false}
@@ -441,7 +439,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
 
             {/* Title - Centered with underline */}
             <View style={styles.titleSection}>
-              <TextInput
+              <BottomSheetTextInput
                 style={[
                   styles.titleInput,
                   {
@@ -464,7 +462,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
               <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
                 Product URL
               </Text>
-              <TextInput
+              <BottomSheetTextInput
                 style={[
                   styles.input,
                   {
@@ -488,7 +486,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
               <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
                 Description
               </Text>
-              <TextInput
+              <BottomSheetTextInput
                 style={[
                   styles.input,
                   styles.textArea,
@@ -515,7 +513,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
               </Text>
               <View style={styles.row}>
                 <View style={styles.priceContainer}>
-                  <TextInput
+                  <BottomSheetTextInput
                     style={[
                       styles.input,
                       styles.priceInput,
@@ -558,7 +556,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
                       color={theme.colors.textPrimary}
                     />
                   </TouchableOpacity>
-                  <TextInput
+                  <BottomSheetTextInput
                     style={[
                       styles.input,
                       styles.quantityInput,
@@ -670,8 +668,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
 
             {/* Bottom spacing for button */}
             <View style={{ height: 100 }} />
-          </ScrollView>
-
+          </BottomSheetScrollView>
 
           {/* Fixed Bottom Button */}
           <View style={[styles.bottomButtonContainer, { backgroundColor: theme.colors.background }]}>
@@ -698,94 +695,17 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoidingView>
 
-      {/* Wishlist Selection Bottom Sheet */}
-      <BottomSheet 
-          visible={showWishlistBottomSheet} 
-          onClose={() => setShowWishlistBottomSheet(false)}
-          autoHeight={true}
-        >
-          <View style={[styles.wishlistBottomSheetContainer, { backgroundColor: theme.colors.background }]}>
-            {/* Header */}
-            <View style={styles.wishlistBottomSheetHeader}>
-              <View style={styles.headerSpacer} />
-              <Text style={[styles.wishlistBottomSheetTitle, { color: theme.colors.textPrimary }]}>
-                Select Wishlist
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowWishlistBottomSheet(false)}
-                style={styles.closeButton}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Feather name="x" size={24} color={theme.colors.textPrimary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Wishlist List */}
-            <FlatList
-              data={wishlists}
-              keyExtractor={(item) => item.id}
-              style={{ flex: 1 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.wishlistOptionRow, { 
-                    borderBottomColor: theme.colors.textSecondary + '20',
-                    backgroundColor: selectedWishlistId === item.id 
-                      ? theme.colors.primary + '10' 
-                      : 'transparent',
-                  }]}
-                  onPress={() => {
-                    setSelectedWishlistId(item.id);
-                    setShowWishlistBottomSheet(false);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.wishlistOptionLeft}>
-                    <Text 
-                      style={[styles.wishlistOptionText, { color: theme.colors.textPrimary }]}
-                      numberOfLines={1}
-                    >
-                      {item.title}
-                    </Text>
-                    {item.privacyLevel === "GROUP" && (
-                      <View style={[styles.groupBadge, { backgroundColor: theme.colors.primary + '15', marginLeft: 8 }]}>
-                        <Feather 
-                          name="users" 
-                          size={12} 
-                          color={theme.colors.primary}
-                        />
-                        <Text style={[styles.groupBadgeText, { color: theme.colors.primary }]}>
-                          Group
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  {selectedWishlistId === item.id ? (
-                    <Feather
-                      name="check"
-                      size={20}
-                      color={theme.colors.primary}
-                    />
-                  ) : (
-                    <Feather
-                      name="chevron-right"
-                      size={20}
-                      color={theme.colors.textSecondary}
-                    />
-                  )}
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <View style={styles.modalEmptyState}>
-                  <Text style={[styles.modalEmptyText, { color: theme.colors.textSecondary }]}>
-                    No wishlists available
-                  </Text>
-                </View>
-              }
-            />
-          </View>
-        </BottomSheet>
+      {/* Wishlist Selection Sheet */}
+      <SelectWishlistSheet
+        visible={showWishlistBottomSheet}
+        onClose={() => setShowWishlistBottomSheet(false)}
+        onSelect={(wishlistId) => {
+          setSelectedWishlistId(wishlistId);
+          setShowWishlistBottomSheet(false);
+        }}
+        emptyMessage="No wishlists available"
+      />
     </BottomSheet>
   );
 }
@@ -1065,63 +985,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
-  },
-  wishlistBottomSheetContainer: {
-    flex: 1,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  wishlistBottomSheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
-    position: "relative",
-  },
-  wishlistBottomSheetTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-  },
-  wishlistOptionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  wishlistOptionLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  wishlistOptionText: {
-    fontSize: 16,
-  },
-  groupBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 10,
-    gap: 4,
-  },
-  groupBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  modalEmptyState: {
-    padding: 24,
-    alignItems: "center",
-  },
-  modalEmptyText: {
-    fontSize: 14,
   },
 });

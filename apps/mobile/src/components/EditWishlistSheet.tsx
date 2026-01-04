@@ -3,25 +3,26 @@ import React from "react";
 import {
   View,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  FlatList,
 } from "react-native";
+import {
+  BottomSheetScrollView,
+  BottomSheetTextInput,
+} from "@gorhom/bottom-sheet";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
 import type { PrivacyLevel, Wishlist } from "@/types";
 import { useUpdateWishlist } from "@/hooks/useWishlists";
-import { friendsService, type User as FriendUser } from "@/services/friends";
+import { friendsService } from "@/services/friends";
+import type { User as FriendUser } from "@/types";
 import { wishlistsService } from "@/services/wishlists";
 import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
 import { ThemedSwitch } from "./ThemedSwitch";
 import { getDisplayName } from "@/lib/utils";
+import { SelectFriendsSheet } from "./SelectFriendsSheet";
 
 interface EditWishlistSheetProps {
   visible: boolean;
@@ -41,9 +42,6 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
   const [isTitleFocused, setIsTitleFocused] = useState(false);
   const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
   const [friends, setFriends] = useState<FriendUser[]>([]);
-  const [isLoadingFriends, setIsLoadingFriends] = useState(false);
-  const [existingCollaboratorIds, setExistingCollaboratorIds] = useState<Set<string>>(new Set());
-  const [existingCollaborators, setExistingCollaborators] = useState<Array<{ id: string; userId: string }>>([]);
   const [showFriendSelectionModal, setShowFriendSelectionModal] = useState(false);
 
   // Load wishlist data when it becomes available
@@ -54,53 +52,33 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
       setPrivacyLevel(wishlist.privacyLevel);
       setAllowReservations(wishlist.allowReservations ?? true);
       
-      // Set existing collaborator IDs and full collaborator objects
-      const existingIds = new Set(wishlist.collaborators?.map(c => c.userId) || []);
-      setExistingCollaboratorIds(existingIds);
-      setExistingCollaborators(wishlist.collaborators?.map(c => ({ id: c.id, userId: c.userId })) || []);
-      
       // Pre-select existing collaborators in the selection
       const existingIdsSet = new Set(wishlist.collaborators?.map(c => c.userId) || []);
       setSelectedFriends(existingIdsSet);
       
-      // Load friends
+      // Load friends for displaying chips
       loadFriends();
     }
   }, [wishlist, visible]);
 
   const loadFriends = async () => {
-    setIsLoadingFriends(true);
     try {
       const friendsData = await friendsService.getFriends();
       setFriends(friendsData);
-      // Filter out existing collaborators from friends list
-      // (they'll be shown separately)
     } catch (error) {
       console.error("Error loading friends:", error);
-    } finally {
-      setIsLoadingFriends(false);
     }
   };
-
-  const toggleFriendSelection = (friendId: string) => {
-    const newSelection = new Set(selectedFriends);
-    if (newSelection.has(friendId)) {
-      newSelection.delete(friendId);
-    } else {
-      newSelection.add(friendId);
-    }
-    setSelectedFriends(newSelection);
-  };
-
-  // Get all friends (both existing collaborators and available friends)
-  // We'll show all friends in the modal, with existing collaborators pre-selected
-  const allFriends = friends;
 
   const handleRemoveFromSelection = (userId: string) => {
     // Just remove from selection - actual removal happens on save
     const newSelected = new Set(selectedFriends);
     newSelected.delete(userId);
     setSelectedFriends(newSelected);
+  };
+
+  const handleFriendSelection = (selectedFriendIds: Set<string>) => {
+    setSelectedFriends(selectedFriendIds);
   };
 
   const handleSave = async () => {
@@ -140,7 +118,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
             try {
               await wishlistsService.removeCollaborator(wishlist.id, userId);
             } catch (error: any) {
-              console.warn(`Failed to remove collaborator ${collaboratorId}:`, error);
+              console.warn(`Failed to remove collaborator ${userId}:`, error);
             }
           }
           
@@ -181,10 +159,8 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
       setDescription(wishlist.description || "");
       setPrivacyLevel(wishlist.privacyLevel);
       setAllowReservations(wishlist.allowReservations ?? true);
-      const existingIds = new Set(wishlist.collaborators?.map(c => c.userId) || []);
-      setExistingCollaboratorIds(existingIds);
-      setExistingCollaborators(wishlist.collaborators?.map(c => ({ id: c.id, userId: c.userId })) || []);
       // Reset selected friends to original existing collaborators
+      const existingIds = new Set(wishlist.collaborators?.map(c => c.userId) || []);
       setSelectedFriends(existingIds);
     } else {
       setSelectedFriends(new Set());
@@ -192,118 +168,20 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
     onClose();
   };
 
-  const renderFriendItem = ({ item, index, total }: { item: FriendUser; index: number; total: number }) => {
-    const isSelected = selectedFriends.has(item.id);
-    const isExistingCollaborator = existingCollaboratorIds.has(item.id);
-    const displayName = getDisplayName(item.firstName, item.lastName) || item.username || item.email;
-
-    return (
-      <View key={item.id}>
-        <TouchableOpacity
-          style={styles.friendItem}
-          onPress={() => toggleFriendSelection(item.id)}
-          activeOpacity={0.7}
-          disabled={isLoading}
-        >
-          <View style={styles.friendItemLeft}>
-            <View style={[styles.friendAvatar, { backgroundColor: isSelected ? theme.colors.primary + '20' : theme.colors.textSecondary + '20' }]}>
-              <Text style={[styles.friendAvatarText, { color: isSelected ? theme.colors.primary : theme.colors.textPrimary }]}>
-                {displayName[0]?.toUpperCase() || "?"}
-              </Text>
-            </View>
-            <View style={styles.friendItemInfo}>
-              <Text style={[styles.friendItemName, { color: theme.colors.textPrimary }]}>
-                {displayName}
-              </Text>
-              {item.username && (
-                <Text style={[styles.friendItemUsername, { color: theme.colors.textSecondary }]}>
-                  @{item.username}
-                </Text>
-              )}
-            </View>
-          </View>
-          {isSelected && (
-            <View style={[styles.checkIcon, { backgroundColor: theme.colors.primary }]}>
-              <Feather name="check" size={14} color="#fff" />
-            </View>
-          )}
-        </TouchableOpacity>
-        {index < total - 1 && (
-          <View style={[styles.friendDivider, { backgroundColor: theme.colors.textSecondary + '20' }]} />
-        )}
-      </View>
-    );
-  };
-
   const isLoading = updateWishlist.isPending;
 
   return (
     <>
-      {/* Friend Selection Modal */}
-      <BottomSheet visible={showFriendSelectionModal} onClose={() => setShowFriendSelectionModal(false)}>
-        <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
-          <View style={styles.modalHeader}>
-            <Text style={[styles.modalHeaderTitle, { color: theme.colors.textPrimary }]}>
-              Select Friends
-            </Text>
-          </View>
-          
-          <ScrollView style={styles.modalContent} contentContainerStyle={styles.modalContentContainer}>
-            {isLoadingFriends ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-                <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
-                  Loading friends...
-                </Text>
-              </View>
-            ) : allFriends.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Feather name="users" size={32} color={theme.colors.textSecondary} />
-                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                  {isLoadingFriends 
-                    ? "Loading friends..." 
-                    : "No friends available"}
-                </Text>
-              </View>
-            ) : (
-              allFriends.map((friend, index) => renderFriendItem({ item: friend, index, total: allFriends.length }))
-            )}
-          </ScrollView>
+      {/* Friend Selection Sheet */}
+      <SelectFriendsSheet
+        visible={showFriendSelectionModal}
+        onClose={() => setShowFriendSelectionModal(false)}
+        onConfirm={handleFriendSelection}
+        initialSelection={selectedFriends}
+      />
 
-          {/* Bottom Button */}
-          <View style={[styles.modalFooter, { 
-            backgroundColor: theme.colors.background,
-          }]}>
-            <TouchableOpacity
-              style={[
-                styles.modalDoneButton, 
-                { 
-                  backgroundColor: theme.colors.primary
-                }
-              ]}
-              onPress={() => {
-                setShowFriendSelectionModal(false);
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.modalDoneButtonText}>
-                {selectedFriends.size === 0 
-                  ? "Done"
-                  : selectedFriends.size === 1 
-                    ? "Add friend"
-                    : `Add ${selectedFriends.size} friends`}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </BottomSheet>
-
-      <BottomSheet visible={visible} onClose={handleClose}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.keyboardView}
-        >
-          <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <BottomSheet visible={visible} onClose={handleClose} stackBehavior="switch">
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerSpacer} />
@@ -325,7 +203,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
           </View>
 
           {/* Scrollable Content */}
-          <ScrollView 
+          <BottomSheetScrollView 
             style={styles.content} 
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={false}
@@ -352,7 +230,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
 
             {/* Title Input - Centered */}
             <View style={styles.titleContainer}>
-              <TextInput
+              <BottomSheetTextInput
                 style={[
                   styles.titleInput,
                   {
@@ -378,7 +256,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
                 <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
                   Description
                 </Text>
-                <TextInput
+                <BottomSheetTextInput
                   style={[
                     styles.input,
                     styles.textArea,
@@ -502,15 +380,12 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
                 </Text>
                 
                 {/* Selected Friends Chips */}
-                {(wishlist?.collaborators && wishlist.collaborators.length > 0) || selectedFriends.size > 0 ? (
+                {selectedFriends.size > 0 && (
                   <View style={styles.selectedFriendsContainer}>
-                    {/* All Selected Friends (Existing Collaborators + Newly Selected) */}
-                    {allFriends
+                    {friends
                       .filter(friend => selectedFriends.has(friend.id))
                       .map((friend) => {
                         const displayName = getDisplayName(friend.firstName, friend.lastName) || friend.username || friend.email;
-                        const isExistingCollaborator = existingCollaboratorIds.has(friend.id);
-                        const collaborator = existingCollaborators.find(c => c.userId === friend.id);
                         
                         return (
                           <View key={friend.id} style={[styles.friendChip, {
@@ -534,7 +409,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
                         );
                       })}
                   </View>
-                ) : null}
+                )}
 
                 {/* Add/Manage Friends Button */}
                 <TouchableOpacity
@@ -578,7 +453,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
 
             {/* Bottom spacing for button */}
             <View style={{ height: 100 }} />
-          </ScrollView>
+          </BottomSheetScrollView>
 
           {/* Fixed Bottom Button */}
           <View style={[styles.bottomButtonContainer, { backgroundColor: theme.colors.background }]}>
@@ -602,8 +477,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
               )}
             </TouchableOpacity>
           </View>
-          </View>
-        </KeyboardAvoidingView>
+        </View>
       </BottomSheet>
     </>
   );
@@ -769,109 +643,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     flexShrink: 1,
   },
-  modalContainer: {
-    flex: 1,
-    flexDirection: "column",
-  },
-  modalHeader: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  modalHeaderTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  modalContent: {
-    flex: 1,
-  },
-  modalContentContainer: {
-    padding: 16,
-    paddingBottom: 16,
-  },
-  modalFooter: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 20,
-  },
-  modalDoneButton: {
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalDoneButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  friendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 0,
-  },
-  friendItemLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  friendAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  friendAvatarText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  friendItemInfo: {
-    flex: 1,
-  },
-  friendItemName: {
-    fontSize: 16,
-    fontWeight: "500",
-    marginBottom: 2,
-  },
-  friendItemUsername: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  friendDivider: {
-    height: 1,
-    marginVertical: 0,
-  },
-  checkIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingContainer: {
-    alignItems: "center",
-    paddingVertical: 20,
-  },
-  loadingText: {
-    marginTop: 8,
-    fontSize: 14,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  emptyText: {
-    marginTop: 12,
-    fontSize: 14,
-    textAlign: "center",
-  },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -924,6 +695,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
 
 
 
