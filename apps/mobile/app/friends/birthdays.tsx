@@ -1,4 +1,4 @@
-import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Platform } from "react-native";
 import { Text } from "@/components/Text";
 import { router, useFocusEffect, useNavigation } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -13,10 +13,12 @@ import { CreateGroupGiftSheet } from "@/components/CreateGroupGiftSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 import { Alert } from "react-native";
 import { getHeaderOptions } from "@/lib/navigation";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AllBirthdaysScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { isLoaded: isClerkLoaded, userId } = useAuth();
   const [friends, setFriends] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -188,13 +190,14 @@ export default function AllBirthdaysScreen() {
       {/* Birthday Gift Choice Modal */}
       <BottomSheet visible={birthdayGiftModalVisible} onClose={() => setBirthdayGiftModalVisible(false)} autoHeight>
         <View style={[styles.birthdayGiftModalContent, { backgroundColor: theme.colors.background }]}>
+          {/* Header - Standard pattern: centered title, no X button */}
           <View style={styles.birthdayGiftModalHeader}>
             <Text style={[styles.birthdayGiftModalTitle, { color: theme.colors.textPrimary }]}>
               Create Gift List for {selectedBirthdayFriend?.name}
             </Text>
           </View>
           
-          <View style={styles.birthdayGiftOptions}>
+          <View style={[styles.birthdayGiftOptions, { paddingBottom: Math.max(20, Platform.OS === "ios" ? insets.bottom + 30 : 20) }]}>
             {/* Regular Wishlist Option */}
             <TouchableOpacity
               style={[
@@ -411,20 +414,21 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   birthdayGiftModalContent: {
-    padding: 20,
+    paddingHorizontal: 20,
     paddingTop: 0,
   },
   birthdayGiftModalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 0,
+    paddingBottom: 8,
+    minHeight: 0,
     justifyContent: "center",
-    marginBottom: 24,
-    marginTop: 8,
+    alignItems: "center",
+    marginBottom: 16,
   },
   birthdayGiftModalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    textAlign: "center",
+    fontSize: 20,
+    fontWeight: "600",
   },
   birthdayGiftOptions: {
     gap: 12,

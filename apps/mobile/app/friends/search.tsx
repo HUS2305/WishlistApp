@@ -415,32 +415,26 @@ export default function FriendSearchScreen() {
       )}
 
       {/* Block User Confirmation Modal */}
-      {selectedUser && (
-        <DeleteConfirmModal
-          visible={blockConfirmVisible}
-          title={getDisplayName(selectedUser) || selectedUser.username || "this user"}
-          modalTitle="Block User"
-          onConfirm={confirmBlockUser}
-          onCancel={() => {
-            setBlockConfirmVisible(false);
-            setSelectedUser(null);
-          }}
-        />
-      )}
+      <DeleteConfirmModal
+        visible={blockConfirmVisible && !!selectedUser}
+        title={selectedUser ? (getDisplayName(selectedUser) || selectedUser.username || "this user") : ""}
+        modalTitle="Block User"
+        onConfirm={confirmBlockUser}
+        onCancel={() => {
+          setBlockConfirmVisible(false);
+        }}
+      />
 
       {/* Remove Friend Confirmation Modal */}
-      {selectedUser && (
-        <DeleteConfirmModal
-          visible={removeConfirmVisible}
-          title={getDisplayName(selectedUser) || selectedUser.username || "this friend"}
-          modalTitle="Remove Friend"
-          onConfirm={confirmRemoveFriend}
-          onCancel={() => {
-            setRemoveConfirmVisible(false);
-            setSelectedUser(null);
-          }}
-        />
-      )}
+      <DeleteConfirmModal
+        visible={removeConfirmVisible && !!selectedUser}
+        title={selectedUser ? (getDisplayName(selectedUser) || selectedUser.username || "this friend") : ""}
+        modalTitle="Remove Friend"
+        onConfirm={confirmRemoveFriend}
+        onCancel={() => {
+          setRemoveConfirmVisible(false);
+        }}
+      />
     </View>
   );
 }

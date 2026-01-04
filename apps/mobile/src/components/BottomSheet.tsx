@@ -39,6 +39,12 @@ export interface BottomSheetProps {
   stackBehavior?: "push" | "switch" | "replace";
   /** Footer component that stays fixed at the bottom. Use BottomSheetFooter from @gorhom/bottom-sheet */
   footerComponent?: React.FC<any>;
+  /** Keyboard behavior: 'extend' extends to max snap point, 'fillParent' fills parent, 'interactive' offsets by keyboard. Default: 'interactive' */
+  keyboardBehavior?: 'extend' | 'fillParent' | 'interactive';
+  /** Initial snap point index. Default: 0 (first snap point) */
+  index?: number;
+  /** If true, children are rendered directly without BottomSheetView wrapper. Use when children include BottomSheetScrollView/FlatList. Default: false */
+  scrollable?: boolean;
 }
 
 /**
@@ -100,9 +106,17 @@ export function BottomSheet({
   backdropOpacity = 0.5,
   stackBehavior = "switch",
   footerComponent,
+  keyboardBehavior = "interactive",
+  index = 0,
+  scrollable = false,
 }: BottomSheetProps) {
   const { theme } = useTheme();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
+  const isDismissingRef = useRef(false);
+  // Always initialize to false - this ensures conditionally rendered modals work correctly
+  // When a modal mounts with visible=true, wasVisible will be false, triggering present()
+  const previousVisibleRef = useRef(false);
+  const hasMountedRef = useRef(false);
 
   // Calculate snap points
   const snapPoints = useMemo(() => {
@@ -124,9 +138,43 @@ export function BottomSheet({
 
   // Handle visibility changes - imperative API
   useEffect(() => {
-    if (visible) {
-      bottomSheetRef.current?.present();
-    } else {
+    const wasVisible = previousVisibleRef.current;
+    
+    // On first mount, initialize the ref
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      previousVisibleRef.current = visible;
+      
+      // If visible on first mount (conditionally rendered modal), present it
+      if (visible) {
+        isDismissingRef.current = false;
+        const timeoutId = setTimeout(() => {
+          if (bottomSheetRef.current) {
+            bottomSheetRef.current.present();
+          }
+        }, 50);
+        return () => clearTimeout(timeoutId);
+      }
+      return;
+    }
+    
+    // Update ref for next render
+    previousVisibleRef.current = visible;
+
+    if (visible && !wasVisible) {
+      // Opening: reset dismiss flag and present
+      isDismissingRef.current = false;
+      // Small delay to ensure the modal ref is ready, especially for conditionally rendered modals
+      const timeoutId = setTimeout(() => {
+        if (bottomSheetRef.current) {
+          bottomSheetRef.current.present();
+        }
+      }, 50);
+      
+      return () => clearTimeout(timeoutId);
+    } else if (!visible && wasVisible) {
+      // Closing programmatically: set flag and dismiss
+      isDismissingRef.current = true;
       bottomSheetRef.current?.dismiss();
     }
   }, [visible]);
@@ -137,8 +185,19 @@ export function BottomSheet({
   const handleSheetChanges = useCallback(
     (index: number) => {
       // When sheet closes (index === -1), call onClose to sync parent state
+      // But only if it wasn't closed programmatically (to avoid double-calling onClose)
       if (index === -1) {
-        onClose();
+        const wasDismissingProgrammatically = isDismissingRef.current;
+        // Reset flag for next time
+        isDismissingRef.current = false;
+        
+        // Only call onClose if the sheet was closed by user interaction (drag, backdrop tap)
+        // If it was closed programmatically (visible changed to false), the parent already knows
+        if (!wasDismissingProgrammatically) {
+          // Sheet was closed by user interaction, notify parent to update state
+          onClose();
+        }
+        // If it was programmatic, parent already set visible=false, so no need to call onClose
       }
     },
     [onClose]
@@ -193,6 +252,7 @@ export function BottomSheet({
     <BottomSheetModal
       ref={bottomSheetRef}
       snapPoints={snapPoints}
+      index={index}
       onChange={handleSheetChanges}
       enablePanDownToClose={enablePanDownToClose}
       enableContentPanningGesture={enableContentPanningGesture}
@@ -203,16 +263,24 @@ export function BottomSheet({
       maxDynamicContentSize={maxHeight}
       backgroundStyle={{ backgroundColor: theme.colors.background }}
       handleIndicatorStyle={{ backgroundColor: theme.colors.textSecondary + "40" }}
-          backdropComponent={renderBackdrop}
-          handleComponent={renderHandle}
-          footerComponent={footerComponent}
-          keyboardBlurBehavior="restore"
-          stackBehavior={stackBehavior}
-          style={styles.sheet}
-        >
-      <BottomSheetView style={contentStyle}>
-        {children}
-      </BottomSheetView>
+      backdropComponent={renderBackdrop}
+      handleComponent={renderHandle}
+      footerComponent={footerComponent}
+      keyboardBehavior={keyboardBehavior}
+      keyboardBlurBehavior="restore"
+      stackBehavior={stackBehavior}
+      style={styles.sheet}
+    >
+      {scrollable ? (
+        // For scrollable content (BottomSheetScrollView, BottomSheetFlatList), render directly
+        // These components must be direct children of BottomSheetModal to work correctly
+        children
+      ) : (
+        // For static content, wrap in BottomSheetView
+        <BottomSheetView style={contentStyle}>
+          {children}
+        </BottomSheetView>
+      )}
     </BottomSheetModal>
   );
 }

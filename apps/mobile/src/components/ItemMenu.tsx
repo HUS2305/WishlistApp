@@ -70,19 +70,11 @@ export function ItemMenu({
   return (
     <BottomSheet visible={visible} onClose={onClose} autoHeight>
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {/* Header */}
+        {/* Header - Standard pattern: centered title, no X button */}
         <View style={styles.header}>
-          <View style={styles.headerSpacer} />
           <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
             Options
           </Text>
-          <TouchableOpacity
-            onPress={onClose}
-            style={styles.closeButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Feather name="x" size={24} color={theme.colors.textPrimary} />
-          </TouchableOpacity>
         </View>
 
         {/* Menu Options */}
@@ -228,12 +220,7 @@ export function ItemMenu({
           )}
 
           <TouchableOpacity
-            style={[
-              styles.optionRow,
-              {
-                borderBottomColor: theme.colors.textSecondary + '20',
-              },
-            ]}
+            style={styles.optionRowLast}
             onPress={handleDelete}
             activeOpacity={0.7}
           >
@@ -271,32 +258,20 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0, 0, 0, 0.1)",
-    position: "relative",
+    paddingTop: 0,
+    paddingBottom: 8,
+    minHeight: 0,
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-  },
-  headerSpacer: {
-    width: 24, // Same width as close button to center the title
-  },
-  closeButton: {
-    padding: 4,
-    zIndex: 1,
   },
   content: {
-    paddingVertical: 8,
+    paddingTop: 0,
+    paddingBottom: 20,
   },
   optionRow: {
     flexDirection: "row",
@@ -305,6 +280,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
+  },
+  optionRowLast: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 0,
   },
   optionLeft: {
     flexDirection: "row",

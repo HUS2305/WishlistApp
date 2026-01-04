@@ -26,8 +26,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     try {
       const requests = await friendsService.getPendingRequests();
       setPendingRequestsCount(requests.length);
-    } catch (error) {
-      console.error('❌ Error fetching pending requests count:', error);
+    } catch (error: any) {
+      // Silently handle errors for users who haven't created their profile yet
+      // 404/500 errors are expected when user profile doesn't exist
+      const isExpectedError = 
+        error?.response?.status === 404 || 
+        error?.response?.status === 500 ||
+        error?.message?.includes('User profile not found');
+      
+      if (!isExpectedError) {
+        console.error('❌ Error fetching pending requests count:', error);
+      }
       setPendingRequestsCount(0);
     }
   }, [isLoaded, isSignedIn, userId]);
@@ -42,8 +51,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const count = await notificationsService.getUnreadCount();
       console.log('📊 Unread notifications count:', count);
       setUnreadNotificationsCount(count);
-    } catch (error) {
-      console.error('❌ Error fetching unread notifications count:', error);
+    } catch (error: any) {
+      // Silently handle errors for users who haven't created their profile yet
+      // 404/500 errors are expected when user profile doesn't exist
+      const isExpectedError = 
+        error?.response?.status === 404 || 
+        error?.response?.status === 500 ||
+        error?.message?.includes('User profile not found');
+      
+      if (!isExpectedError) {
+        console.error('❌ Error fetching unread notifications count:', error);
+      }
       setUnreadNotificationsCount(0);
     }
   }, [isLoaded, isSignedIn, userId]);

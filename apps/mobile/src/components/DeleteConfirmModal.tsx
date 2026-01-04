@@ -34,100 +34,92 @@ export function DeleteConfirmModal({
   const finalModalTitle = modalTitle || defaultModalTitle;
 
   return (
-    <BottomSheet visible={visible} onClose={onCancel} autoHeight={true}>
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerSpacer} />
-          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-            {finalModalTitle}
-          </Text>
-          <TouchableOpacity
-            onPress={onCancel}
-            style={styles.closeButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            disabled={isDeleting}
-          >
-            <Feather 
-              name="x" 
-              size={24} 
-              color={isDeleting ? theme.colors.textSecondary : theme.colors.textPrimary} 
-            />
-          </TouchableOpacity>
+    <BottomSheet 
+      visible={visible} 
+      onClose={onCancel} 
+      autoHeight={true}
+    >
+      {/* Header - Standard pattern: centered title, no X button */}
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
+          {finalModalTitle}
+        </Text>
+      </View>
+
+      {/* Content */}
+      <View style={styles.content}>
+        {/* Warning Icon */}
+        <View style={[
+          styles.iconContainer,
+          { backgroundColor: theme.isDark ? '#EF444420' : '#FEE2E2' }
+        ]}>
+          <Feather name="alert-triangle" size={32} color="#EF4444" />
         </View>
 
-        {/* Content */}
-        <View style={styles.content}>
-          {/* Warning Icon */}
-          <View style={[
-            styles.iconContainer,
-            { backgroundColor: theme.isDark ? '#EF444420' : '#FEE2E2' }
-          ]}>
-            <Feather name="alert-triangle" size={32} color="#EF4444" />
-          </View>
+        {/* Message */}
+        <Text style={[styles.message, { color: theme.colors.textPrimary }]}>
+          {type === "notifications" 
+            ? "Are you sure you want to delete all notifications? This action cannot be undone."
+            : modalTitle === "Sign Out"
+            ? "Are you sure you want to sign out? You'll need to sign in again to access your account."
+            : modalTitle === "Delete Account"
+            ? "Are you sure you want to delete your account? This will permanently delete all your wishlists, items, and profile data. This action cannot be undone."
+            : modalTitle === "Block User"
+            ? `Are you sure you want to block ${title}? You won't be able to see their profile or send them friend requests.`
+            : modalTitle === "Remove Friend"
+            ? `Are you sure you want to remove ${title}? This action cannot be undone.`
+            : modalTitle === "Remove Member"
+            ? `Are you sure you want to remove ${title} from this group wishlist? This action cannot be undone.`
+            : modalTitle === "Leave Wishlist"
+            ? `Are you sure you want to leave "${title}"? You will no longer be able to add items or see updates.`
+            : `Are you sure you want to delete "${title}"? This action cannot be undone.`
+          }
+        </Text>
 
-          {/* Message */}
-          <Text style={[styles.message, { color: theme.colors.textPrimary }]}>
-            {type === "notifications" 
-              ? "Are you sure you want to delete all notifications? This action cannot be undone."
-              : modalTitle === "Sign Out"
-              ? "Are you sure you want to sign out? You'll need to sign in again to access your account."
-              : modalTitle === "Delete Account"
-              ? "Are you sure you want to delete your account? This will permanently delete all your wishlists, items, and profile data. This action cannot be undone."
-              : modalTitle === "Block User"
-              ? `Are you sure you want to block ${title}? You won't be able to see their profile or send them friend requests.`
-              : modalTitle === "Remove Friend"
-              ? `Are you sure you want to remove ${title}? This action cannot be undone.`
-              : modalTitle === "Remove Member"
-              ? `Are you sure you want to remove ${title} from this group wishlist? This action cannot be undone.`
-              : modalTitle === "Leave Wishlist"
-              ? `Are you sure you want to leave "${title}"? You will no longer be able to add items or see updates.`
-              : `Are you sure you want to delete "${title}"? This action cannot be undone.`
-            }
-          </Text>
-
-          {/* Action Buttons */}
-          <View style={styles.actions}>
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.cancelButton,
-                {
-                  backgroundColor: theme.isDark ? '#2E2E2E' : '#F3F4F6',
-                  borderColor: theme.colors.textSecondary + '40',
-                }
-              ]}
-              onPress={onCancel}
-              disabled={isDeleting}
-              activeOpacity={0.7}
-            >
-              <Text style={[
-                styles.cancelButtonText,
-                { color: theme.colors.textPrimary }
-              ]}>
-                Cancel
+        {/* Action Buttons */}
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.cancelButton,
+              {
+                backgroundColor: theme.isDark ? '#2E2E2E' : '#F3F4F6',
+                borderColor: theme.colors.textSecondary + '40',
+              }
+            ]}
+            onPress={onCancel}
+            disabled={isDeleting}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            delayPressIn={0}
+            delayPressOut={0}
+          >
+            <Text style={[
+              styles.cancelButtonText,
+              { color: theme.colors.textPrimary }
+            ]}>
+              Cancel
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.deleteButton,
+              isDeleting && styles.deleteButtonDisabled
+            ]}
+            onPress={onConfirm}
+            disabled={isDeleting}
+            activeOpacity={0.7}
+          >
+            {isDeleting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.deleteButtonText}>
+                {modalTitle === "Sign Out" ? "Sign Out" : modalTitle === "Block User" ? "Block" : modalTitle === "Remove Friend" ? "Remove" : "Delete"}
               </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.deleteButton,
-                isDeleting && styles.deleteButtonDisabled
-              ]}
-              onPress={onConfirm}
-              disabled={isDeleting}
-              activeOpacity={0.7}
-            >
-              {isDeleting ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.deleteButtonText}>
-                  {modalTitle === "Sign Out" ? "Sign Out" : modalTitle === "Block User" ? "Block" : modalTitle === "Remove Friend" ? "Remove" : "Delete"}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
     </BottomSheet>
@@ -135,34 +127,17 @@ export function DeleteConfirmModal({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0, 0, 0, 0.1)",
-    position: "relative",
+    paddingTop: 0,
+    paddingBottom: 0,
+    minHeight: 0,
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-  },
-  headerSpacer: {
-    width: 24, // Same width as close button to center the title
-  },
-  closeButton: {
-    padding: 4,
-    zIndex: 1,
   },
   content: {
     padding: 24,
@@ -192,6 +167,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     paddingHorizontal: 16,
+    marginBottom: 10,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",

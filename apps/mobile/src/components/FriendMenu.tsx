@@ -75,7 +75,7 @@ export function FriendMenu({
   return (
     <BottomSheet visible={visible} onClose={onClose} autoHeight>
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {/* Header */}
+        {/* Header - Standard pattern: centered title, no X button */}
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
             Options
@@ -191,12 +191,7 @@ export function FriendMenu({
 
           {isBlockedByMe && onUnblockUser && (
             <TouchableOpacity
-              style={[
-                styles.optionRow,
-                {
-                  borderBottomColor: theme.colors.textSecondary + '20',
-                },
-              ]}
+              style={styles.optionRowLast}
               onPress={handleUnblockUser}
               activeOpacity={0.7}
             >
@@ -226,12 +221,7 @@ export function FriendMenu({
 
           {!isBlockedByMe && !isBlockedByThem && onBlockUser && (
             <TouchableOpacity
-              style={[
-                styles.optionRow,
-                {
-                  borderBottomColor: theme.colors.textSecondary + '20',
-                },
-              ]}
+              style={styles.optionRowLast}
               onPress={handleBlockUser}
               activeOpacity={0.7}
             >
@@ -270,22 +260,20 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
     paddingHorizontal: 20,
     paddingTop: 0,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0, 0, 0, 0.1)",
+    paddingBottom: 8,
+    minHeight: 0,
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
-    textAlign: "center",
   },
   content: {
-    paddingVertical: 8,
+    paddingTop: 0,
+    paddingBottom: 20,
   },
   optionRow: {
     flexDirection: "row",
@@ -294,6 +282,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
+  },
+  optionRowLast: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 0,
   },
   optionLeft: {
     flexDirection: "row",

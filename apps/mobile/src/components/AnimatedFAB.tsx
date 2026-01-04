@@ -126,11 +126,12 @@ const getFabContainerStyle = (positionStyle: "tab-bar" | "screen") => {
   if (positionStyle === "tab-bar") {
     // Positioned relative to notch container in tab bar
     // The positioning is handled by the notchArea in TabBarWithNotch
+    // Same z-index as tab bar - bottom sheets use portals and render above
     return {
       position: "relative" as const,
       width: FAB_SIZE,
       height: FAB_SIZE,
-      zIndex: 100,
+      zIndex: 0,
       alignSelf: "center" as const,
     };
   } else {
@@ -140,7 +141,7 @@ const getFabContainerStyle = (positionStyle: "tab-bar" | "screen") => {
       position: "absolute" as const,
       width: FAB_SIZE,
       height: FAB_SIZE,
-      zIndex: 100, // Lower zIndex so bottom sheets (portals) appear above
+      zIndex: 0, // Same zIndex as tab bar - bottom sheets (portals) appear above
       left: SCREEN_WIDTH / 2 - FAB_SIZE / 2, // Start from center (will be translated right)
       bottom: FAB_BOTTOM_POSITION,
     };

@@ -116,6 +116,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     paddingHorizontal: spacing.base,
     pointerEvents: "box-none",
+    zIndex: 0, // Same z-index as FAB - bottom sheets use portals and render above
   },
   menuBar: {
     flexDirection: "row",

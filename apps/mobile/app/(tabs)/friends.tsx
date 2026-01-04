@@ -1,4 +1,4 @@
-import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList, Animated } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList, Animated, Platform } from "react-native";
 import { Text } from "@/components/Text";
 import { router, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -15,6 +15,7 @@ import { useAuth } from "@clerk/clerk-expo";
 import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
 import { CreateGroupGiftSheet } from "@/components/CreateGroupGiftSheet";
 import { BottomSheet } from "@/components/BottomSheet";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function FriendsScreen() {
   const { theme } = useTheme();
@@ -1252,32 +1253,26 @@ export default function FriendsScreen() {
       )}
 
       {/* Block User Confirmation Modal */}
-      {selectedFriend && (
-        <DeleteConfirmModal
-          visible={blockConfirmVisible}
-          title={getDisplayName(selectedFriend) || selectedFriend.username || "this user"}
-          modalTitle="Block User"
-          onConfirm={confirmBlockUser}
-          onCancel={() => {
-            setBlockConfirmVisible(false);
-            setSelectedFriend(null);
-          }}
-        />
-      )}
+      <DeleteConfirmModal
+        visible={blockConfirmVisible && !!selectedFriend}
+        title={selectedFriend ? (getDisplayName(selectedFriend) || selectedFriend.username || "this user") : ""}
+        modalTitle="Block User"
+        onConfirm={confirmBlockUser}
+        onCancel={() => {
+          setBlockConfirmVisible(false);
+        }}
+      />
 
       {/* Remove Friend Confirmation Modal */}
-      {selectedFriend && (
-        <DeleteConfirmModal
-          visible={removeConfirmVisible}
-          title={getDisplayName(selectedFriend) || selectedFriend.username || "this friend"}
-          modalTitle="Remove Friend"
-          onConfirm={confirmRemoveFriend}
-          onCancel={() => {
-            setRemoveConfirmVisible(false);
-            setSelectedFriend(null);
-          }}
-        />
-      )}
+      <DeleteConfirmModal
+        visible={removeConfirmVisible && !!selectedFriend}
+        title={selectedFriend ? (getDisplayName(selectedFriend) || selectedFriend.username || "this friend") : ""}
+        modalTitle="Remove Friend"
+        onConfirm={confirmRemoveFriend}
+        onCancel={() => {
+          setRemoveConfirmVisible(false);
+        }}
+      />
 
       {/* Birthday Gift Choice Modal */}
       <BottomSheet visible={birthdayGiftModalVisible} onClose={() => setBirthdayGiftModalVisible(false)} autoHeight>
@@ -1790,13 +1785,14 @@ const styles = StyleSheet.create({
   birthdayGiftModalContent: {
     padding: 20,
     paddingTop: 0,
+    paddingBottom: 40,
   },
   birthdayGiftModalHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 24,
-    marginTop: 8,
+    marginTop: 0,
   },
   birthdayGiftModalTitle: {
     fontSize: 18,

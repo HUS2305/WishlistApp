@@ -6,17 +6,14 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Platform,
   Image,
 } from "react-native";
 import {
   BottomSheetScrollView,
-  BottomSheetFlatList,
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import type { Priority, Item } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -64,7 +61,6 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
   const [quantity, setQuantity] = useState("1");
   const [priority, setPriority] = useState<Priority>("NICE_TO_HAVE");
   const [isLoading, setIsLoading] = useState(false);
-  const [isParsing, setIsParsing] = useState(false);
   
   // Initialize form with item data when editing or prefilling
   React.useEffect(() => {
@@ -114,23 +110,6 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
       setCurrency(userCurrency);
     }
   }, [visible, userCurrency, isEditMode, prefillItem, item, currency, isLoadingCurrency]);
-
-  const handleParseUrl = async () => {
-    if (!url.trim()) {
-      Alert.alert("Error", "Please enter a URL first");
-      return;
-    }
-
-    setIsParsing(true);
-    try {
-      // TODO: Call API to parse URL and extract product info
-      Alert.alert("Info", "URL parsing will be implemented with the backend");
-    } catch (error) {
-      Alert.alert("Error", "Failed to parse URL");
-    } finally {
-      setIsParsing(false);
-    }
-  };
 
   const handleAdd = async () => {
     if (!title.trim() && !isEditMode) {
@@ -222,38 +201,66 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
     }
   };
 
-  const handleClose = () => {
-    // Don't reset form here - let the useEffect handle it when sheet opens next time
-    // This prevents currency from being reset to "USD" if userCurrency hasn't loaded yet
-    setShowWishlistBottomSheet(false);
-    onClose();
-  };
+  // Calculate bottom padding - minimal padding for keyboard scrolling
+  const bottomPadding = 0; // No extra padding - let content determine its own height
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {/* Header */}
+    <>
+      <BottomSheet 
+        visible={visible} 
+        onClose={onClose} 
+        snapPoints={['90%']}
+        index={0}
+        stackBehavior="switch" 
+        keyboardBehavior="extend"
+        scrollable={true}
+      >
+        {/* Header - Title with action button on right */}
         <View style={styles.header}>
-          <View style={styles.headerSpacer} />
           <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
             {isEditMode ? "Edit Item" : (customTitle || "Add Item")}
           </Text>
           <TouchableOpacity
-            onPress={handleClose}
-            style={styles.closeButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={handleAdd}
+            disabled={isLoading || (!isEditMode && (!title.trim() || !selectedWishlistId))}
+            activeOpacity={0.6}
+            style={styles.headerButton}
           >
-            <Feather name="x" size={24} color={theme.colors.textPrimary} />
+            {isLoading ? (
+              <ActivityIndicator 
+                size="small" 
+                color={(!isEditMode && (!title.trim() || !selectedWishlistId)) || isLoading
+                  ? theme.colors.textSecondary
+                  : theme.colors.primary} 
+              />
+            ) : (
+              <Text style={[
+                styles.headerButtonText,
+                {
+                  color: (!isEditMode && (!title.trim() || !selectedWishlistId)) || isLoading
+                    ? theme.colors.textSecondary
+                    : theme.colors.primary,
+                }
+              ]}>
+                {isEditMode ? "Save" : "Add"}
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
 
-        {/* Scrollable Content */}
+        {/* Scrollable Content - Using BottomSheetScrollView with gorhom's built-in keyboard handling */}
         <BottomSheetScrollView 
             style={styles.content} 
-            contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.contentContainer, 
+              { 
+                paddingBottom: bottomPadding,
+              }
+            ]}
+            showsVerticalScrollIndicator={true}
             keyboardShouldPersistTaps="handled"
             nestedScrollEnabled={true}
+            bounces={true}
           >
             {/* Image and Wishlist Row - Centered */}
             {!isEditMode && (
@@ -597,7 +604,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
             </View>
 
             {/* Priority - Horizontal */}
-            <View style={styles.section}>
+            <View style={styles.lastSection}>
               <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
                 Priority
               </Text>
@@ -665,36 +672,8 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
                 </TouchableOpacity>
               </View>
             </View>
-
-            {/* Bottom spacing for button */}
-            <View style={{ height: 100 }} />
           </BottomSheetScrollView>
-
-          {/* Fixed Bottom Button */}
-          <View style={[styles.bottomButtonContainer, { backgroundColor: theme.colors.background }]}>
-            <TouchableOpacity
-              onPress={handleAdd}
-              disabled={isLoading || (!isEditMode && (!title.trim() || !selectedWishlistId))}
-              style={[
-                styles.addButton,
-                {
-                  backgroundColor: (!isEditMode && (!title.trim() || !selectedWishlistId)) || isLoading
-                    ? theme.colors.textSecondary + '40'
-                    : theme.colors.primary,
-                  opacity: (!isEditMode && (!title.trim() || !selectedWishlistId)) || isLoading ? 0.6 : 1,
-                },
-              ]}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.addButtonText}>
-                  {isEditMode ? "Save Changes" : "Add Item"}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+      </BottomSheet>
 
       {/* Wishlist Selection Sheet */}
       <SelectWishlistSheet
@@ -706,7 +685,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
         }}
         emptyMessage="No wishlists available"
       />
-    </BottomSheet>
+    </>
   );
 }
 
@@ -718,39 +697,47 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 0,
+    paddingBottom: 16,
+    minHeight: 0,
+    justifyContent: "center",
+    alignItems: "center",
     position: "relative",
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "600",
-    position: "absolute",
-    left: 0,
-    right: 0,
     textAlign: "center",
   },
-  headerSpacer: {
-    width: 24,
+  headerButton: {
+    position: "absolute",
+    right: 20,
+    top: 0,
+    bottom: 16,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 50,
   },
-  closeButton: {
-    padding: 4,
-    zIndex: 1,
+  headerButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
   content: {
     flex: 1,
-    overflow: "visible",
   },
   contentContainer: {
-    paddingBottom: 0,
     paddingTop: 8,
-    overflow: "visible",
+    // paddingBottom is set dynamically via inline style
   },
   section: {
     marginBottom: 28,
+    paddingHorizontal: 20,
+    overflow: "visible",
+  },
+  lastSection: {
+    marginBottom: 0, // No bottom margin for last section
     paddingHorizontal: 20,
     overflow: "visible",
   },
@@ -887,7 +874,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   label: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "500",
     marginBottom: 12,
   },
@@ -962,28 +949,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  bottomButtonContainer: {
+  footerContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.1)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
+    paddingTop: 0, // Spacing above button - uses padding so background covers it
+    paddingBottom: 30, // Extra padding to ensure background covers bottomInset space
+    backgroundColor: "transparent", // Will be overridden by inline style
   },
   addButton: {
-    width: "100%",
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 56,
+    width: "100%",
   },
   addButtonText: {
-    color: "#fff",
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });

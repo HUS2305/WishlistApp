@@ -13,6 +13,8 @@ import { ThemeName, themes, getThemeDisplayName } from "@/lib/themes";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ThemedSwitch } from "@/components/ThemedSwitch";
 import { getCurrencyOptions } from "@/utils/currencies";
+import { BottomSheetFlatList, BottomSheetTextInput } from "@gorhom/bottom-sheet";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const sexOptions = [
   { value: "male", label: "Male" },
@@ -45,6 +47,7 @@ export default function CreateProfileScreen() {
   const { theme, setTheme, themeName } = useTheme();
   const { user } = useUser();
   const { getToken } = useAuth();
+  const insets = useSafeAreaInsets();
 
   // Step management
   const [currentStep, setCurrentStep] = useState(1);
@@ -66,6 +69,7 @@ export default function CreateProfileScreen() {
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
   const [currency, setCurrency] = useState<string>("USD"); // Will be updated from user preference if available
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+  const [currencySearchQuery, setCurrencySearchQuery] = useState("");
   const [enableNotifications, setEnableNotifications] = useState(true);
   
   const [loading, setLoading] = useState(false);
@@ -288,26 +292,65 @@ export default function CreateProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Date Picker */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={birthdate}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={(event, selectedDate) => {
-            if (Platform.OS === "android") {
+      {/* Date Picker BottomSheet */}
+      {Platform.OS === "ios" ? (
+        <BottomSheet visible={showDatePicker} onClose={() => setShowDatePicker(false)} autoHeight>
+          <View style={[styles.pickerSheetContainer, { backgroundColor: theme.colors.background }]}>
+            {/* Header - with Done button in top right */}
+            <View style={styles.datePickerHeader}>
+              <View style={styles.datePickerHeaderSpacer} />
+              <Text style={[styles.pickerSheetHeaderTitle, { color: theme.colors.textPrimary }]}>
+                Select Birthdate
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(false)}
+                style={styles.datePickerDoneButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={[styles.datePickerDoneText, { color: theme.colors.primary }]}>
+                  Done
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Date Picker */}
+            <View style={[styles.datePickerWrapper, { paddingBottom: Math.max(20, Platform.OS === "ios" ? insets.bottom + 10 : 20) }]}>
+              <DateTimePicker
+                value={birthdate}
+                mode="date"
+                display="spinner"
+                onChange={(event, selectedDate) => {
+                  if (selectedDate) {
+                    setBirthdate(selectedDate);
+                  }
+                  if (event?.type === "dismissed") {
+                    setShowDatePicker(false);
+                  }
+                }}
+                maximumDate={new Date()}
+                minimumDate={new Date(1900, 0, 1)}
+                style={styles.datePicker}
+              />
+            </View>
+          </View>
+        </BottomSheet>
+      ) : (
+        // Android: Use native modal (DateTimePicker handles its own modal on Android)
+        showDatePicker && (
+          <DateTimePicker
+            value={birthdate}
+            mode="date"
+            display="default"
+            onChange={(event, selectedDate) => {
               setShowDatePicker(false);
-            }
-            if (selectedDate) {
-              setBirthdate(selectedDate);
-            }
-            if (Platform.OS === "ios" && event.type === "dismissed") {
-              setShowDatePicker(false);
-            }
-          }}
-          maximumDate={new Date()}
-          minimumDate={new Date(1900, 0, 1)}
-        />
+              if (selectedDate) {
+                setBirthdate(selectedDate);
+              }
+            }}
+            maximumDate={new Date()}
+            minimumDate={new Date(1900, 0, 1)}
+          />
+        )
       )}
 
       {/* Sex Selection */}
@@ -340,55 +383,51 @@ export default function CreateProfileScreen() {
       {/* Sex Picker BottomSheet */}
       <BottomSheet visible={showSexPicker} onClose={() => setShowSexPicker(false)} autoHeight>
         <View style={[styles.pickerSheetContainer, { backgroundColor: theme.colors.background }]}>
-          {/* Header */}
+          {/* Header - Standard pattern: centered title, no X button */}
           <View style={styles.pickerSheetHeader}>
-            <View style={styles.pickerSheetHeaderSpacer} />
             <Text style={[styles.pickerSheetHeaderTitle, { color: theme.colors.textPrimary }]}>
               Select Sex
             </Text>
-            <TouchableOpacity
-              onPress={() => setShowSexPicker(false)}
-              style={styles.pickerSheetCloseButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Feather name="x" size={24} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
           </View>
 
           {/* Options */}
-          <View style={styles.pickerSheetContent}>
-            {sexOptions.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.pickerSheetOptionRow,
-                  {
-                    borderBottomColor: theme.colors.textSecondary + '20',
-                  },
-                ]}
-                onPress={() => {
-                  setSex(option.value);
-                  setShowSexPicker(false);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text
+          <View style={[styles.pickerSheetContent, { paddingBottom: Math.max(20, Platform.OS === "ios" ? insets.bottom + 0 : 20) }]}>
+            {sexOptions.map((option, index) => {
+              const isLast = index === sexOptions.length - 1;
+              return (
+                <TouchableOpacity
+                  key={option.value}
                   style={[
-                    styles.pickerSheetOptionText,
-                    { color: theme.colors.textPrimary },
-                    sex === option.value && { 
-                      color: theme.colors.primary,
-                      fontWeight: "600",
+                    styles.pickerSheetOptionRow,
+                    {
+                      borderBottomColor: theme.colors.textSecondary + '20',
+                      borderBottomWidth: isLast ? 0 : 1,
                     },
                   ]}
+                  onPress={() => {
+                    setSex(option.value);
+                    setShowSexPicker(false);
+                  }}
+                  activeOpacity={0.7}
                 >
-                  {option.label}
-                </Text>
-                {sex === option.value && (
-                  <Feather name="check" size={20} color={theme.colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.pickerSheetOptionText,
+                      { color: theme.colors.textPrimary },
+                      sex === option.value && { 
+                        color: theme.colors.primary,
+                        fontWeight: "600",
+                      },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  {sex === option.value && (
+                    <Feather name="check" size={20} color={theme.colors.primary} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       </BottomSheet>
@@ -554,6 +593,7 @@ export default function CreateProfileScreen() {
       {/* Notifications */}
       <View style={[styles.preferenceItem, { 
         borderBottomColor: theme.colors.textSecondary + '25',
+        borderBottomWidth: 0,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -598,7 +638,10 @@ export default function CreateProfileScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: Math.max(48, Platform.OS === "ios" ? insets.top + 24 : insets.top + 32) }
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <Stepper
@@ -661,125 +704,164 @@ export default function CreateProfileScreen() {
       </View>
 
       {/* Language Picker BottomSheet */}
-      <BottomSheet visible={showLanguagePicker} onClose={() => setShowLanguagePicker(false)} height={0.7}>
-        <View style={[styles.pickerSheetContainer, { backgroundColor: theme.colors.background, flex: 1 }]}>
-          {/* Header */}
-          <View style={styles.pickerSheetHeader}>
-            <View style={styles.pickerSheetHeaderSpacer} />
-            <Text style={[styles.pickerSheetHeaderTitle, { color: theme.colors.textPrimary }]}>
-              Select Language
-            </Text>
+      <BottomSheet visible={showLanguagePicker} onClose={() => setShowLanguagePicker(false)} autoHeight scrollable>
+        {/* Header - Using ListHeaderComponent */}
+        <BottomSheetFlatList
+          data={languageOptions}
+          keyExtractor={(item: { value: string; label: string }) => item.value}
+          ListHeaderComponent={
+            <View style={[styles.pickerSheetHeader, { backgroundColor: theme.colors.background }]}>
+              <Text style={[styles.pickerSheetHeaderTitle, { color: theme.colors.textPrimary }]}>
+                Select Language
+              </Text>
+            </View>
+          }
+          renderItem={({ item }: { item: { value: string; label: string } }) => (
             <TouchableOpacity
-              onPress={() => setShowLanguagePicker(false)}
-              style={styles.pickerSheetCloseButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={[
+                styles.pickerSheetOptionRow,
+                {
+                  backgroundColor: theme.colors.background,
+                  borderBottomColor: theme.colors.textSecondary + '20',
+                },
+              ]}
+              onPress={() => {
+                setLanguage(item.value);
+                setShowLanguagePicker(false);
+              }}
+              activeOpacity={0.7}
             >
-              <Feather name="x" size={24} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Options */}
-          <ScrollView 
-            style={styles.pickerSheetContent}
-            contentContainerStyle={styles.pickerSheetContentContainer}
-            showsVerticalScrollIndicator={true}
-            nestedScrollEnabled={true}
-          >
-            {languageOptions.map((option) => (
-              <TouchableOpacity
-                key={option.value}
+              <Text
                 style={[
-                  styles.pickerSheetOptionRow,
-                  {
-                    borderBottomColor: theme.colors.textSecondary + '20',
+                  styles.pickerSheetOptionText,
+                  { color: theme.colors.textPrimary },
+                  language === item.value && { 
+                    color: theme.colors.primary,
+                    fontWeight: "600",
                   },
                 ]}
-                onPress={() => {
-                  setLanguage(option.value);
-                  setShowLanguagePicker(false);
-                }}
-                activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    styles.pickerSheetOptionText,
-                    { color: theme.colors.textPrimary },
-                    language === option.value && { 
-                      color: theme.colors.primary,
-                      fontWeight: "600",
-                    },
-                  ]}
-                >
-                  {option.label}
-                </Text>
-                {language === option.value && (
-                  <Feather name="check" size={20} color={theme.colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+                {item.label}
+              </Text>
+              {language === item.value && (
+                <Feather name="check" size={20} color={theme.colors.primary} />
+              )}
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={[
+            { paddingBottom: Math.max(20, Platform.OS === "ios" ? insets.bottom + 30 : 20) }
+          ]}
+          showsVerticalScrollIndicator={false}
+        />
       </BottomSheet>
 
       {/* Currency Picker BottomSheet */}
-      <BottomSheet visible={showCurrencyPicker} onClose={() => setShowCurrencyPicker(false)} height={0.7}>
-        <View style={[styles.pickerSheetContainer, { backgroundColor: theme.colors.background, flex: 1 }]}>
-          {/* Header */}
-          <View style={styles.pickerSheetHeader}>
-            <View style={styles.pickerSheetHeaderSpacer} />
-            <Text style={[styles.pickerSheetHeaderTitle, { color: theme.colors.textPrimary }]}>
-              Select Currency
-            </Text>
-            <TouchableOpacity
-              onPress={() => setShowCurrencyPicker(false)}
-              style={styles.pickerSheetCloseButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Feather name="x" size={24} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
+      <BottomSheet 
+        visible={showCurrencyPicker} 
+        onClose={() => {
+          setShowCurrencyPicker(false);
+          setCurrencySearchQuery(""); // Reset search when closing
+        }} 
+        autoHeight 
+        scrollable
+      >
+        {/* Filter currencies based on search */}
+        {(() => {
+          const filteredCurrencies = currencySearchQuery.trim()
+            ? currencyOptions.filter((option) =>
+                option.label.toLowerCase().includes(currencySearchQuery.toLowerCase()) ||
+                option.value.toLowerCase().includes(currencySearchQuery.toLowerCase())
+              )
+            : currencyOptions;
 
-          {/* Options */}
-          <ScrollView 
-            style={styles.pickerSheetContent}
-            contentContainerStyle={styles.pickerSheetContentContainer}
-            showsVerticalScrollIndicator={true}
-            nestedScrollEnabled={true}
-          >
-            {currencyOptions.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.pickerSheetOptionRow,
-                  {
-                    borderBottomColor: theme.colors.textSecondary + '20',
-                  },
-                ]}
-                onPress={() => {
-                  setCurrency(option.value);
-                  setShowCurrencyPicker(false);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text
+          return (
+            <BottomSheetFlatList
+              data={filteredCurrencies}
+              keyExtractor={(item: { value: string; label: string }) => item.value}
+              ListHeaderComponent={
+                <View style={{ backgroundColor: theme.colors.background }}>
+                  {/* Header */}
+                  <View style={[styles.pickerSheetHeader, { backgroundColor: theme.colors.background }]}>
+                    <Text style={[styles.pickerSheetHeaderTitle, { color: theme.colors.textPrimary }]}>
+                      Select Currency
+                    </Text>
+                  </View>
+                  
+                  {/* Search Bar */}
+                  <View style={[styles.searchContainer, { backgroundColor: theme.colors.background }]}>
+                    <View style={[
+                      styles.searchInputContainer,
+                      {
+                        backgroundColor: theme.isDark ? '#2E2E2E' : '#F3F4F6',
+                        borderColor: theme.colors.textSecondary + '20',
+                      }
+                    ]}>
+                      <Feather name="search" size={20} color={theme.colors.textSecondary} style={styles.searchIcon} />
+                      <BottomSheetTextInput
+                        style={[
+                          styles.searchInput,
+                          { color: theme.colors.textPrimary }
+                        ]}
+                        placeholder="Search currencies..."
+                        placeholderTextColor={theme.colors.textSecondary}
+                        value={currencySearchQuery}
+                        onChangeText={setCurrencySearchQuery}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      {currencySearchQuery.length > 0 && (
+                        <TouchableOpacity
+                          onPress={() => setCurrencySearchQuery("")}
+                          style={styles.clearButton}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Feather name="x" size={18} color={theme.colors.textSecondary} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                </View>
+              }
+              renderItem={({ item }: { item: { value: string; label: string } }) => (
+                <TouchableOpacity
                   style={[
-                    styles.pickerSheetOptionText,
-                    { color: theme.colors.textPrimary },
-                    currency === option.value && { 
-                      color: theme.colors.primary,
-                      fontWeight: "600",
+                    styles.pickerSheetOptionRow,
+                    {
+                      backgroundColor: theme.colors.background,
+                      borderBottomColor: theme.colors.textSecondary + '20',
                     },
                   ]}
+                  onPress={() => {
+                    setCurrency(item.value);
+                    setShowCurrencyPicker(false);
+                    setCurrencySearchQuery(""); // Reset search when selecting
+                  }}
+                  activeOpacity={0.7}
                 >
-                  {option.label}
-                </Text>
-                {currency === option.value && (
-                  <Feather name="check" size={20} color={theme.colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+                  <Text
+                    style={[
+                      styles.pickerSheetOptionText,
+                      { color: theme.colors.textPrimary },
+                      currency === item.value && { 
+                        color: theme.colors.primary,
+                        fontWeight: "600",
+                      },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  {currency === item.value && (
+                    <Feather name="check" size={20} color={theme.colors.primary} />
+                  )}
+                </TouchableOpacity>
+              )}
+              contentContainerStyle={[
+                { paddingBottom: Math.max(20, Platform.OS === "ios" ? insets.bottom + 30 : 20) }
+              ]}
+              showsVerticalScrollIndicator={false}
+            />
+          );
+        })()}
       </BottomSheet>
     </View>
   );
@@ -794,7 +876,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingTop: 48,
     paddingBottom: 100,
   },
   title: {
@@ -865,6 +946,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 24,
+    marginTop: -16,
     textAlign: "center",
   },
   themesGrid: {
@@ -927,29 +1009,43 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
   },
   pickerSheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0, 0, 0, 0.1)",
-    position: "relative",
-  },
-  pickerSheetHeaderSpacer: {
-    width: 24, // Same width as close button to center the title
+    paddingTop: 0,
+    paddingBottom: 8,
+    minHeight: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 0,
   },
   pickerSheetHeaderTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
   },
-  pickerSheetCloseButton: {
+  searchContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  searchInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    minHeight: 44,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 0,
+    minHeight: 44,
+  },
+  clearButton: {
     padding: 4,
-    zIndex: 1,
+    marginLeft: 8,
   },
   pickerSheetContent: {
     flex: 1, // Take available space for scrolling
@@ -964,10 +1060,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
+    minHeight: 56,
   },
   pickerSheetOptionText: {
     fontSize: 16,
     fontWeight: "400",
+  },
+  datePickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 0,
+    paddingBottom: 8,
+    minHeight: 0,
+    marginBottom: 0,
+  },
+  datePickerHeaderSpacer: {
+    width: 50, // Same width as Done button to center the title
+  },
+  datePickerDoneButton: {
+    paddingVertical: 0,
+    paddingHorizontal: 4,
+  },
+  datePickerDoneText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  datePickerWrapper: {
+    paddingHorizontal: 20,
+    alignItems: "center",
+  },
+  datePicker: {
+    height: 200,
+    width: "100%",
   },
 });
 

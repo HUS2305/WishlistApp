@@ -175,22 +175,47 @@ export function CreateGroupGiftSheet({
         emptyMessage="No friends to invite. Add friends first!"
       />
 
-      <BottomSheet visible={visible} onClose={handleClose} stackBehavior="switch">
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerSpacer} />
-            <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-              Create Group Gift
-            </Text>
-            <TouchableOpacity
-              onPress={handleClose}
-              style={styles.closeButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Feather name="x" size={24} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
+      <BottomSheet 
+        visible={visible} 
+        onClose={handleClose} 
+        snapPoints={['90%']}
+        index={0}
+        stackBehavior="switch"
+        keyboardBehavior="extend"
+        scrollable={true}
+      >
+        {/* Header - Title with action button on right */}
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
+            Create Group Gift
+          </Text>
+          <TouchableOpacity
+            onPress={handleCreate}
+            disabled={isLoading || !title.trim() || selectedFriends.size === 0}
+            activeOpacity={0.6}
+            style={styles.headerButton}
+          >
+            {isLoading ? (
+              <ActivityIndicator 
+                size="small" 
+                color={(!title.trim() || selectedFriends.size === 0 || isLoading)
+                  ? theme.colors.textSecondary
+                  : theme.colors.primary} 
+              />
+            ) : (
+              <Text style={[
+                styles.headerButtonText,
+                {
+                  color: (!title.trim() || selectedFriends.size === 0 || isLoading)
+                    ? theme.colors.textSecondary
+                    : theme.colors.primary,
+                }
+              ]}>
+                Create
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
 
           {/* Scrollable Content */}
           <BottomSheetScrollView 
@@ -322,70 +347,49 @@ export function CreateGroupGiftSheet({
               </View>
             </View>
 
-            {/* Bottom spacing for button */}
-            <View style={{ height: 100 }} />
           </BottomSheetScrollView>
-
-          {/* Fixed Bottom Button */}
-          <View style={[styles.bottomButtonContainer, { backgroundColor: theme.colors.background }]}>
-            <TouchableOpacity
-              onPress={handleCreate}
-              disabled={isLoading || !title.trim() || selectedFriends.size === 0}
-              style={[
-                styles.createButton,
-                {
-                  backgroundColor: (!title.trim() || selectedFriends.size === 0 || isLoading) 
-                    ? theme.colors.textSecondary + '40'
-                    : theme.colors.primary,
-                  opacity: (!title.trim() || selectedFriends.size === 0 || isLoading) ? 0.6 : 1,
-                },
-              ]}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.createButtonText}>Create Group Gift</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
       </BottomSheet>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 0,
+    paddingBottom: 16,
+    minHeight: 0,
+    justifyContent: "center",
+    alignItems: "center",
     position: "relative",
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "600",
-    position: "absolute",
-    left: 0,
-    right: 0,
     textAlign: "center",
   },
-  headerSpacer: {
-    width: 24,
+  headerButton: {
+    position: "absolute",
+    right: 20,
+    top: 0,
+    bottom: 16,
+    justifyContent: "center",
+    alignItems: "flex-end",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 50,
   },
-  closeButton: {
-    padding: 4,
+  headerButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
   content: {
     flex: 1,
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 0,
+    paddingTop: 0,
+    paddingBottom: 20,
   },
   titleContainer: {
     alignItems: "center",
@@ -492,30 +496,6 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginVertical: 12,
-  },
-  bottomButtonContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0, 0, 0, 0.1)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  createButton: {
-    width: "100%",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  createButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
   },
 });
 

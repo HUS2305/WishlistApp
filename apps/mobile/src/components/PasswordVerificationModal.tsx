@@ -4,9 +4,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  TextInput,
   Alert,
 } from "react-native";
+import { BottomSheetTextInput } from "@gorhom/bottom-sheet";
 import { Text } from "./Text";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -57,52 +57,38 @@ export function PasswordVerificationModal({
   };
 
   return (
-    <BottomSheet visible={visible} onClose={handleCancel}>
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerSpacer} />
-          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-            Verify Your Identity
-          </Text>
-          <TouchableOpacity
-            onPress={handleCancel}
-            style={styles.closeButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            disabled={isLoading || isVerifying}
-          >
-            <Feather 
-              name="x" 
-              size={24} 
-              color={isLoading || isVerifying ? theme.colors.textSecondary : theme.colors.textPrimary} 
-            />
-          </TouchableOpacity>
-        </View>
+    <BottomSheet visible={visible} onClose={handleCancel} autoHeight={true}>
+      {/* Header - Standard pattern: centered title, no X button */}
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
+          Verify Your Identity
+        </Text>
+      </View>
 
-        {/* Content */}
-        <View style={styles.content}>
-          <Text style={[styles.message, { color: theme.colors.textPrimary }]}>
-            For your security, please enter your password to confirm this action.
-          </Text>
+      {/* Content */}
+      <View style={styles.content}>
+        <Text style={[styles.message, { color: theme.colors.textPrimary }]}>
+          For your security, please enter your password to confirm this action.
+        </Text>
 
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.colors.surface,
-                color: theme.colors.textPrimary,
-                borderColor: theme.colors.textSecondary + '30',
-              },
-            ]}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Enter your password"
-            placeholderTextColor={theme.colors.textSecondary}
-            secureTextEntry
-            autoCapitalize="none"
-            editable={!isLoading && !isVerifying}
-            onSubmitEditing={handleConfirm}
-          />
+        <BottomSheetTextInput
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.colors.surface,
+              color: theme.colors.textPrimary,
+              borderColor: theme.colors.textSecondary + '30',
+            },
+          ]}
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Enter your password"
+          placeholderTextColor={theme.colors.textSecondary}
+          secureTextEntry
+          autoCapitalize="none"
+          editable={!isLoading && !isVerifying}
+          onSubmitEditing={handleConfirm}
+        />
 
           {/* Action Buttons */}
           <View style={styles.actions}>
@@ -148,41 +134,22 @@ export function PasswordVerificationModal({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
     </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0, 0, 0, 0.1)",
-    position: "relative",
+    paddingTop: 0,
+    paddingBottom: 0,
+    minHeight: 0,
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
-    position: "absolute",
-    left: 0,
-    right: 0,
-    textAlign: "center",
-  },
-  headerSpacer: {
-    width: 24,
-  },
-  closeButton: {
-    padding: 4,
-    zIndex: 1,
   },
   content: {
     padding: 24,
@@ -211,6 +178,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     paddingHorizontal: 16,
+    marginBottom: 10,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",

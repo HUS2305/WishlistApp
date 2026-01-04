@@ -168,21 +168,56 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
         initialSelection={selectedFriends}
       />
 
-      <BottomSheet visible={visible} onClose={onClose} stackBehavior="switch">
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-          {/* Header - Standard pattern: centered title, no X button */}
-          <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-              Create Wishlist
-            </Text>
-          </View>
+      <BottomSheet 
+        visible={visible} 
+        onClose={onClose} 
+        snapPoints={['90%']}
+        index={0}
+        stackBehavior="switch"
+        keyboardBehavior="extend"
+        scrollable={true}
+      >
+        {/* Header - Title with action button on right */}
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
+            Create Wishlist
+          </Text>
+          <TouchableOpacity
+            onPress={handleCreate}
+            disabled={isLoading || !title.trim()}
+            activeOpacity={0.6}
+            style={styles.headerButton}
+          >
+            {isLoading ? (
+              <ActivityIndicator 
+                size="small" 
+                color={(!title.trim() || isLoading)
+                  ? theme.colors.textSecondary
+                  : theme.colors.primary} 
+              />
+            ) : (
+              <Text style={[
+                styles.headerButtonText,
+                {
+                  color: (!title.trim() || isLoading)
+                    ? theme.colors.textSecondary
+                    : theme.colors.primary,
+                }
+              ]}>
+                Create
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
 
-          {/* Scrollable Content */}
-          <BottomSheetScrollView 
+        {/* Scrollable Content - Using BottomSheetScrollView with gorhom's built-in keyboard handling */}
+        <BottomSheetScrollView 
             style={styles.content} 
             contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
             keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}
+            bounces={true}
           >
             {/* Wishlist Image */}
             <View style={styles.imageContainer}>
@@ -415,33 +450,7 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
               </View>
             </View>
 
-            {/* Bottom spacing for button */}
-            <View style={{ height: 100 }} />
           </BottomSheetScrollView>
-
-          {/* Fixed Bottom Button */}
-          <View style={[styles.bottomButtonContainer, { backgroundColor: theme.colors.background }]}>
-            <TouchableOpacity
-              onPress={handleCreate}
-              disabled={isLoading || !title.trim()}
-              style={[
-                styles.createButton,
-                {
-                  backgroundColor: (!title.trim() || isLoading) 
-                    ? theme.colors.textSecondary + '40'
-                    : theme.colors.primary,
-                  opacity: (!title.trim() || isLoading) ? 0.6 : 1,
-                },
-              ]}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.createButtonText}>Create Wishlist</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
       </BottomSheet>
     </>
   );
@@ -455,15 +464,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    minHeight: 56,
+    paddingTop: 0,
+    paddingBottom: 16,
+    minHeight: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
   },
   headerTitle: {
     fontSize: 20,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  headerButton: {
+    position: "absolute",
+    right: 20,
+    top: 0,
+    bottom: 16,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 50,
+  },
+  headerButtonText: {
+    fontSize: 16,
     fontWeight: "600",
   },
   content: {
@@ -698,30 +723,6 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginVertical: 12,
-  },
-  bottomButtonContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0, 0, 0, 0.1)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  createButton: {
-    width: "100%",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  createButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
   },
 });
 

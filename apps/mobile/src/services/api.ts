@@ -80,10 +80,27 @@ api.interceptors.response.use(
     }
     
     if (error.response) {
-      // Don't log 401 errors for /users/me endpoint (expected when not authenticated)
-      // These should be prevented by the request interceptor, but handle gracefully if they slip through
-      if (!(is401 && isUsersMeEndpoint)) {
-        console.error("❌ API Error:", error.response.status, error.response.data, error.config.url);
+      const is404 = error.response?.status === 404;
+      const is500 = error.response?.status === 500;
+      
+      // Don't log expected errors:
+      // - 401 errors for /users/me (expected when not authenticated)
+      // - 404 errors for /users/me (expected for new users creating profile)
+      // - 500 errors for /users/me (backend issue, but expected during profile creation)
+      const shouldSuppressError = 
+        (is401 && isUsersMeEndpoint) || 
+        (is404 && isUsersMeEndpoint) ||
+        (is500 && isUsersMeEndpoint);
+      
+      if (!shouldSuppressError) {
+        // Also suppress 404/500 for friends/notifications endpoints when user doesn't have profile yet
+        const isFriendsEndpoint = error.config?.url?.includes('/friends/requests/pending');
+        const isNotificationsEndpoint = error.config?.url?.includes('/notifications/unread-count');
+        const isExpectedError = (is404 || is500) && (isFriendsEndpoint || isNotificationsEndpoint);
+        
+        if (!isExpectedError) {
+          console.error("❌ API Error:", error.response.status, error.response.data, error.config.url);
+        }
       }
     } else if (error.request) {
       // Only log network errors if not a 401 on /users/me

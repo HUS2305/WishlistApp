@@ -1,4 +1,4 @@
-import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList, Platform } from "react-native";
 import { Text } from "@/components/Text";
 import { router, useFocusEffect, useNavigation } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -14,10 +14,12 @@ import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
 import { CreateGroupGiftSheet } from "@/components/CreateGroupGiftSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 import { getHeaderOptions, HeaderButton } from "@/lib/navigation";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AllFriendsScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { isLoaded: isClerkLoaded, userId } = useAuth();
   const [friends, setFriends] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -410,12 +412,14 @@ export default function AllFriendsScreen() {
                     <TouchableOpacity
                       onPress={(e: any) => {
                         e.stopPropagation();
+                        console.log("🔵 Three dot menu button pressed for friend:", friend.id);
                         setSelectedFriend(friend);
                         setSelectedFriendBlockStatus({});
                         setFriendMenuVisible(true);
                       }}
                       style={styles.menuButton}
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      activeOpacity={0.7}
                     >
                       <Feather name="more-horizontal" size={20} color={theme.colors.textSecondary} />
                     </TouchableOpacity>
@@ -462,8 +466,8 @@ export default function AllFriendsScreen() {
         />
       )}
 
-      {/* Block User Confirmation Modal */}
-      {selectedFriend && (
+      {/* Block User Confirmation Modal - Only render when actually needed */}
+      {selectedFriend && blockConfirmVisible && (
         <DeleteConfirmModal
           visible={blockConfirmVisible}
           title={getDisplayName(selectedFriend) || selectedFriend.username || "this user"}
@@ -471,13 +475,12 @@ export default function AllFriendsScreen() {
           onConfirm={confirmBlockUser}
           onCancel={() => {
             setBlockConfirmVisible(false);
-            setSelectedFriend(null);
           }}
         />
       )}
 
-      {/* Remove Friend Confirmation Modal */}
-      {selectedFriend && (
+      {/* Remove Friend Confirmation Modal - Only render when actually needed */}
+      {selectedFriend && removeConfirmVisible && (
         <DeleteConfirmModal
           visible={removeConfirmVisible}
           title={getDisplayName(selectedFriend) || selectedFriend.username || "this friend"}
@@ -485,7 +488,6 @@ export default function AllFriendsScreen() {
           onConfirm={confirmRemoveFriend}
           onCancel={() => {
             setRemoveConfirmVisible(false);
-            setSelectedFriend(null);
           }}
         />
       )}
@@ -493,13 +495,14 @@ export default function AllFriendsScreen() {
       {/* Birthday Gift Choice Modal */}
       <BottomSheet visible={birthdayGiftModalVisible} onClose={() => setBirthdayGiftModalVisible(false)} autoHeight>
         <View style={[styles.birthdayGiftModalContent, { backgroundColor: theme.colors.background }]}>
+          {/* Header - Standard pattern: centered title, no X button */}
           <View style={styles.birthdayGiftModalHeader}>
             <Text style={[styles.birthdayGiftModalTitle, { color: theme.colors.textPrimary }]}>
               Create Gift List for {selectedBirthdayFriend?.name}
             </Text>
           </View>
           
-          <View style={styles.birthdayGiftOptions}>
+          <View style={[styles.birthdayGiftOptions, { paddingBottom: Math.max(20, Platform.OS === "ios" ? insets.bottom + 30 : 20) }]}>
             {/* Regular Wishlist Option */}
             <TouchableOpacity
               style={[
@@ -752,20 +755,21 @@ const styles = StyleSheet.create({
     marginLeft: 24,
   },
   birthdayGiftModalContent: {
-    padding: 20,
+    paddingHorizontal: 20,
     paddingTop: 0,
   },
   birthdayGiftModalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 0,
+    paddingBottom: 8,
+    minHeight: 0,
     justifyContent: "center",
-    marginBottom: 24,
-    marginTop: 8,
+    alignItems: "center",
+    marginBottom: 16,
   },
   birthdayGiftModalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    textAlign: "center",
+    fontSize: 20,
+    fontWeight: "600",
   },
   birthdayGiftOptions: {
     gap: 12,

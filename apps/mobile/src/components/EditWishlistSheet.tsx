@@ -152,21 +152,6 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
     );
   };
 
-  const handleClose = () => {
-    // Reset to original values when closing without saving
-    if (wishlist) {
-      setTitle(wishlist.title || "");
-      setDescription(wishlist.description || "");
-      setPrivacyLevel(wishlist.privacyLevel);
-      setAllowReservations(wishlist.allowReservations ?? true);
-      // Reset selected friends to original existing collaborators
-      const existingIds = new Set(wishlist.collaborators?.map(c => c.userId) || []);
-      setSelectedFriends(existingIds);
-    } else {
-      setSelectedFriends(new Set());
-    }
-    onClose();
-  };
 
   const isLoading = updateWishlist.isPending;
 
@@ -180,34 +165,56 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
         initialSelection={selectedFriends}
       />
 
-      <BottomSheet visible={visible} onClose={handleClose} stackBehavior="switch">
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerSpacer} />
-            <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-              Edit Wishlist
-            </Text>
-            <TouchableOpacity
-              onPress={handleClose}
-              style={styles.closeButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              disabled={isLoading}
-            >
-              <Feather 
-                name="x" 
-                size={24} 
-                color={isLoading ? theme.colors.textSecondary : theme.colors.textPrimary} 
+      <BottomSheet 
+        visible={visible} 
+        onClose={onClose} 
+        snapPoints={['90%']}
+        index={0}
+        stackBehavior="switch"
+        keyboardBehavior="extend"
+        scrollable={true}
+      >
+        {/* Header - Title with action button on right */}
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
+            Edit Wishlist
+          </Text>
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={isLoading || !title.trim()}
+            activeOpacity={0.6}
+            style={styles.headerButton}
+          >
+            {isLoading ? (
+              <ActivityIndicator 
+                size="small" 
+                color={(!title.trim() || isLoading)
+                  ? theme.colors.textSecondary
+                  : theme.colors.primary} 
               />
-            </TouchableOpacity>
-          </View>
+            ) : (
+              <Text style={[
+                styles.headerButtonText,
+                {
+                  color: (!title.trim() || isLoading)
+                    ? theme.colors.textSecondary
+                    : theme.colors.primary,
+                }
+              ]}>
+                Save
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
 
-          {/* Scrollable Content */}
-          <BottomSheetScrollView 
+        {/* Scrollable Content - Using BottomSheetScrollView with gorhom's built-in keyboard handling */}
+        <BottomSheetScrollView 
             style={styles.content} 
             contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
             keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}
+            bounces={true}
           >
             {/* Wishlist Image */}
             <View style={styles.imageContainer}>
@@ -451,33 +458,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
               </View>
             </View>
 
-            {/* Bottom spacing for button */}
-            <View style={{ height: 100 }} />
           </BottomSheetScrollView>
-
-          {/* Fixed Bottom Button */}
-          <View style={[styles.bottomButtonContainer, { backgroundColor: theme.colors.background }]}>
-            <TouchableOpacity
-              onPress={handleSave}
-              disabled={isLoading || !title.trim()}
-              style={[
-                styles.saveButton,
-                {
-                  backgroundColor: (!title.trim() || isLoading) 
-                    ? theme.colors.textSecondary + '40'
-                    : theme.colors.primary,
-                  opacity: (!title.trim() || isLoading) ? 0.6 : 1,
-                },
-              ]}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.saveButtonText}>Save Changes</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
       </BottomSheet>
     </>
   );
@@ -491,26 +472,32 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 0,
+    paddingBottom: 16,
+    minHeight: 0,
+    justifyContent: "center",
+    alignItems: "center",
     position: "relative",
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "600",
-    position: "absolute",
-    left: 0,
-    right: 0,
     textAlign: "center",
   },
-  headerSpacer: {
-    width: 24,
+  headerButton: {
+    position: "absolute",
+    right: 20,
+    top: 0,
+    bottom: 16,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 50,
   },
-  closeButton: {
-    padding: 4,
+  headerButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
   content: {
     flex: 1,
@@ -669,30 +656,6 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginVertical: 12,
-  },
-  bottomButtonContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0, 0, 0, 0.1)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  saveButton: {
-    width: "100%",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
   },
 });
 

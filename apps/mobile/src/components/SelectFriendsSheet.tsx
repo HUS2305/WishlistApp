@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
-import { BottomSheetScrollView, BottomSheetFooter, type BottomSheetFooterProps } from "@gorhom/bottom-sheet";
+import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet } from "./BottomSheet";
 import { friendsService } from "@/services/friends";
 import type { User as FriendUser } from "@/types";
@@ -36,7 +35,6 @@ export function SelectFriendsSheet({
   emptyMessage = "No friends to invite. Add friends first!",
 }: SelectFriendsSheetProps) {
   const { theme } = useTheme();
-  const insets = useSafeAreaInsets();
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
   const [selectedFriends, setSelectedFriends] = useState<Set<string>>(initialSelection);
@@ -120,47 +118,33 @@ export function SelectFriendsSheet({
     );
   };
 
-  // Render footer with sticky button
-  const renderFooter = useCallback(
-    (props: BottomSheetFooterProps) => (
-      <BottomSheetFooter {...props} bottomInset={Math.max(0, insets.bottom - 40)}>
-        <View style={[styles.footerContainer, { backgroundColor: theme.colors.background }]}>
-          <TouchableOpacity
-            style={[
-              styles.doneButton,
-              {
-                backgroundColor: selectedFriends.size === 0
-                  ? theme.colors.textSecondary + '40'
-                  : theme.colors.primary,
-              opacity: selectedFriends.size === 0 ? 0.6 : 1
-              }
-            ]}
-            onPress={handleConfirm}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.doneButtonText}>
-              {selectedFriends.size === 0
-                ? "Select at least one friend"
-                : selectedFriends.size === 1
-                  ? "Add friend"
-                  : `Add ${selectedFriends.size} friends`}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </BottomSheetFooter>
-    ),
-    [selectedFriends.size, theme.colors, handleConfirm, insets.bottom]
-  );
-
   return (
-    <BottomSheet visible={visible} onClose={onClose} autoHeight={true} footerComponent={renderFooter} stackBehavior="push">
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {/* Header - Standard pattern: centered title, no X button */}
-        <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-            Select Friends
+    <BottomSheet visible={visible} onClose={onClose} autoHeight={true} stackBehavior="push">
+      {/* Header - Title with action button on right */}
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
+          Select Friends
+        </Text>
+        <TouchableOpacity
+          onPress={handleConfirm}
+          disabled={selectedFriends.size === 0}
+          activeOpacity={0.6}
+          style={styles.headerButton}
+        >
+          <Text style={[
+            styles.headerButtonText,
+            {
+              color: selectedFriends.size === 0
+                ? theme.colors.textSecondary
+                : theme.colors.primary,
+            }
+          ]}>
+            {selectedFriends.size === 0 ? "Done" : "Add"}
           </Text>
-        </View>
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
 
         {/* Content - Using BottomSheetScrollView for proper gesture handling */}
         <BottomSheetScrollView
@@ -196,16 +180,31 @@ const styles = StyleSheet.create({
     // With dynamic sizing, let content determine size
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
     paddingHorizontal: 20,
     paddingTop: 0,
-    paddingBottom: 8,
+    paddingBottom: 16,
     minHeight: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
   },
   headerTitle: {
     fontSize: 20,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  headerButton: {
+    position: "absolute",
+    right: 20,
+    top: 0,
+    bottom: 16,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 50,
+  },
+  headerButtonText: {
+    fontSize: 16,
     fontWeight: "600",
   },
   content: {
@@ -214,7 +213,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 130, // Space for footer (paddingTop: 16 + button height: 56 + paddingBottom: 20 + safe area: ~28)
+    paddingBottom: 50, // Space for footer (paddingTop: 16 + button height: 56 + paddingBottom: 20 + safe area: ~28)
   },
   loadingContainer: {
     alignItems: "center",
@@ -280,24 +279,6 @@ const styles = StyleSheet.create({
   friendDivider: {
     height: 1,
     marginLeft: 52,
-  },
-  footerContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 0, // Spacing above button - uses padding so background covers it
-    paddingBottom: 40, // Extra padding to ensure background covers bottomInset space
-    backgroundColor: "transparent", // Will be overridden by inline style
-  },
-  doneButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 56,
-  },
-  doneButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFFFFF",
   },
 });
 

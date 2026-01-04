@@ -26,7 +26,6 @@ import { FABMenu } from "@/components/FABMenu";
 import { useTheme } from "@/contexts/ThemeContext";
 import { AddItemSheet } from "@/components/AddItemSheet";
 import { EditWishlistSheet } from "@/components/EditWishlistSheet";
-import { AddByLinkSheet } from "@/components/AddByLinkSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 import { MembersSheet } from "@/components/MembersSheet";
 import { SelectWishlistSheet } from "@/components/SelectWishlistSheet";
@@ -57,7 +56,6 @@ export default function WishlistDetailScreen() {
   const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
   const [fabMenuVisible, setFabMenuVisible] = useState(false);
   const [addItemSheetVisible, setAddItemSheetVisible] = useState(false);
-  const [addByLinkSheetVisible, setAddByLinkSheetVisible] = useState(false);
   const [editWishlistSheetVisible, setEditWishlistSheetVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -1322,12 +1320,6 @@ export default function WishlistDetailScreen() {
         onSuccess={handleEditWishlistSuccess}
       />
 
-      {/* Test: Add by Link Sheet */}
-      <AddByLinkSheet
-        visible={addByLinkSheetVisible}
-        onClose={() => setAddByLinkSheetVisible(false)}
-        wishlistId={wishlistId}
-      />
 
       {/* Members Sheet */}
       <MembersSheet
@@ -1427,14 +1419,9 @@ export default function WishlistDetailScreen() {
           onToggle={() => setFabMenuVisible(!fabMenuVisible)}
           onClose={() => setFabMenuVisible(false)}
           onManualAdd={handleAddItem}
-          onAddByLink={() => {
-            setFabMenuVisible(false);
-            setTimeout(() => {
-              setAddByLinkSheetVisible(true);
-            }, 150);
-          }}
           variant="bottom-right"
           positionStyle="screen"
+          bypassMenu={true}
         />
       )}
     </View>

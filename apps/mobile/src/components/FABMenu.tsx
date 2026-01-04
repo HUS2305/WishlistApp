@@ -37,9 +37,9 @@ interface FABMenuProps {
   onToggle: () => void;
   onClose: () => void;
   onManualAdd: () => void;
-  onAddByLink?: () => void;
   variant?: "center" | "bottom-right";
   positionStyle?: "tab-bar" | "screen";
+  bypassMenu?: boolean; // When true, FAB directly calls onManualAdd without showing menu
 }
 
 export function FABMenu({
@@ -47,9 +47,9 @@ export function FABMenu({
   onToggle,
   onClose,
   onManualAdd,
-  onAddByLink,
   variant = "bottom-right",
   positionStyle = "screen",
+  bypassMenu = false,
 }: FABMenuProps) {
   const { theme } = useTheme();
   const segments = useSegments();
@@ -138,39 +138,6 @@ export function FABMenu({
 
   // Menu items
   const menuItems: FABMenuItem[] = [
-    {
-      label: "Scan barcode",
-      icon: "maximize",
-      color: "#6B7280",
-      onPress: () => {
-        onClose();
-        // TODO: Implement barcode scanning
-        console.log("Scan barcode");
-      },
-    },
-    {
-      label: "From other apps",
-      icon: "globe",
-      color: "#3B82F6",
-      onPress: () => {
-        onClose();
-        // TODO: Implement share from other apps
-        console.log("From other apps");
-      },
-    },
-    {
-      label: "Add by link",
-      icon: "link",
-      color: "#EF4444",
-      onPress: () => {
-        onClose();
-        if (onAddByLink) {
-          onAddByLink();
-        } else {
-          console.log("Add by link");
-        }
-      },
-    },
     {
       label: "Add manually",
       icon: "edit-3",
@@ -441,7 +408,10 @@ export function FABMenu({
           ]}
         >
           <TouchableOpacity
-            onPress={onToggle}
+            onPress={bypassMenu ? () => {
+              console.log("✅ FAB pressed - bypassing menu, opening add item directly");
+              onManualAdd();
+            } : onToggle}
             activeOpacity={0.9}
             style={[
               styles.fab,
@@ -456,8 +426,8 @@ export function FABMenu({
         </Animated.View>
       )}
 
-      {/* Menu Overlay - only visible when menu is open */}
-      {modalVisible && (
+      {/* Menu Overlay - only visible when menu is open and not bypassing menu */}
+      {modalVisible && !bypassMenu && (
         <Modal visible={modalVisible} transparent animationType="none" onRequestClose={onClose}>
           <View style={styles.container} pointerEvents="box-none">
             {/* Backdrop - rendered first so buttons can be on top */}
