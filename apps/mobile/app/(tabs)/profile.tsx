@@ -4,7 +4,7 @@ import { useUser, useAuth, useClerk } from "@clerk/clerk-expo";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState, useEffect } from "react";
-import { PageHeader } from "@/components/PageHeader";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { useTheme } from "@/contexts/ThemeContext";
 import api from "@/services/api";
 import { getDisplayName } from "@/lib/utils";
@@ -104,7 +104,7 @@ export default function ProfileScreen() {
   if (isLoadingProfile && !userProfile) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <PageHeader title="Profile" backButton={false} />
+        <StandardPageHeader title="Profile" backButton={false} />
         <View style={styles.emptyState}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
@@ -114,7 +114,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <PageHeader
+      <StandardPageHeader
         title="Profile"
         backButton={true}
         onBack={() => router.push("/(tabs)/settings")}

@@ -6,7 +6,8 @@ import { router, useFocusEffect } from "expo-router";
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { wishlistsService } from "@/services/wishlists";
 import type { Wishlist } from "@/types";
-import { PageHeader, HeaderButton } from "@/components/PageHeader";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
+import { HeaderButton } from "@/components/PageHeader";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useNotificationContext } from "@/contexts/NotificationContext";
 import { Badge } from "@/components/Badge";
@@ -21,7 +22,7 @@ export default function WishlistsScreen() {
   const { theme } = useTheme();
   const { userId, isLoaded, isSignedIn } = useAuth();
   const { userCurrency } = useUserCurrency();
-  const { unreadNotificationsCount, refreshUnreadNotificationsCount } = useNotificationContext();
+  const { unreadNotificationsCount, refreshUnreadNotificationsCount, refreshPendingRequestsCount } = useNotificationContext();
   const [wishlists, setWishlists] = useState<Wishlist[]>([]);
   const [isLoading, setIsLoading] = useState(false); // Start as false to prevent flash
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -105,9 +106,10 @@ export default function WishlistsScreen() {
         fetchWishlists(false); // Subsequent loads - silent refresh
       }
       
-      // Refresh notification count when page comes into focus
+      // Refresh notification counts when page comes into focus
       refreshUnreadNotificationsCount();
-    }, [fetchWishlists, hasLoadedOnce, isLoaded, isSignedIn, userId, refreshUnreadNotificationsCount])
+      refreshPendingRequestsCount();
+    }, [fetchWishlists, hasLoadedOnce, isLoaded, isSignedIn, userId, refreshUnreadNotificationsCount, refreshPendingRequestsCount])
   );
 
   // Subscribe to wishlist creation events to refresh the list
@@ -197,7 +199,7 @@ export default function WishlistsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header - matching details page design */}
-      <PageHeader
+      <StandardPageHeader
         title="Wishlists"
         backButton={false}
         rightActions={

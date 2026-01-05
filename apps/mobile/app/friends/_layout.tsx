@@ -11,29 +11,25 @@ export default function FriendsLayout() {
       <Stack.Screen
         name="all"
         options={{
-          headerShown: true,
-          // Header will be configured dynamically in the screen component
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="[id]"
         options={{
-          headerShown: true,
-          // Header will be configured dynamically in the screen component
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="search"
         options={{
-          headerShown: true,
-          title: "Search Friends",
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="birthdays"
         options={{
-          headerShown: true,
-          // Header will be configured dynamically in the screen component
+          headerShown: false,
         }}
       />
     </Stack>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -10,17 +10,16 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { Card } from "@/components/ui";
 import type { PrivacyLevel } from "@/types";
 import { useWishlist, useUpdateWishlist } from "@/hooks/useWishlists";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getHeaderOptions } from "@/lib/navigation";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
 
 export default function EditWishlistScreen() {
   const { theme } = useTheme();
-  const navigation = useNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: wishlist, isLoading: isLoadingWishlist } = useWishlist(id as string);
   const updateWishlist = useUpdateWishlist();
@@ -31,33 +30,6 @@ export default function EditWishlistScreen() {
   const [allowComments, setAllowComments] = useState(true);
   const [allowReservations, setAllowReservations] = useState(true);
 
-  // Configure native header
-  useLayoutEffect(() => {
-    navigation.setOptions(
-      getHeaderOptions(theme, {
-        title: "Edit Wishlist",
-        headerRight: () => (
-          <TouchableOpacity
-            onPress={handleSave}
-            disabled={updateWishlist.isPending || !title.trim()}
-            style={[
-              styles.saveButton,
-              {
-                backgroundColor: theme.colors.surface,
-                opacity: (!title.trim() || updateWishlist.isPending) ? 0.5 : 1,
-              },
-            ]}
-          >
-            {updateWishlist.isPending ? (
-              <ActivityIndicator color={theme.colors.primary} size="small" />
-            ) : (
-              <Text style={[styles.saveButtonText, { color: theme.colors.primary }]}>Save</Text>
-            )}
-          </TouchableOpacity>
-        ),
-      })
-    );
-  }, [navigation, theme, updateWishlist.isPending, title]);
 
   useEffect(() => {
     if (wishlist) {
@@ -120,6 +92,29 @@ export default function EditWishlistScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StandardPageHeader
+        title="Edit Wishlist"
+        backButton={true}
+        rightActions={
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={updateWishlist.isPending || !title.trim()}
+            style={[
+              styles.saveButton,
+              {
+                backgroundColor: theme.colors.surface,
+                opacity: (!title.trim() || updateWishlist.isPending) ? 0.5 : 1,
+              },
+            ]}
+          >
+            {updateWishlist.isPending ? (
+              <ActivityIndicator color={theme.colors.primary} size="small" />
+            ) : (
+              <Text style={[styles.saveButtonText, { color: theme.colors.primary }]}>Save</Text>
+            )}
+          </TouchableOpacity>
+        }
+      />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* Basic Info */}
         <Card style={styles.section}>

@@ -2,38 +2,19 @@ import { View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Text
 import { Text } from "@/components/Text";
 import { useUser } from "@clerk/clerk-expo";
 import { Feather } from "@expo/vector-icons";
-import { router, useNavigation } from "expo-router";
-import { useState, useEffect, useLayoutEffect } from "react";
+import { router } from "expo-router";
+import { useState, useEffect } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getHeaderOptions } from "@/lib/navigation";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
 
 export default function EditProfileScreen() {
   const { theme } = useTheme();
-  const navigation = useNavigation();
   const { user, isLoaded } = useUser();
   
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-
-  // Configure native header
-  useLayoutEffect(() => {
-    navigation.setOptions(
-      getHeaderOptions(theme, {
-        title: "Edit Profile",
-        headerRight: () => (
-          <TouchableOpacity onPress={handleSave} disabled={isSaving}>
-            {isSaving ? (
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-            ) : (
-              <Text style={[styles.saveButton, { color: theme.colors.primary }]}>Save</Text>
-            )}
-          </TouchableOpacity>
-        ),
-      })
-    );
-  }, [navigation, theme, isSaving]);
 
   useEffect(() => {
     if (user) {
@@ -81,6 +62,19 @@ export default function EditProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StandardPageHeader
+        title="Edit Profile"
+        backButton={true}
+        rightActions={
+          <TouchableOpacity onPress={handleSave} disabled={isSaving}>
+            {isSaving ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : (
+              <Text style={[styles.saveButton, { color: theme.colors.primary }]}>Save</Text>
+            )}
+          </TouchableOpacity>
+        }
+      />
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* First Name */}
@@ -165,7 +159,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 20,
+    padding: 16, // Changed from 20 to match spacing.md (16px) for consistency
   },
   loadingContainer: {
     flex: 1,

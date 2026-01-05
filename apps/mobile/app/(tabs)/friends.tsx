@@ -7,6 +7,7 @@ import { friendsService, type FriendRequest, type SearchResult } from "@/service
 import { HeaderButton } from "@/components/PageHeader";
 import type { User } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
+import { spacing } from "@/lib/theme";
 import { getDisplayName, getUpcomingBirthdays } from "@/lib/utils";
 import { FriendMenu } from "@/components/FriendMenu";
 import { useNotificationContext } from "@/contexts/NotificationContext";
@@ -21,6 +22,7 @@ export default function FriendsScreen() {
   const { theme } = useTheme();
   const { refreshUnreadNotificationsCount, refreshPendingRequestsCount } = useNotificationContext();
   const { isLoaded: isClerkLoaded, userId } = useAuth();
+  const insets = useSafeAreaInsets();
   const [friends, setFriends] = useState<User[]>([]);
   const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
   const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
@@ -163,6 +165,9 @@ export default function FriendsScreen() {
       }
       
       // Cleanup: Track if search was active when we lose focus
+
+
+
       return () => {
         console.log("🔴 FriendsScreen: useFocusEffect cleanup - screen losing focus, isSearchActive:", isSearchActiveRef.current);
         wasSearchActiveOnBlurRef.current = isSearchActiveRef.current;
@@ -410,8 +415,7 @@ export default function FriendsScreen() {
   };
 
   // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
+  useEffect(() => {return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
@@ -733,9 +737,12 @@ export default function FriendsScreen() {
   };
 
 
+  // Calculate consistent top padding that accounts for safe area (dynamic island/notch)
+  const headerTopPadding = Math.max(40, Platform.OS === "ios" ? insets.top + 16 : insets.top + 24);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.headerContainer, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.headerContainer, { backgroundColor: theme.colors.background, paddingTop: headerTopPadding }]}>
         <View style={styles.headerContent}>
           {!isSearchActive && (
             <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>Friends</Text>
@@ -1379,7 +1386,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pendingSection: {
-    paddingHorizontal: 24,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingTop: 10,
     paddingBottom: 5,
   },
@@ -1390,7 +1398,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   eventsSection: {
-    paddingHorizontal: 24,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingTop: 16,
     paddingBottom: 0,
   },
@@ -1482,7 +1491,8 @@ const styles = StyleSheet.create({
   emptyStateSmall: {
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingVertical: 32,
   },
   emptyTitleSmall: {
@@ -1530,7 +1540,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   friendsListSection: {
-    paddingHorizontal: 24,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingTop: 48,
     paddingBottom: 8,
   },
@@ -1546,7 +1557,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 12,
-    paddingHorizontal: 24,
+    paddingLeft: 16,
+    paddingRight: 16,
   },
   requestActions: {
     flexDirection: "row",
@@ -1588,7 +1600,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingVertical: 60,
   },
   emptyTitle: {
@@ -1603,7 +1616,8 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   listContent: {
-    paddingHorizontal: 24,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingTop: 8,
     paddingBottom: 16,
   },
@@ -1706,7 +1720,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   searchResultsContent: {
-    paddingHorizontal: 24,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingTop: 8,
     paddingBottom: 16,
   },
@@ -1748,7 +1763,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingVertical: 60,
   },
   mainContent: {
@@ -1758,13 +1774,14 @@ const styles = StyleSheet.create({
     paddingBottom: 130, // Extra padding to account for bottom menu bar (80px height + padding)
   },
   headerContainer: {
-    paddingTop: 48,
+    // paddingTop calculated dynamically using safe area insets in JSX
     paddingBottom: 16,
   },
   headerContent: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 24,
+    paddingLeft: 16,
+    paddingRight: 16,
     minHeight: 40,
     position: "relative",
   },

@@ -6,7 +6,8 @@ import { useState, useCallback, useMemo } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
 import { friendsService } from "@/services/friends";
 import { wishlistsService } from "@/services/wishlists";
-import { PageHeader, HeaderButton } from "@/components/PageHeader";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
+import { HeaderButton } from "@/components/PageHeader";
 import type { Item, User, Priority } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -512,16 +513,14 @@ export default function DiscoverScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <PageHeader
+      <StandardPageHeader
         title="Discover"
         backButton={false}
         rightActions={
-          <View style={styles.headerActions}>
-            <HeaderButton
-              icon={showFilters ? "x" : "filter"}
-              onPress={() => setShowFilters(!showFilters)}
-            />
-          </View>
+          <HeaderButton
+            icon={showFilters ? "x" : "filter"}
+            onPress={() => setShowFilters(!showFilters)}
+          />
         }
       />
 

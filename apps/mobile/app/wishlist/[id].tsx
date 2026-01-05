@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -13,7 +13,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import type { Item, Wishlist, User, Collaborator } from "@/types";
 import { getDisplayName } from "@/lib/utils";
@@ -32,7 +32,8 @@ import { SelectWishlistSheet } from "@/components/SelectWishlistSheet";
 import { useAuth } from "@clerk/clerk-expo";
 import api from "@/services/api";
 import { PriceDisplay } from "@/components/PriceDisplay";
-import { getHeaderOptions, HeaderButtons } from "@/lib/navigation";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
+import { HeaderButtons } from "@/lib/navigation";
 
 export default function WishlistDetailScreen() {
   const { theme } = useTheme();
@@ -85,44 +86,6 @@ export default function WishlistDetailScreen() {
   // Check if user can add items (owner or collaborator)
   const canAddItems = isOwner === true || isCollaborator === true;
 
-  // Configure native header
-  const navigation = useNavigation();
-  useLayoutEffect(() => {
-    // During loading, show basic header with title
-    if (!wishlist) {
-      navigation.setOptions(
-        getHeaderOptions(theme, {
-          title: "Wishlist",
-          headerRight: undefined,
-        })
-      );
-      return;
-    }
-
-    // When wishlist is loaded, show full header with actions
-    const headerButtons = [];
-    if (isOwner === true || isCollaborator === true) {
-      if (isOwner === true) {
-        headerButtons.push({
-          icon: "send" as const,
-          onPress: handleShareWishlist,
-        });
-      }
-      headerButtons.push({
-        icon: "more-horizontal" as const,
-        onPress: () => setMenuVisible(true),
-      });
-    }
-
-    navigation.setOptions(
-      getHeaderOptions(theme, {
-        title: wishlist.title,
-        headerRight: headerButtons.length > 0
-          ? () => <HeaderButtons buttons={headerButtons} />
-          : undefined,
-      })
-    );
-  }, [navigation, wishlist, isOwner, isCollaborator, theme, handleShareWishlist]);
 
   // Fetch current user to check ownership
   useEffect(() => {
@@ -999,7 +962,10 @@ export default function WishlistDetailScreen() {
   if (isLoadingWishlist || isLoadingItems || isLoadingOwnership) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {/* Native header is handled by useLayoutEffect above */}
+        <StandardPageHeader
+          title="Wishlist"
+          backButton={true}
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading wishlist...</Text>
@@ -1011,7 +977,10 @@ export default function WishlistDetailScreen() {
   if (!wishlist) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {/* Native header is handled by useLayoutEffect above */}
+        <StandardPageHeader
+          title="Wishlist"
+          backButton={true}
+        />
         <View style={styles.loadingContainer}>
           <Feather name="alert-circle" size={48} color={theme.colors.error} />
           <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Wishlist not found</Text>
@@ -1023,6 +992,21 @@ export default function WishlistDetailScreen() {
   const cardBackgroundColor = theme.isDark ? '#2E2E2E' : '#D3D3D3';
   const screenHeight = Dimensions.get('window').height;
 
+  // Build header buttons dynamically
+  const headerButtons = [];
+  if (isOwner === true || isCollaborator === true) {
+    if (isOwner === true) {
+      headerButtons.push({
+        icon: "send" as const,
+        onPress: handleShareWishlist,
+      });
+    }
+    headerButtons.push({
+      icon: "more-horizontal" as const,
+      onPress: () => setMenuVisible(true),
+    });
+  }
+
   return (
     <View 
       style={[
@@ -1033,6 +1017,13 @@ export default function WishlistDetailScreen() {
       ]} 
       collapsable={false}
     >
+      <StandardPageHeader
+        title={wishlist.title}
+        backButton={true}
+        rightActions={
+          headerButtons.length > 0 ? <HeaderButtons buttons={headerButtons} /> : null
+        }
+      />
       {/* Scrollable Content */}
       <ScrollView
         style={{ flex: 1 }}

@@ -1,8 +1,8 @@
 import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList, Platform } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useFocusEffect, useNavigation } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { useState, useCallback, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { friendsService, type SearchResult } from "@/services/friends";
 import type { User } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -13,12 +13,12 @@ import { useAuth } from "@clerk/clerk-expo";
 import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
 import { CreateGroupGiftSheet } from "@/components/CreateGroupGiftSheet";
 import { BottomSheet } from "@/components/BottomSheet";
-import { getHeaderOptions, HeaderButton } from "@/lib/navigation";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
+import { HeaderButton } from "@/lib/navigation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AllFriendsScreen() {
   const { theme } = useTheme();
-  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { isLoaded: isClerkLoaded, userId } = useAuth();
   const [friends, setFriends] = useState<User[]>([]);
@@ -58,20 +58,6 @@ export default function AllFriendsScreen() {
     }
   }, [isSearchActive]);
 
-  // Configure native header
-  useLayoutEffect(() => {
-    navigation.setOptions(
-      getHeaderOptions(theme, {
-        title: "All Friends",
-        headerRight: !isSearchActive ? () => (
-          <HeaderButton
-            icon="search"
-            onPress={handleSearchPress}
-          />
-        ) : undefined,
-      })
-    );
-  }, [navigation, theme, isSearchActive, handleSearchPress]);
 
   const fetchFriends = useCallback(async (showLoader = true) => {
     try {
@@ -298,6 +284,18 @@ export default function AllFriendsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StandardPageHeader
+        title="All Friends"
+        backButton={true}
+        rightActions={
+          !isSearchActive ? (
+            <HeaderButton
+              icon="search"
+              onPress={handleSearchPress}
+            />
+          ) : null
+        }
+      />
       {/* Search Bar - shown in content area when active */}
       {isSearchActive && (
         <View style={[styles.searchContainer, { backgroundColor: theme.colors.background }]}>

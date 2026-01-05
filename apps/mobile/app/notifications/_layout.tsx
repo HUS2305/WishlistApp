@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import { defaultHeaderConfig } from "@/lib/navigation";
 
-export default function WishlistLayout() {
+export default function NotificationsLayout() {
   // NOTE: screenOptions cannot use hooks - theme will be applied in individual screens
   // using useHeaderOptions hook in their useLayoutEffect
   return (
@@ -9,25 +9,7 @@ export default function WishlistLayout() {
       screenOptions={defaultHeaderConfig}
     >
       <Stack.Screen
-        name="[id]"
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="create"
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="[id]/add-item"
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="[id]/edit"
+        name="index"
         options={{
           headerShown: false,
         }}

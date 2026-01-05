@@ -1,24 +1,17 @@
-import { View, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { View, TouchableOpacity, StyleSheet, ScrollView, Platform } from "react-native";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
 import { ThemeName, themes, getThemeDisplayName } from "@/lib/themes";
 import { useTheme } from "@/contexts/ThemeContext";
-import { router, useNavigation } from "expo-router";
-import { useLayoutEffect } from "react";
-import { getHeaderOptions } from "@/lib/navigation";
+import { router } from "expo-router";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { spacing } from "@/lib/theme";
 
 export default function AppearanceScreen() {
   const { themeName, setTheme, theme: currentTheme } = useTheme();
-  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
-  // Configure native header
-  useLayoutEffect(() => {
-    navigation.setOptions(
-      getHeaderOptions(currentTheme, {
-        title: "Appearance",
-      })
-    );
-  }, [navigation, currentTheme]);
 
   const handleThemeSelect = async (name: ThemeName) => {
     await setTheme(name);
@@ -45,10 +38,19 @@ export default function AppearanceScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: currentTheme.colors.background }]}>
+      <StandardPageHeader
+        title="Appearance"
+        backButton={true}
+      />
 
       <ScrollView 
         style={styles.content}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { 
+            paddingBottom: 100 
+          }
+        ]}
       >
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: currentTheme.colors.textPrimary }]}>
@@ -137,8 +139,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 20,
-    paddingBottom: 100,
+    paddingHorizontal: 20,
+    // paddingTop and paddingBottom are now set dynamically in contentContainerStyle
   },
   section: {
     marginBottom: 24,

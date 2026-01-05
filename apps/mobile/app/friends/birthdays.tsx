@@ -1,8 +1,8 @@
 import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Platform } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useFocusEffect, useNavigation } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { useState, useCallback, useEffect, useLayoutEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { friendsService } from "@/services/friends";
 import type { User } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -12,12 +12,11 @@ import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
 import { CreateGroupGiftSheet } from "@/components/CreateGroupGiftSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 import { Alert } from "react-native";
-import { getHeaderOptions } from "@/lib/navigation";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AllBirthdaysScreen() {
   const { theme } = useTheme();
-  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { isLoaded: isClerkLoaded, userId } = useAuth();
   const [friends, setFriends] = useState<User[]>([]);
@@ -29,14 +28,6 @@ export default function AllBirthdaysScreen() {
   const [createWishlistSheetVisible, setCreateWishlistSheetVisible] = useState(false);
   const [createGroupGiftSheetVisible, setCreateGroupGiftSheetVisible] = useState(false);
 
-  // Configure native header
-  useLayoutEffect(() => {
-    navigation.setOptions(
-      getHeaderOptions(theme, {
-        title: "Upcoming Birthdays",
-      })
-    );
-  }, [navigation, theme]);
 
   const fetchFriends = useCallback(async (showLoader = true) => {
     try {
@@ -89,6 +80,10 @@ export default function AllBirthdaysScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StandardPageHeader
+        title="Birthdays"
+        backButton={true}
+      />
 
       <ScrollView 
         style={styles.mainContent}

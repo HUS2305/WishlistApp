@@ -4,7 +4,7 @@ import { useClerk, useAuth } from "@clerk/clerk-expo";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState, useEffect } from "react";
-import { PageHeader } from "@/components/PageHeader";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { useTheme } from "@/contexts/ThemeContext";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 
@@ -63,9 +63,10 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <PageHeader
+      <StandardPageHeader
         title="Settings"
         backButton={false}
+        extraTopPadding={8}
       />
       
       <ScrollView 
@@ -157,8 +158,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
-    paddingTop: 24,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    // paddingTop removed - PageHeader handles safe area spacing
   },
   menuContainer: {
     marginBottom: 32,

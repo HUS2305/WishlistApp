@@ -32,7 +32,6 @@ import { TouchableOpacity, View, Text } from "react-native";
 import React from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { headerSizes, iconSizes, spacing } from "./theme";
-import { useNavigation } from "expo-router";
 
 /**
  * Default header configuration for Expo Router Stack screens
@@ -60,16 +59,16 @@ export const defaultHeaderConfig = {
   headerBackVisible: true, // Explicitly enable native back button
   headerBackButtonDisplayMode: "minimal" as const, // iOS - show only icon, no text
   headerShadowVisible: false, // React Navigation 6+ - explicitly hide shadow/divider
-  // Native iOS back button spacing
+  // Native iOS back button spacing - standardized to match PageHeader
   headerLeftContainerStyle: {
-    paddingLeft: 0,
+    paddingLeft: 0, // No left padding - back button handles its own spacing
   },
   headerRightContainerStyle: {
-    paddingRight: spacing.md,
+    paddingRight: spacing.md, // 16px right padding to match PageHeader
   },
   headerTitleContainerStyle: {
-    paddingLeft: spacing.xs, // Small gap after back button
-    paddingRight: spacing.md,
+    paddingLeft: spacing.xs, // 4px gap after back button to match PageHeader
+    paddingRight: spacing.md, // 16px right padding to match PageHeader
     flex: 1,
   },
   // Use native iOS slide animation
@@ -177,15 +176,15 @@ export function getHeaderOptions(
     headerTitleAlign: "left" as const,
     // Explicitly hide shadow/divider (React Navigation 6+)
     headerShadowVisible: false,
-    // Native iOS back button spacing - ensure space for back button
+    // Native iOS back button spacing - standardized to match PageHeader exactly
     headerLeftContainerStyle: {
-      paddingLeft: 0,
+      paddingLeft: 0, // No left padding - back button handles its own spacing
       minWidth: Platform.OS === "ios" ? 44 : 56, // Ensure space for back button
     },
-    // Title container - ensure proper spacing and left alignment
+    // Title container - ensure proper spacing and left alignment (matches PageHeader)
     headerTitleContainerStyle: {
-      paddingLeft: Platform.OS === "ios" ? spacing.xs : spacing.xs, // Small gap after back button
-      paddingRight: spacing.md,
+      paddingLeft: spacing.xs, // 4px gap after back button to match PageHeader
+      paddingRight: spacing.md, // 16px right padding to match PageHeader
       flex: 1,
       alignItems: Platform.OS === "ios" ? "flex-start" : "flex-start", // Force left alignment
     },
@@ -321,7 +320,7 @@ export function HeaderButtons({
   }>;
 }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center" }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
       {buttons.map((button, index) => (
         <HeaderButton
           key={index}

@@ -1,19 +1,19 @@
-import { View, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from "react-native";
+import { View, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Alert } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useFocusEffect, useNavigation } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { useState, useCallback, useLayoutEffect } from "react";
+import { useState, useCallback } from "react";
 import { notificationsService, type Notification } from "@/services/notifications";
 import { wishlistsService } from "@/services/wishlists";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useNotificationContext } from "@/contexts/NotificationContext";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
-import { getHeaderOptions, HeaderButtons } from "@/lib/navigation";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
+import { HeaderButtons } from "@/lib/navigation";
 
 export default function NotificationsScreen() {
   const { theme } = useTheme();
   const { refreshUnreadNotificationsCount } = useNotificationContext();
-  const navigation = useNavigation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(false); // Start as false to prevent flash
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -21,32 +21,26 @@ export default function NotificationsScreen() {
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Configure native header
-  useLayoutEffect(() => {
-    navigation.setOptions(
-      getHeaderOptions(theme, {
-        title: "Notifications",
-        headerRight: () => (
-          <HeaderButtons
-            buttons={[
-              {
-                icon: "check",
-                onPress: handleMarkAllRead,
-              },
-              {
-                icon: "trash-2",
-                onPress: () => {
-                  console.log("🗑️ Delete all button pressed");
-                  handleDeleteAll();
-                },
-                disabled: notifications.length === 0,
-              },
-            ]}
-          />
-        ),
-      })
-    );
-  }, [navigation, theme, notifications.length]);
+  const handleMarkAllRead = useCallback(async () => {
+    try {
+      await notificationsService.markAllAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      await refreshUnreadNotificationsCount();
+    } catch (error) {
+      console.error("❌ Error marking all as read:", error);
+    }
+  }, [refreshUnreadNotificationsCount]);
+
+  const handleDeleteAll = useCallback(() => {
+    console.log("🗑️ handleDeleteAll called");
+    // Don't show confirmation if there are no notifications
+    if (notifications.length === 0) {
+      console.log("ℹ️ No notifications to delete");
+      return;
+    }
+    setDeleteConfirmVisible(true);
+  }, [notifications.length]);
+
 
   const fetchNotifications = useCallback(async (showLoader = true) => {
     try {
@@ -156,25 +150,6 @@ export default function NotificationsScreen() {
     }
   };
 
-  const handleMarkAllRead = async () => {
-    try {
-      await notificationsService.markAllAsRead();
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-      await refreshUnreadNotificationsCount();
-    } catch (error) {
-      console.error("❌ Error marking all as read:", error);
-    }
-  };
-
-  const handleDeleteAll = () => {
-    console.log("🗑️ handleDeleteAll called");
-    // Don't show confirmation if there are no notifications
-    if (notifications.length === 0) {
-      console.log("ℹ️ No notifications to delete");
-      return;
-    }
-    setDeleteConfirmVisible(true);
-  };
 
   const confirmDeleteAll = async () => {
     try {
@@ -271,33 +246,68 @@ export default function NotificationsScreen() {
     );
   };
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-
-      {isLoading ? (
+  const renderEmptyComponent = () => {
+    if (isLoading && !hasLoadedOnce) {
+      return (
         <View style={styles.emptyState}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.emptySubtitle, { marginTop: 16, color: theme.colors.textSecondary }]}>Loading notifications...</Text>
         </View>
-      ) : notifications.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Feather name="bell" size={64} color={theme.colors.primary} />
-          <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No notifications</Text>
-          <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
-            You're all caught up! We'll notify you when something new happens.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={notifications}
-          keyExtractor={(item) => item.id}
-          renderItem={renderNotification}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={["#4A90E2"]} />
-          }
-        />
-      )}
+      );
+    }
+    return (
+      <View style={styles.emptyState}>
+        <Feather name="bell" size={64} color={theme.colors.primary} />
+        <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No notifications</Text>
+        <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+          You're all caught up! We'll notify you when something new happens.
+        </Text>
+      </View>
+    );
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StandardPageHeader
+        title="Notifications"
+        backButton={true}
+        rightActions={
+          <HeaderButtons
+            buttons={[
+              {
+                icon: "trash-2",
+                onPress: () => {
+                  handleDeleteAll();
+                },
+                disabled: notifications.length === 0,
+                size: 26, // Larger icon size
+              },
+              {
+                icon: "check",
+                onPress: handleMarkAllRead,
+                size: 26, // Larger icon size - same as trash button
+              },
+            ]}
+          />
+        }
+      />
+      <FlatList
+        data={notifications}
+        keyExtractor={(item) => item.id}
+        renderItem={renderNotification}
+        contentContainerStyle={[
+          styles.listContent,
+          notifications.length === 0 && { flexGrow: 1 }
+        ]}
+        ListEmptyComponent={renderEmptyComponent}
+        refreshControl={
+          <RefreshControl 
+            refreshing={isRefreshing} 
+            onRefresh={onRefresh} 
+            colors={[theme.colors.primary]} 
+          />
+        }
+      />
 
       <DeleteConfirmModal
         visible={deleteConfirmVisible}

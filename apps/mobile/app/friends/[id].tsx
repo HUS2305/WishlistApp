@@ -1,10 +1,11 @@
 import { View, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Image, Alert, Platform } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState, useEffect, useCallback, useMemo, useLayoutEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getHeaderOptions, HeaderButtons } from "@/lib/navigation";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
+import { HeaderButtons } from "@/lib/navigation";
 import { useNotificationContext } from "@/contexts/NotificationContext";
 import { friendsService } from "@/services/friends";
 import { getDisplayName } from "@/lib/utils";
@@ -44,33 +45,12 @@ interface UserProfile {
 
 export default function FriendProfileScreen() {
   const { theme } = useTheme();
-  const navigation = useNavigation();
   const { isLoaded: isAuthLoaded } = useAuth();
   const insets = useSafeAreaInsets();
   const cardBackgroundColor = theme.isDark ? '#2E2E2E' : '#D3D3D3';
   const { refreshPendingRequestsCount, refreshUnreadNotificationsCount } = useNotificationContext();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [profile, setProfile] = useState<UserProfile | null>(null);
-
-  // Configure native header
-  useLayoutEffect(() => {
-    const displayName = profile?.profile ? getDisplayName(profile.profile) : "Profile";
-    navigation.setOptions(
-      getHeaderOptions(theme, {
-        title: displayName,
-        headerRight: profile ? () => (
-          <HeaderButtons
-            buttons={[
-              {
-                icon: "more-horizontal",
-                onPress: () => setMenuVisible(true),
-              },
-            ]}
-          />
-        ) : undefined,
-      })
-    );
-  }, [navigation, theme, profile]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -303,6 +283,22 @@ export default function FriendProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <StandardPageHeader
+        title={displayName}
+        backButton={true}
+        rightActions={
+          profile ? (
+            <HeaderButtons
+              buttons={[
+                {
+                  icon: "more-horizontal",
+                  onPress: () => setMenuVisible(true),
+                },
+              ]}
+            />
+          ) : null
+        }
+      />
       
       {/* Profile Header - Centered Column Layout */}
       <View style={styles.profileHeader}>

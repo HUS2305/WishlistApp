@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -9,7 +9,7 @@ import {
   Alert,
 } from "react-native";
 import { Text } from "@/components/Text";
-import { router, useFocusEffect, useNavigation } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { friendsService, type SearchResult } from "@/services/friends";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -17,11 +17,10 @@ import { getDisplayName } from "@/lib/utils";
 import { FriendMenu } from "@/components/FriendMenu";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { useNotificationContext } from "@/contexts/NotificationContext";
-import { getHeaderOptions } from "@/lib/navigation";
+import { StandardPageHeader } from "@/components/StandardPageHeader";
 
 export default function FriendSearchScreen() {
   const { theme } = useTheme();
-  const navigation = useNavigation();
   const { refreshUnreadNotificationsCount } = useNotificationContext();
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -32,14 +31,6 @@ export default function FriendSearchScreen() {
   const [removeConfirmVisible, setRemoveConfirmVisible] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
 
-  // Configure native header
-  useLayoutEffect(() => {
-    navigation.setOptions(
-      getHeaderOptions(theme, {
-        title: "Find Friends",
-      })
-    );
-  }, [navigation, theme]);
 
   // Debounce search
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
