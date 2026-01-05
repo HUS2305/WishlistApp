@@ -1025,8 +1025,8 @@ export default function FriendsScreen() {
             <TouchableOpacity
               style={[styles.eventCard, { backgroundColor: theme.colors.primary }]}
               onPress={() => {
-                // TODO: Navigate to Group Gift creation/management
-                console.log("Create Group Gift");
+                setSelectedBirthdayFriend(null);
+                setCreateGroupGiftSheetVisible(true);
               }}
             >
               <View style={styles.eventCardContent}>
