@@ -111,7 +111,6 @@ export function AnimatedFAB({ onPress, variant = "center", positionStyle = "tab-
           styles.fab,
           {
             backgroundColor: theme.colors.primary,
-            shadowColor: theme.colors.primary,
           },
           variant === "bottom-right" && styles.fabBottomRight,
         ]}
@@ -155,13 +154,8 @@ const styles = StyleSheet.create({
     borderRadius: FAB_SIZE / 2,
     alignItems: "center",
     justifyContent: "center",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   fabBottomRight: {
-    shadowColor: "#000",
-    shadowOpacity: 0.4,
+    // No additional styles needed
   },
 });

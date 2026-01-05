@@ -241,7 +241,7 @@ export default function WishlistsScreen() {
             { 
               flexGrow: 1,
               minHeight: screenHeight - 100, // Ensure content fills viewport minus header
-              paddingBottom: 0,
+              paddingBottom: 140, // Extra padding to ensure last item is visible above bottom navigation
             }
           ]}
           showsVerticalScrollIndicator={false}
@@ -361,7 +361,7 @@ export default function WishlistsScreen() {
                           </View>
                           <View style={styles.groupInfo}>
                             <Text style={[styles.groupInfoText, { color: theme.colors.textSecondary }]}>
-                              {isOwner ? 'Owner' : 'Collaborator'} • {collaboratorCount + (isOwner ? 1 : 0)} {collaboratorCount + (isOwner ? 1 : 0) === 1 ? 'member' : 'members'}
+                              {isOwner ? 'Owner' : 'Collaborator'} • {collaboratorCount + 1} {(collaboratorCount + 1) === 1 ? 'member' : 'members'}
                             </Text>
                           </View>
                           <View style={styles.metricsContainer}>

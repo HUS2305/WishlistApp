@@ -92,7 +92,6 @@ export function useUpdateWishlist() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: wishlistKeys.lists() });
       queryClient.invalidateQueries({ queryKey: wishlistKeys.detail(data.id) });
-      Alert.alert("Success", "Wishlist updated!");
     },
     onError: () => {
       Alert.alert("Error", "Failed to update wishlist");
@@ -135,7 +134,6 @@ export function useCreateItem() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: wishlistKeys.items(data.wishlistId) });
       queryClient.invalidateQueries({ queryKey: wishlistKeys.detail(data.wishlistId) });
-      Alert.alert("Success", "Item added!");
     },
     onError: () => {
       Alert.alert("Error", "Failed to add item");
@@ -151,7 +149,6 @@ export function useUpdateItem() {
     mutationFn: wishlistsService.updateItem,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: wishlistKeys.items(data.wishlistId) });
-      Alert.alert("Success", "Item updated!");
     },
     onError: () => {
       Alert.alert("Error", "Failed to update item");
@@ -167,7 +164,6 @@ export function useDeleteItem() {
     mutationFn: wishlistsService.deleteItem,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: wishlistKeys.all });
-      Alert.alert("Success", "Item deleted!");
     },
     onError: () => {
       Alert.alert("Error", "Failed to delete item");

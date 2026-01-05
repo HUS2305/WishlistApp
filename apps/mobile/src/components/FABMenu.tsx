@@ -417,7 +417,6 @@ export function FABMenu({
               styles.fab,
               {
                 backgroundColor: theme.colors.primary,
-                shadowColor: theme.colors.primary,
               },
             ]}
           >
@@ -464,7 +463,6 @@ export function FABMenu({
                   styles.fab,
                   {
                     backgroundColor: theme.colors.primary,
-                    shadowColor: theme.colors.primary,
                   },
                 ]}
               >
@@ -544,10 +542,6 @@ const styles = StyleSheet.create({
     borderRadius: FAB_SIZE / 2,
     alignItems: "center",
     justifyContent: "center",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   optionContainer: {
     position: "absolute",

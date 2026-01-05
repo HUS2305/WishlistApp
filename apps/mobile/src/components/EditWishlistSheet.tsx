@@ -29,9 +29,10 @@ interface EditWishlistSheetProps {
   onClose: () => void;
   wishlist: Wishlist | null;
   onSuccess?: () => void;
+  autoOpenFriendSelection?: boolean;
 }
 
-export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: EditWishlistSheetProps) {
+export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoOpenFriendSelection = false }: EditWishlistSheetProps) {
   const { theme } = useTheme();
   const updateWishlist = useUpdateWishlist();
 
@@ -60,6 +61,16 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess }: Edi
       loadFriends();
     }
   }, [wishlist, visible]);
+
+  // Auto-open friend selection modal if requested
+  useEffect(() => {
+    if (visible && autoOpenFriendSelection) {
+      // Small delay to ensure the edit sheet is fully open first
+      setTimeout(() => {
+        setShowFriendSelectionModal(true);
+      }, 300);
+    }
+  }, [visible, autoOpenFriendSelection]);
 
   const loadFriends = async () => {
     try {

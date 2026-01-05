@@ -152,8 +152,6 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
         } else {
           onClose();
         }
-        
-        Alert.alert("Success", "Item updated successfully!");
       } else {
         // Create new item
         await wishlistsService.createItem({
@@ -190,8 +188,6 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
         } else {
           onClose();
         }
-        
-        Alert.alert("Success", "Item added successfully!");
       }
     } catch (error: any) {
       console.error("Error saving item:", error);

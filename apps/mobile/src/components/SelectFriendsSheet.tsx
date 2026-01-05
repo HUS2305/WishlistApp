@@ -70,9 +70,8 @@ export function SelectFriendsSheet({
   };
 
   const handleConfirm = () => {
-    if (selectedFriends.size > 0) {
-      onConfirm(selectedFriends);
-    }
+    // Always call onConfirm with current selection (even if empty) so parent can handle removals
+    onConfirm(selectedFriends);
     // Always close the sheet when button is pressed
     onClose();
   };
@@ -127,16 +126,13 @@ export function SelectFriendsSheet({
         </Text>
         <TouchableOpacity
           onPress={handleConfirm}
-          disabled={selectedFriends.size === 0}
           activeOpacity={0.6}
           style={styles.headerButton}
         >
           <Text style={[
             styles.headerButtonText,
             {
-              color: selectedFriends.size === 0
-                ? theme.colors.textSecondary
-                : theme.colors.primary,
+              color: theme.colors.primary,
             }
           ]}>
             {selectedFriends.size === 0 ? "Done" : "Add"}

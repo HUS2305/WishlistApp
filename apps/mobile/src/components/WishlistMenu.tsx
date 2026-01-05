@@ -17,9 +17,10 @@ interface WishlistMenuProps {
   onViewMembers?: () => void;
   showMembersOption?: boolean;
   onLeave?: () => void;
+  onAddFriends?: () => void;
 }
 
-export function WishlistMenu({ visible, onClose, onEdit, onDelete, onViewMembers, showMembersOption = false, onLeave }: WishlistMenuProps) {
+export function WishlistMenu({ visible, onClose, onEdit, onDelete, onViewMembers, showMembersOption = false, onLeave, onAddFriends }: WishlistMenuProps) {
   const { theme } = useTheme();
 
   const handleEdit = () => {
@@ -49,6 +50,14 @@ export function WishlistMenu({ visible, onClose, onEdit, onDelete, onViewMembers
     // Small delay to let menu close before showing leave confirmation
     setTimeout(() => {
       onLeave?.();
+    }, 100);
+  };
+
+  const handleAddFriends = () => {
+    onClose();
+    // Small delay to let menu close before opening edit sheet with friend selection
+    setTimeout(() => {
+      onAddFriends?.();
     }, 100);
   };
 
@@ -89,6 +98,41 @@ export function WishlistMenu({ visible, onClose, onEdit, onDelete, onViewMembers
                   ]}
                 >
                   Edit List
+                </Text>
+              </View>
+              <Feather
+                name="chevron-right"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
+
+          {onAddFriends && (
+            <TouchableOpacity
+              style={[
+                styles.optionRow,
+                {
+                  borderBottomColor: theme.colors.textSecondary + '20',
+                },
+              ]}
+              onPress={handleAddFriends}
+              activeOpacity={0.7}
+            >
+              <View style={styles.optionLeft}>
+                <Feather 
+                  name="user-plus" 
+                  size={20} 
+                  color={theme.colors.textPrimary} 
+                  style={styles.optionIcon}
+                />
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Add Friends
                 </Text>
               </View>
               <Feather

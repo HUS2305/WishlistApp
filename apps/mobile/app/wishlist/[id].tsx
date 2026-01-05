@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Pressable,
   Alert,
-  Share,
   ActivityIndicator,
   Linking,
   RefreshControl,
@@ -58,6 +57,7 @@ export default function WishlistDetailScreen() {
   const [fabMenuVisible, setFabMenuVisible] = useState(false);
   const [addItemSheetVisible, setAddItemSheetVisible] = useState(false);
   const [editWishlistSheetVisible, setEditWishlistSheetVisible] = useState(false);
+  const [autoOpenFriendSelection, setAutoOpenFriendSelection] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [addItemFromFriendSheetVisible, setAddItemFromFriendSheetVisible] = useState(false);
@@ -121,6 +121,13 @@ export default function WishlistDetailScreen() {
 
   const handleEditWishlist = () => {
     setMenuVisible(false);
+    setAutoOpenFriendSelection(false);
+    setEditWishlistSheetVisible(true);
+  };
+
+  const handleAddFriends = () => {
+    setMenuVisible(false);
+    setAutoOpenFriendSelection(true);
     setEditWishlistSheetVisible(true);
   };
 
@@ -130,40 +137,6 @@ export default function WishlistDetailScreen() {
     setEditWishlistSheetVisible(false);
   };
 
-  const handleShareWishlist = async () => {
-    if (!wishlist) return;
-    
-    try {
-      let shareUrl = "";
-      let shareToken = wishlist.shareToken;
-      
-      if (!shareToken) {
-        try {
-          const shareData = await wishlistsService.shareWishlist(wishlistId);
-          shareToken = shareData.shareToken;
-          shareUrl = shareData.shareUrl || "";
-        } catch (error) {
-          console.warn("Share endpoint not available, using existing token");
-        }
-      }
-      
-      if (shareToken) {
-        const { getApiUrl } = require("@/utils/apiUrl");
-        const apiUrl = getApiUrl();
-        shareUrl = shareUrl || `${apiUrl}/wishlists/public/${shareToken}`;
-      }
-      
-      await Share.share({
-        message: `Check out my wishlist: ${wishlist.title}${shareUrl ? `\n${shareUrl}` : ""}`,
-        url: shareUrl || `wishlist://share/${shareToken || wishlistId}`,
-      });
-    } catch (error: any) {
-      console.error("Error sharing wishlist:", error);
-      if (error.message !== "User did not share") {
-        Alert.alert("Error", "Failed to share wishlist. Please try again.");
-      }
-    }
-  };
 
   const handleDeleteWishlist = () => {
     if (!wishlist) return;
@@ -346,7 +319,6 @@ export default function WishlistDetailScreen() {
       setSelectedItem(null);
       // Refresh items list
       refetchItems();
-      Alert.alert("Success", "Item added to wishlist");
     } catch (error: any) {
       console.error("Error duplicating item:", error);
       const errorMessage = error.response?.data?.message || error.message || "Failed to add item to wishlist";
@@ -629,7 +601,7 @@ export default function WishlistDetailScreen() {
                   {item.title}
                 </Text>
                 
-                {/* Price */}
+                {/* Price and Quantity - combined on one line */}
                 {hasPrice && item.price !== undefined && item.price !== null && (
                   <View style={styles.itemPriceContainer}>
                     <Feather 
@@ -656,33 +628,24 @@ export default function WishlistDetailScreen() {
                         color: itemIsReserved 
                           ? theme.colors.textSecondary + '80' 
                           : theme.colors.textSecondary,
-                        marginLeft: 6
+                        marginLeft: 6,
+                        marginRight: 4
                       }
                     ]}>
-                      / per piece
+                      x
+                    </Text>
+                    <Text style={[
+                      styles.itemPrice, 
+                      { 
+                        color: itemIsReserved 
+                          ? theme.colors.textSecondary + '80' 
+                          : theme.colors.textSecondary 
+                      }
+                    ]}>
+                      {item.quantity || 1}
                     </Text>
                   </View>
                 )}
-                
-                {/* Quantity - always show, default to 1 if not set */}
-                <View style={styles.itemQuantityContainer}>
-                  <Feather 
-                    name="x" 
-                    size={12} 
-                    color={itemIsReserved ? theme.colors.textSecondary + '80' : theme.colors.textSecondary} 
-                    style={{ marginRight: 4 }} 
-                  />
-                  <Text style={[
-                    styles.itemQuantity, 
-                    { 
-                      color: itemIsReserved 
-                        ? theme.colors.textSecondary + '80' 
-                        : theme.colors.textSecondary 
-                    }
-                  ]}>
-                    {item.quantity || 1}
-                  </Text>
-                </View>
                 
                 {/* Priority - on its own row if present */}
                 {isMustHave && (
@@ -707,8 +670,8 @@ export default function WishlistDetailScreen() {
                   </View>
                 )}
                 
-                {/* Added By - Show for all items */}
-                {item.addedBy && (
+                {/* Added By - Only show for GROUP wishlists */}
+                {item.addedBy && wishlist?.privacyLevel === "GROUP" && (
                   <View style={[styles.itemAddedByChip, { backgroundColor: theme.colors.primary + '15' }]}>
                     <Feather 
                       name="user" 
@@ -997,12 +960,6 @@ export default function WishlistDetailScreen() {
   // Build header buttons dynamically
   const headerButtons = [];
   if (isOwner === true || isCollaborator === true) {
-    if (isOwner === true) {
-      headerButtons.push({
-        icon: "send" as const,
-        onPress: handleShareWishlist,
-      });
-    }
     headerButtons.push({
       icon: "more-horizontal" as const,
       onPress: () => setMenuVisible(true),
@@ -1137,10 +1094,9 @@ export default function WishlistDetailScreen() {
             styles.cardContainer, 
             { 
               backgroundColor: cardBackgroundColor,
-              // Use flex: 1 to fill remaining space in ScrollView when there are items
-              flex: filteredItems.length > 0 ? 1 : undefined,
-              // Ensure minHeight for both empty and non-empty states to extend grey background to bottom
-              minHeight: Math.max(screenHeight - 350, 600),
+              // Always fill remaining space - use minHeight to ensure it extends to bottom
+              minHeight: screenHeight - 350, // Adjust based on header and content above
+              flexGrow: 1, // Allow it to grow to fill available space
               // Add paddingBottom for FAB spacing when there are items
               paddingBottom: filteredItems.length > 0 ? 100 : 0,
             }
@@ -1223,6 +1179,7 @@ export default function WishlistDetailScreen() {
         onViewMembers={() => setCollaboratorsModalVisible(true)}
         showMembersOption={wishlist?.collaborators && wishlist.collaborators.length > 0}
         onLeave={isCollaborator === true ? handleLeaveWishlist : undefined}
+        onAddFriends={isOwner === true ? handleAddFriends : undefined}
       />
 
       <DeleteConfirmModal
@@ -1310,8 +1267,10 @@ export default function WishlistDetailScreen() {
         wishlist={wishlist}
         onClose={() => {
           setEditWishlistSheetVisible(false);
+          setAutoOpenFriendSelection(false);
         }}
         onSuccess={handleEditWishlistSuccess}
+        autoOpenFriendSelection={autoOpenFriendSelection}
       />
 
 
@@ -1322,9 +1281,20 @@ export default function WishlistDetailScreen() {
         wishlist={wishlist}
         currentUserId={currentUser?.id}
         isOwner={isOwner === true}
-        onRemoveCollaborator={(collaborator) => {
-          setCollaboratorToRemove(collaborator);
-          setRemoveCollaboratorModalVisible(true);
+        onRemoveCollaborator={async (collaborator) => {
+          // Directly remove collaborator without confirmation for admin/owner
+          setIsRemovingCollaborator(true);
+          try {
+            await wishlistsService.removeCollaborator(wishlistId, collaborator.userId);
+            await refetchWishlist();
+            // Keep the sheet open for multi-remove capability
+          } catch (error: any) {
+            console.error("Error removing collaborator:", error);
+            const errorMessage = error.response?.data?.message || error.message || "Failed to remove member";
+            Alert.alert("Error", errorMessage);
+          } finally {
+            setIsRemovingCollaborator(false);
+          }
         }}
       />
 
@@ -1633,7 +1603,7 @@ const styles = StyleSheet.create({
   },
   itemImageDetailsRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     minHeight: 70,
   },
   itemImageContainer: {
