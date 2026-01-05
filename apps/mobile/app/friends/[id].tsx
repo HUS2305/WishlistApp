@@ -286,6 +286,7 @@ export default function FriendProfileScreen() {
       <StandardPageHeader
         title={displayName}
         backButton={true}
+        onBack={() => router.replace("/(tabs)/friends")}
         rightActions={
           profile ? (
             <HeaderButtons

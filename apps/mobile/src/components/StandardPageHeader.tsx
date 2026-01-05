@@ -39,7 +39,7 @@ export function StandardPageHeader({
   // Calculate consistent top padding that accounts for safe area (dynamic island/notch)
   // Formula: minimum 40px, or safe area top + 16px (iOS) / 24px (Android)
   // extraTopPadding can be added for specific pages that need more space
-  const baseTopPadding = Math.max(40, Platform.OS === "ios" ? insets.top + 16 : insets.top + 24);
+  const baseTopPadding = Math.max(40, Platform.OS === "ios" ? insets.top + 6 : insets.top + 24);
   const topPadding = baseTopPadding + extraTopPadding;
   
   const handleBack = () => {

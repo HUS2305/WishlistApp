@@ -129,6 +129,10 @@ const saveThemeToDatabase = async (
 export function ThemeProvider({ children, userId }: { children: ReactNode; userId?: string | null }) {
   const { getToken, isLoaded, isSignedIn } = useAuth();
   
+  // Track when we just set a theme to prevent reloading from database immediately after
+  const justSetThemeRef = React.useRef<{ theme: ThemeName; timestamp: number } | null>(null);
+  const SKIP_RELOAD_WINDOW_MS = 2000; // Don't reload from database within 2 seconds of setting theme
+  
   // Initialize with synchronous load on web (to avoid flash), async load will update for native
   const [themeName, setThemeNameState] = useState<ThemeName>(() => {
     // Try to load synchronously on web to prevent theme flash
@@ -143,6 +147,14 @@ export function ThemeProvider({ children, userId }: { children: ReactNode; userI
     // 1. On mount - to get the real theme on native (since sync load returns default)
     // 2. When userId changes - to get the correct scoped theme for the new user
     const loadTheme = async () => {
+      // Check if we just set a theme - if so, skip database load to avoid race condition
+      const justSet = justSetThemeRef.current;
+      if (justSet && Date.now() - justSet.timestamp < SKIP_RELOAD_WINDOW_MS) {
+        // We just set this theme, don't reload from database (would cause flicker)
+        // Skip the reload entirely to prevent the race condition
+        return;
+      }
+      
       // First try to load from database (if user is signed in and Clerk is loaded)
       let saved: ThemeName | null = null;
       
@@ -181,6 +193,15 @@ export function ThemeProvider({ children, userId }: { children: ReactNode; userI
       }
       
       // Only update if different to avoid unnecessary re-renders
+      // Also skip if we just set a theme recently (to prevent flicker from race conditions)
+      const justSetCheck = justSetThemeRef.current;
+      if (justSetCheck && Date.now() - justSetCheck.timestamp < SKIP_RELOAD_WINDOW_MS) {
+        // We just set a theme recently - don't update state with database value
+        // This prevents race conditions where database hasn't updated yet
+        // or where we get an old value from the database
+        return;
+      }
+      
       setThemeNameState((current) => {
         if (current !== saved) {
           console.log(`🎨 Loaded theme for user ${userId || 'anonymous'}: ${saved}`);
@@ -203,6 +224,12 @@ export function ThemeProvider({ children, userId }: { children: ReactNode; userI
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
+        // Skip if we just set a theme to avoid flicker
+        const justSet = justSetThemeRef.current;
+        if (justSet && Date.now() - justSet.timestamp < SKIP_RELOAD_WINDOW_MS) {
+          return;
+        }
+        
         loadThemeFromStorage(userId).then((saved) => {
           setThemeNameState(saved);
         });
@@ -214,11 +241,18 @@ export function ThemeProvider({ children, userId }: { children: ReactNode; userI
     };
   }, [userId]);
 
-  // Listen for storage changes on web
+  // Listen for storage changes on web (for cross-tab sync)
   useEffect(() => {
     if (Platform.OS === 'web') {
       const key = userId ? `${THEME_STORAGE_KEY}-${userId}` : THEME_STORAGE_KEY;
       const handleStorageChange = (e: StorageEvent) => {
+        // Only handle cross-tab changes (not same-window changes)
+        // Skip if we just set this theme to avoid flicker
+        const justSet = justSetThemeRef.current;
+        if (justSet && Date.now() - justSet.timestamp < SKIP_RELOAD_WINDOW_MS) {
+          return;
+        }
+        
         if (e.key === key && e.newValue) {
           const validThemes: ThemeName[] = ['modernLight', 'darkMode', 'nature', 'cyberpunk', 'sunset', 'emerald'];
           if (validThemes.includes(e.newValue as ThemeName)) {
@@ -228,23 +262,18 @@ export function ThemeProvider({ children, userId }: { children: ReactNode; userI
       };
 
       window.addEventListener('storage', handleStorageChange);
-      // Also listen for custom event for same-window updates
-      const handleCustomStorage = () => {
-        loadThemeFromStorage(userId).then((saved) => {
-          setThemeNameState(saved);
-        });
-      };
-      window.addEventListener('theme-changed', handleCustomStorage);
 
       return () => {
         window.removeEventListener('storage', handleStorageChange);
-        window.removeEventListener('theme-changed', handleCustomStorage);
       };
     }
   }, [userId]);
 
   // Set theme function with userId scoping - saves to both database and local storage
   const setTheme = useCallback(async (name: ThemeName) => {
+    // Track that we just set this theme to prevent reload from database
+    justSetThemeRef.current = { theme: name, timestamp: Date.now() };
+    
     setThemeNameState(name);
     
     // Save to local storage first (fast, works offline)
@@ -252,8 +281,8 @@ export function ThemeProvider({ children, userId }: { children: ReactNode; userI
       const key = userId ? `${THEME_STORAGE_KEY}-${userId}` : THEME_STORAGE_KEY;
       if (Platform.OS === 'web') {
         localStorage.setItem(key, name);
-        // Dispatch custom event for same-window updates
-        window.dispatchEvent(new Event('theme-changed'));
+        // Note: We removed the dispatchEvent here to prevent the listener from reloading
+        // The state is already updated above, so no need to trigger reload
       } else {
         try {
           const SecureStore = require('expo-secure-store');

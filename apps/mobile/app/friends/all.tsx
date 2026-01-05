@@ -287,6 +287,7 @@ export default function AllFriendsScreen() {
       <StandardPageHeader
         title="All Friends"
         backButton={true}
+        onBack={() => router.replace("/(tabs)/friends")}
         rightActions={
           !isSearchActive ? (
             <HeaderButton

@@ -962,10 +962,11 @@ export default function WishlistDetailScreen() {
   if (isLoadingWishlist || isLoadingItems || isLoadingOwnership) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <StandardPageHeader
-          title="Wishlist"
-          backButton={true}
-        />
+      <StandardPageHeader
+        title="Wishlist"
+        backButton={true}
+        onBack={() => router.push("/(tabs)/")}
+      />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading wishlist...</Text>
@@ -977,10 +978,11 @@ export default function WishlistDetailScreen() {
   if (!wishlist) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <StandardPageHeader
-          title="Wishlist"
-          backButton={true}
-        />
+      <StandardPageHeader
+        title="Wishlist"
+        backButton={true}
+        onBack={() => router.push("/(tabs)/")}
+      />
         <View style={styles.loadingContainer}>
           <Feather name="alert-circle" size={48} color={theme.colors.error} />
           <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Wishlist not found</Text>
@@ -1020,6 +1022,7 @@ export default function WishlistDetailScreen() {
       <StandardPageHeader
         title={wishlist.title}
         backButton={true}
+        onBack={() => router.push("/(tabs)/")}
         rightActions={
           headerButtons.length > 0 ? <HeaderButtons buttons={headerButtons} /> : null
         }

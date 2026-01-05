@@ -738,7 +738,7 @@ export default function FriendsScreen() {
 
 
   // Calculate consistent top padding that accounts for safe area (dynamic island/notch)
-  const headerTopPadding = Math.max(40, Platform.OS === "ios" ? insets.top + 16 : insets.top + 24);
+  const headerTopPadding = Math.max(60, Platform.OS === "ios" ? insets.top + 6 : insets.top + 32);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>

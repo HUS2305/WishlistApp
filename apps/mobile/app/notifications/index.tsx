@@ -271,6 +271,7 @@ export default function NotificationsScreen() {
       <StandardPageHeader
         title="Notifications"
         backButton={true}
+        onBack={() => router.push("/(tabs)/")}
         rightActions={
           <HeaderButtons
             buttons={[

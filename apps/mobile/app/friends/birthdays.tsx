@@ -83,6 +83,7 @@ export default function AllBirthdaysScreen() {
       <StandardPageHeader
         title="Birthdays"
         backButton={true}
+        onBack={() => router.replace("/(tabs)/friends")}
       />
 
       <ScrollView 
