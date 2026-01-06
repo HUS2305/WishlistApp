@@ -34,14 +34,12 @@ export function Input({
       )}
       <TextInput
         className={cn(
-          "flex h-11 w-full rounded-lg border border-input bg-background px-4 py-2 text-base text-foreground",
+          "flex h-11 w-full rounded-lg bg-background px-4 py-2 text-base text-foreground",
           "placeholder:text-muted-foreground",
-          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-          error && "border-destructive focus:ring-destructive",
           className
         )}
         placeholderTextColor="#999"
-        style={style}
+        style={[{ borderWidth: 0 }, style]}
         {...props}
       />
       {error && (

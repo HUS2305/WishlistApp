@@ -7,6 +7,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Feather } from "@expo/vector-icons";
 import api from "@/services/api";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useAuth as useClerkAuth } from "@clerk/clerk-expo";
 import { HeroInput } from "@/components/ui/HeroInput";
 import { Stepper } from "@/components/Stepper";
 import { ThemeName, themes, getThemeDisplayName } from "@/lib/themes";
@@ -41,30 +42,25 @@ const currencyOptions = getCurrencyOptions().map(opt => ({
   label: opt.label,
 }));
 
-const STEPS = ["Personal Info", "Theme", "Preferences"];
+const STEPS = ["Personal Info", "Theme"];
 
 export default function CreateProfileScreen() {
   const { theme, setTheme, themeName } = useTheme();
   const { user } = useUser();
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn, isLoaded } = useAuth();
   const insets = useSafeAreaInsets();
 
   // Step management
   const [currentStep, setCurrentStep] = useState(1);
 
   // Form data
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");
   const [birthdate, setBirthdate] = useState(new Date(2000, 0, 1));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [sex, setSex] = useState<string | null>(null);
   const [showSexPicker, setShowSexPicker] = useState(false);
   
-  // Step 2: Theme selection
-  const [selectedTheme, setSelectedTheme] = useState<ThemeName>(themeName);
-  
-  // Step 3: Preferences
+  // Preferences (now part of step 1)
   const [language, setLanguage] = useState<string>("en");
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
   const [currency, setCurrency] = useState<string>("USD"); // Will be updated from user preference if available
@@ -72,18 +68,45 @@ export default function CreateProfileScreen() {
   const [currencySearchQuery, setCurrencySearchQuery] = useState("");
   const [enableNotifications, setEnableNotifications] = useState(true);
   
+  // Step 2: Theme selection
+  const [selectedTheme, setSelectedTheme] = useState<ThemeName>(themeName);
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [usernameError, setUsernameError] = useState("");
   const [checkingUsername, setCheckingUsername] = useState(false);
 
-  // Pre-fill form with existing user data
+  // Check if user already has a profile and redirect if they do
   useEffect(() => {
-    if (user) {
-      if (user.firstName) setFirstName(user.firstName);
-      if (user.lastName) setLastName(user.lastName);
+    async function checkExistingProfile() {
+      if (!isLoaded || !isSignedIn) {
+        return;
+      }
+
+      try {
+        const token = await getToken();
+        if (token) {
+          // Try to fetch user profile
+          await api.get("/users/me");
+          // User already has a profile, redirect to home
+          router.replace("/");
+        }
+      } catch (error: any) {
+        // If 404, user doesn't have a profile yet - that's fine, continue
+        if (error.response?.status === 404) {
+          // User doesn't exist yet, allow them to create profile
+          return;
+        }
+        // For other errors, log but don't redirect (might be network issue)
+        console.warn("Error checking existing profile:", error);
+      }
     }
-  }, [user]);
+
+    if (isLoaded && isSignedIn) {
+      checkExistingProfile();
+    }
+  }, [isLoaded, isSignedIn, getToken]);
+
 
   // Sync selectedTheme with the current themeName (so it always shows the active theme)
   useEffect(() => {
@@ -99,7 +122,7 @@ export default function CreateProfileScreen() {
   };
 
   const validateStep1 = async (): Promise<boolean> => {
-    if (!firstName.trim() || !lastName.trim() || !username.trim()) {
+    if (!username.trim()) {
       setError("Please fill in all required fields");
       return false;
     }
@@ -155,9 +178,7 @@ export default function CreateProfileScreen() {
         setCurrentStep(2);
       }
     } else if (currentStep === 2) {
-      // Theme is already applied when user clicks on it, just proceed to next step
-      setCurrentStep(3);
-    } else if (currentStep === 3) {
+      // Theme is already applied when user clicks on it, finish the profile creation
       handleFinish();
     }
   };
@@ -182,19 +203,15 @@ export default function CreateProfileScreen() {
         throw new Error("No email address found. Please try signing up again.");
       }
 
-      // Update Clerk user profile (firstName and lastName only)
-      if (user) {
-        await user.update({
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-        });
-      }
-
       // Create user in database
       const token = await getToken();
       if (!token) {
         throw new Error("No authentication token available");
       }
+
+      // Get firstName and lastName from Clerk user (they were set during signup)
+      const firstName = user?.firstName || "";
+      const lastName = user?.lastName || "";
 
       // Detect timezone automatically
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -232,28 +249,6 @@ export default function CreateProfileScreen() {
 
   const renderStep1 = () => (
     <View style={styles.stepContent}>
-      <HeroInput
-        label="First Name"
-        placeholder="Enter your first name"
-        value={firstName}
-        onChangeText={setFirstName}
-        autoCapitalize="words"
-        isRequired
-        labelPlacement="outside-top"
-        backgroundColor={theme.colors.surface}
-      />
-
-      <HeroInput
-        label="Last Name"
-        placeholder="Enter your last name"
-        value={lastName}
-        onChangeText={setLastName}
-        autoCapitalize="words"
-        isRequired
-        labelPlacement="outside-top"
-        backgroundColor={theme.colors.surface}
-      />
-
       <HeroInput
         label="Username"
         placeholder="Choose a username (e.g., john_doe)"
@@ -431,6 +426,83 @@ export default function CreateProfileScreen() {
           </View>
         </View>
       </BottomSheet>
+
+      {/* Language and Currency Selection - Side by Side */}
+      <View style={styles.rowContainer}>
+        <View style={[styles.pickerContainer, styles.pickerContainerRow]}>
+          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+            Language
+          </Text>
+          <TouchableOpacity
+            style={[styles.pickerButton, { 
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.textSecondary + '40',
+            }]}
+            onPress={() => setShowLanguagePicker(true)}
+          >
+            <Text style={[styles.pickerText, { 
+              color: language ? theme.colors.textPrimary : theme.colors.textSecondary 
+            }]}>
+              {language
+                ? languageOptions.find((l) => l.value === language)?.label || "Select language"
+                : "Select language"}
+            </Text>
+            <Feather
+              name="chevron-down"
+              size={20}
+              color={theme.colors.textSecondary}
+            />
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.pickerContainer, styles.pickerContainerRow]}>
+          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+            Currency
+          </Text>
+          <TouchableOpacity
+            style={[styles.pickerButton, { 
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.textSecondary + '40',
+            }]}
+            onPress={() => setShowCurrencyPicker(true)}
+          >
+            <Text style={[styles.pickerText, { 
+              color: currency ? theme.colors.textPrimary : theme.colors.textSecondary 
+            }]}>
+              {currency
+                ? currencyOptions.find((c) => c.value === currency)?.label || "Select currency"
+                : "Select currency"}
+            </Text>
+            <Feather
+              name="chevron-down"
+              size={20}
+              color={theme.colors.textSecondary}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Notifications */}
+      <View style={[styles.preferenceItem, { 
+        borderBottomColor: theme.colors.textSecondary + '25',
+        borderBottomWidth: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }]}>
+        <View style={styles.preferenceContent}>
+          <Text style={[styles.preferenceLabel, { color: theme.colors.textPrimary }]}>
+            Enable Notifications
+          </Text>
+          <Text style={[styles.preferenceDescription, { color: theme.colors.textSecondary }]}>
+            Receive push notifications for friend requests and wishlist updates
+          </Text>
+        </View>
+        <ThemedSwitch
+          value={enableNotifications}
+          onValueChange={setEnableNotifications}
+        />
+      </View>
     </View>
   );
 
@@ -530,89 +602,6 @@ export default function CreateProfileScreen() {
     );
   };
 
-  const renderStep3 = () => (
-    <View style={styles.stepContent}>
-      <Text style={[styles.sectionDescription, { color: theme.colors.textSecondary }]}>
-        Configure your default preferences. You can change these anytime in settings.
-      </Text>
-
-      {/* Language Selection */}
-      <View style={styles.pickerContainer}>
-        <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-          Language
-        </Text>
-        <TouchableOpacity
-          style={[styles.pickerButton, { 
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.textSecondary + '40',
-          }]}
-          onPress={() => setShowLanguagePicker(true)}
-        >
-          <Text style={[styles.pickerText, { 
-            color: language ? theme.colors.textPrimary : theme.colors.textSecondary 
-          }]}>
-            {language
-              ? languageOptions.find((l) => l.value === language)?.label || "Select language"
-              : "Select language"}
-          </Text>
-          <Feather
-            name="chevron-down"
-            size={20}
-            color={theme.colors.textSecondary}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Currency Selection */}
-      <View style={styles.pickerContainer}>
-        <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-          Currency
-        </Text>
-        <TouchableOpacity
-          style={[styles.pickerButton, { 
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.textSecondary + '40',
-          }]}
-          onPress={() => setShowCurrencyPicker(true)}
-        >
-          <Text style={[styles.pickerText, { 
-            color: currency ? theme.colors.textPrimary : theme.colors.textSecondary 
-          }]}>
-            {currency
-              ? currencyOptions.find((c) => c.value === currency)?.label || "Select currency"
-              : "Select currency"}
-          </Text>
-          <Feather
-            name="chevron-down"
-            size={20}
-            color={theme.colors.textSecondary}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Notifications */}
-      <View style={[styles.preferenceItem, { 
-        borderBottomColor: theme.colors.textSecondary + '25',
-        borderBottomWidth: 0,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }]}>
-        <View style={styles.preferenceContent}>
-          <Text style={[styles.preferenceLabel, { color: theme.colors.textPrimary }]}>
-            Enable Notifications
-          </Text>
-          <Text style={[styles.preferenceDescription, { color: theme.colors.textSecondary }]}>
-            Receive push notifications for friend requests and wishlist updates
-          </Text>
-        </View>
-        <ThemedSwitch
-          value={enableNotifications}
-          onValueChange={setEnableNotifications}
-        />
-      </View>
-    </View>
-  );
 
   const renderCurrentStep = () => {
     switch (currentStep) {
@@ -620,8 +609,6 @@ export default function CreateProfileScreen() {
         return renderStep1();
       case 2:
         return renderStep2();
-      case 3:
-        return renderStep3();
       default:
         return null;
     }
@@ -629,7 +616,7 @@ export default function CreateProfileScreen() {
 
   const canProceed = () => {
     if (currentStep === 1) {
-      return firstName.trim() && lastName.trim() && username.trim() && !usernameError;
+      return username.trim() && !usernameError;
     }
     return true;
   };
@@ -652,9 +639,8 @@ export default function CreateProfileScreen() {
         />
 
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-          {currentStep === 1 && "Tell us a bit about yourself"}
+          {currentStep === 1 && "Complete your profile"}
           {currentStep === 2 && "Choose your theme"}
-          {currentStep === 3 && "Set your preferences"}
         </Text>
 
         {error ? (
@@ -876,7 +862,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingBottom: 100,
+    paddingBottom: 20,
   },
   title: {
     fontSize: 18,
@@ -890,6 +876,15 @@ const styles = StyleSheet.create({
   },
   pickerContainer: {
     marginBottom: 30,
+  },
+  rowContainer: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 30,
+  },
+  pickerContainerRow: {
+    flex: 1,
+    marginBottom: 0,
   },
   label: {
     fontSize: 14,
@@ -913,7 +908,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 50,
   },
   button: {
     flex: 1,

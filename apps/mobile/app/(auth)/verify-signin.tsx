@@ -128,6 +128,34 @@ export default function VerifySignInScreen() {
           hasPreparedRef.current = false; // Reset on error
         });
       }
+    } else if (signIn.status === "needs_first_factor") {
+      // Check if this is a password reset flow
+      const resetPasswordFactor = signIn.supportedFirstFactors?.find(
+        (factor: any) => factor.strategy === "reset_password_email_code"
+      ) as any;
+      
+      if (resetPasswordFactor && resetPasswordFactor.emailAddressId) {
+        setVerificationType("email_code");
+        console.log("✅ Password reset flow initiated");
+        const email = resetPasswordFactor.safeIdentifier || signIn.identifier;
+        if (email) {
+          setEmailAddress(email);
+        }
+        
+        // Prepare password reset verification - only once
+        if (!hasPreparedRef.current) {
+          hasPreparedRef.current = true;
+          signIn.prepareFirstFactor({
+            strategy: "reset_password_email_code",
+            emailAddressId: resetPasswordFactor.emailAddressId,
+          }).then(() => {
+            console.log("✅ Successfully prepared password reset verification");
+          }).catch((err: any) => {
+            console.error("Error preparing password reset verification:", err);
+            hasPreparedRef.current = false; // Reset on error
+          });
+        }
+      }
     }
   }, [signInHook.isLoaded, signInHook.signIn?.status]);
 
@@ -174,6 +202,23 @@ export default function VerifySignInScreen() {
         completeSignIn = await signIn.attemptEmailAddressVerification({
           code,
         });
+      } else if (signIn.status === "needs_first_factor") {
+        // Check if this is password reset
+        const resetPasswordFactor = signIn.supportedFirstFactors?.find(
+          (factor: any) => factor.strategy === "reset_password_email_code"
+        );
+        
+        if (resetPasswordFactor) {
+          // Handle password reset code verification
+          completeSignIn = await signIn.attemptFirstFactor({
+            strategy: "reset_password_email_code",
+            code,
+          });
+        } else {
+          setError("Invalid verification state. Please try signing in again.");
+          router.replace("/(auth)/login");
+          return;
+        }
       } else {
         setError("Invalid verification state. Please try signing in again.");
         router.replace("/(auth)/login");
@@ -243,12 +288,23 @@ export default function VerifySignInScreen() {
   }
 
   const signIn = signInHook.signIn;
-  const needsVerification = signIn.status === "needs_second_factor" || 
-                            signIn.status === "needs_email_address_verification";
+  // Check if this is a password reset flow
+  const isPasswordReset = signIn?.supportedFirstFactors?.some(
+    (factor: any) => factor.strategy === "reset_password_email_code"
+  );
+  const needsVerification = signIn?.status === "needs_second_factor" || 
+                            signIn?.status === "needs_email_address_verification" ||
+                            (signIn?.status === "needs_first_factor" && isPasswordReset);
 
-  if (!needsVerification) {
-    // If we're not in a verification state, redirect to login
-    router.replace("/(auth)/login");
+  // Handle redirect in useEffect to avoid state update during render
+  useEffect(() => {
+    if (signInHook.isLoaded && signIn && !needsVerification) {
+      // If we're not in a verification state, redirect to login
+      router.replace("/(auth)/login");
+    }
+  }, [signInHook.isLoaded, signIn?.status, needsVerification]);
+
+  if (!signIn || !needsVerification) {
     return null;
   }
 

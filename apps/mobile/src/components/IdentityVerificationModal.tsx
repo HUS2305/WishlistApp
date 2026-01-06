@@ -254,13 +254,14 @@ export function IdentityVerificationModal({
           }}
           placeholder="000000"
           placeholderTextColor={theme.colors.textSecondary}
-          keyboardType="number-pad"
+          keyboardType="numeric"
           maxLength={6}
           editable={codeSent && !isLoading && !isVerifying}
           onSubmitEditing={handleConfirm}
           selectTextOnFocus={false}
           textContentType="oneTimeCode"
           returnKeyType="done"
+          blurOnSubmit={true}
           autoFocus={Platform.OS === 'web' && codeSent}
         />
 
