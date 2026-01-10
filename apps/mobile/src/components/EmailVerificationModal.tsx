@@ -13,20 +13,25 @@ import { useUser } from "@clerk/clerk-expo";
 import { BottomSheet } from "./BottomSheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TextInput as RNTextInput } from "react-native";
+import { Dimensions } from "react-native";
 
-interface IdentityVerificationModalProps {
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+interface EmailVerificationModalProps {
   visible: boolean;
+  emailAddress: any; // The Clerk EmailAddress object to verify
   onConfirm: () => Promise<void>;
   onCancel: () => void;
   isVerifying?: boolean;
 }
 
-export function IdentityVerificationModal({
+export function EmailVerificationModal({
   visible,
+  emailAddress,
   onConfirm,
   onCancel,
   isVerifying = false,
-}: IdentityVerificationModalProps) {
+}: EmailVerificationModalProps) {
   const { theme } = useTheme();
   const { user } = useUser();
   const insets = useSafeAreaInsets();
@@ -39,6 +44,9 @@ export function IdentityVerificationModal({
   const [verification, setVerification] = useState<any>(null);
   const hasPreparedRef = useRef(false);
   const hasVerifiedRef = useRef(false);
+  const isPreparingRef = useRef(false); // Track if we're currently preparing (to prevent concurrent calls)
+  const preparedEmailIdRef = useRef<string | null>(null); // Track which email ID we've prepared for
+  const sendVerificationCodeRef = useRef<(() => Promise<void>) | null>(null); // Store latest sendVerificationCode
   const inputRefs = useRef<(RNTextInput | null)[]>([]);
   const hiddenInputRef = useRef<RNTextInput | null>(null);
   
@@ -46,146 +54,133 @@ export function IdentityVerificationModal({
 
   // Send email verification code
   const sendVerificationCode = useCallback(async () => {
-    if (!user || hasPreparedRef.current) return;
+    if (!emailAddress || !user) {
+      console.log("sendVerificationCode: Missing emailAddress or user");
+      isPreparingRef.current = false;
+      setIsSendingCode(false);
+      return;
+    }
 
-    try {
-      setIsSendingCode(true);
-      setError("");
+    // Don't prepare if already preparing
+    if (isPreparingRef.current) {
+      console.log("sendVerificationCode: Already preparing, skipping");
+      return;
+    }
+
+    // Check if this email is already the primary email
+    if (user.primaryEmailAddressId === emailAddress.id) {
+      console.log("Email is already primary - verification complete");
+      setVerification(emailAddress);
+      setCodeSent(true);
       hasPreparedRef.current = true;
+      preparedEmailIdRef.current = emailAddress.id;
+      isPreparingRef.current = false;
+      setIsSendingCode(false);
+      return;
+    }
 
-      const emailAddress = user.emailAddresses[0];
+    // Check if verification already exists with valid status
+    if (emailAddress.verification) {
+      const existingStatus = (emailAddress.verification as any)?.status;
+      console.log("Found existing verification with status:", existingStatus);
       
-      if (!emailAddress) {
-        setError("No email address found");
-        hasPreparedRef.current = false;
-        return;
-      }
-
-      // Check if there's already a verification object on the emailAddress
-      // This can happen if a verification was prepared earlier or if Clerk auto-verifies
-      if (emailAddress.verification) {
-        const existingStatus = (emailAddress.verification as any)?.status;
-        console.log("Found existing verification object with status:", existingStatus);
-        
-        // Always use the existing verification object if it exists
-        // We'll set it so handleConfirm can check the status and proceed if already verified
+      if (existingStatus === "verified" || existingStatus === "unverified") {
+        console.log("Using existing verification");
         setVerification(emailAddress);
         setCodeSent(true);
+        hasPreparedRef.current = true;
+        preparedEmailIdRef.current = emailAddress.id;
+        isPreparingRef.current = false;
         setIsSendingCode(false);
         return;
       }
+    }
 
-      // Try to prepare verification for the email address
+    // Prepare verification
+    try {
+      isPreparingRef.current = true;
+      setIsSendingCode(true);
+      setError("");
+
+      console.log("Preparing verification for email:", emailAddress.emailAddress);
+      const verificationObj = await emailAddress.prepareVerification({ strategy: "email_code" });
+      console.log("Verification prepared successfully:", verificationObj);
+      
+      if (verificationObj) {
+        // Reload user to get fresh emailAddress with verification
+        await user.reload();
+        const freshEmailAddress = user.emailAddresses?.find(e => e.id === emailAddress.id);
+        const emailToUse = freshEmailAddress || verificationObj;
+        
+        const verifStatus = emailToUse.verification?.status;
+        console.log("Verification status after prepareVerification:", verifStatus);
+        
+        setVerification(emailToUse);
+        setCodeSent(true);
+        hasPreparedRef.current = true;
+        preparedEmailIdRef.current = emailAddress.id;
+        isPreparingRef.current = false;
+        setIsSendingCode(false);
+      } else {
+        throw new Error("Failed to create verification");
+      }
+    } catch (prepareError: any) {
+      console.error("Error preparing verification:", prepareError);
+      isPreparingRef.current = false;
+      
+      // Better error message extraction
+      let errorMsg = "";
+      if (prepareError.errors && Array.isArray(prepareError.errors) && prepareError.errors.length > 0) {
+        errorMsg = prepareError.errors[0].message || prepareError.errors[0].code || "";
+      } else if (prepareError.message) {
+        errorMsg = prepareError.message;
+      } else {
+        errorMsg = "Failed to send verification code";
+      }
+      
+      const errorString = errorMsg.toLowerCase();
+      
+      // Check if verification was already prepared (common case)
       try {
-        const verificationObj = await emailAddress.prepareVerification({ strategy: "email_code" });
-        console.log("Verification object created:", verificationObj);
-        
-        if (verificationObj) {
-          // The verification object returned by prepareVerification is an EmailAddress with a verification property
-          const verifStatus = verificationObj.verification?.status;
-          console.log("Verification status after prepareVerification:", verifStatus);
-          
-          // Always set the verification object - handleConfirm will check if it's already verified
-          setVerification(verificationObj);
-          setCodeSent(true);
-          
-          // Note: If verification is already verified, we don't auto-proceed here
-          // Instead, handleConfirm will check and proceed when user clicks Verify
-        } else {
-          throw new Error("Failed to create verification");
-        }
-      } catch (prepareError: any) {
-        console.error("Error preparing verification:", prepareError);
-        
-        // Better error message extraction - handle generic [e] errors
-        let errorMsg = "";
-        if (prepareError.errors && Array.isArray(prepareError.errors) && prepareError.errors.length > 0) {
-          errorMsg = prepareError.errors[0].message || prepareError.errors[0].code || "";
-        } else if (prepareError.message) {
-          errorMsg = prepareError.message;
-        } else if (prepareError.toString && prepareError.toString() !== "[object Object]") {
-          errorMsg = prepareError.toString();
-        } else {
-          errorMsg = "[e]"; // Generic error fallback
-        }
-        
-        const errorString = errorMsg.toLowerCase();
-        
-        // Check if there's an existing verification object we can use (this is the key fix!)
-        // Reload user to get latest emailAddress state with verification
-        try {
-          await user.reload();
-          const updatedEmailAddress = user.emailAddresses[0];
-          if (updatedEmailAddress?.verification) {
-            console.log("prepareVerification failed but found existing verification object after reload, using it");
+        await user.reload();
+        const updatedEmailAddress = user.emailAddresses?.find(e => e.id === emailAddress.id);
+        if (updatedEmailAddress?.verification) {
+          const status = (updatedEmailAddress.verification as any)?.status;
+          if (status === "unverified" || status === "verified") {
+            console.log("Found existing verification after error - using it");
             setVerification(updatedEmailAddress);
             setCodeSent(true);
-            setIsSendingCode(false);
-            
-            // If rate limited but we have existing verification, allow user to enter code
-            if (errorString.includes("too many") || errorString.includes("rate limit") || errorMsg === "[e]") {
-              setError("Too many requests. If you received a code, you can still enter it below.");
-            }
-            return;
-          }
-        } catch (reloadError) {
-          console.error("Error reloading user:", reloadError);
-        }
-        
-        // Handle specific error cases
-        if (errorString.includes("already") || 
-            errorString.includes("prepared") ||
-            errorString.includes("pending")) {
-          // Already prepared - that's fine, try to use existing verification
-          console.log("Already prepared - attempting to use existing verification");
-          if (emailAddress.verification) {
-            setVerification(emailAddress);
-            setCodeSent(true);
+            hasPreparedRef.current = true;
+            preparedEmailIdRef.current = emailAddress.id;
             setIsSendingCode(false);
             return;
-          } else {
-            // No existing verification, show error but allow retry
-            hasPreparedRef.current = false;
-            setError("Unable to send verification code. Please try again.");
-            setCodeSent(false);
           }
-        } else if (errorString.includes("too many") || 
-                   errorString.includes("rate limit") ||
-                   errorMsg === "[e]") {
-          // Rate limit or generic error - show error but allow retry
-          hasPreparedRef.current = false;
-          setError("Too many requests. Please try again in a bit, or use 'Resend Code' if you received a code earlier.");
-          setCodeSent(false);
-        } else {
-          hasPreparedRef.current = false;
-          setError(errorMsg || "Failed to send verification code. Please try again.");
-          setCodeSent(false);
         }
-        // Don't re-throw - we've handled the error
+      } catch (reloadError) {
+        console.error("Error reloading user:", reloadError);
       }
-    } catch (error: any) {
-      // This outer catch should rarely be hit now since we handle errors in the inner catch
-      console.error("Unexpected error in sendVerificationCode:", error);
-      const errorMsg = error.errors?.[0]?.message || error.message || "";
       
-      // Last resort: try to use emailAddress's verification if it exists
-      if (user?.emailAddresses?.[0]?.verification) {
-        console.log("Using emailAddress verification as fallback");
-        setVerification(user.emailAddresses[0]);
-        setCodeSent(true);
+      // Handle rate limiting
+      if (errorString.includes("too many") || errorString.includes("rate limit")) {
+        setError("Too many requests. Please try again in a bit, or use 'Resend Code' if you received a code earlier.");
+      } else if (errorString.includes("already") || errorString.includes("prepared")) {
+        setError("Verification already prepared. Please check for the code or use 'Resend Code'.");
       } else {
-        hasPreparedRef.current = false;
         setError(errorMsg || "Failed to send verification code. Please try again.");
-        setCodeSent(false);
       }
-    } finally {
+      setCodeSent(false);
       setIsSendingCode(false);
     }
-  }, [user]);
+  }, [emailAddress, user]);
 
-  // Reset state when modal opens/closes
+  // Store latest sendVerificationCode in ref so useEffect can use it without causing re-runs
   useEffect(() => {
-    if (!visible || !user) {
+    sendVerificationCodeRef.current = sendVerificationCode;
+  }, [sendVerificationCode]);
+
+  // Reset state when modal opens/closes OR when emailAddress changes
+  useEffect(() => {
+    if (!visible || !emailAddress || !user) {
       setCode("");
       setCodeDigits(["", "", "", "", "", ""]);
       setCodeSent(false);
@@ -193,26 +188,104 @@ export function IdentityVerificationModal({
       setVerification(null);
       hasPreparedRef.current = false;
       hasVerifiedRef.current = false;
+      isPreparingRef.current = false;
+      preparedEmailIdRef.current = null;
       return;
     }
 
+    // RESET ALL refs when emailAddress ID changes (new email to verify)
+    const currentEmailId = emailAddress.id;
+    if (preparedEmailIdRef.current !== null && preparedEmailIdRef.current !== currentEmailId) {
+      console.log("Email address ID changed - resetting all preparation state");
+      hasPreparedRef.current = false;
+      isPreparingRef.current = false;
+      preparedEmailIdRef.current = null;
+    }
+
+    // If already prepared for this exact email ID with valid verification, use it
+    if (preparedEmailIdRef.current === currentEmailId && emailAddress.verification) {
+      const existingStatus = (emailAddress.verification as any)?.status;
+      if (existingStatus === "unverified" || existingStatus === "verified") {
+        console.log("Already prepared for this email - using existing verification");
+        setVerification(emailAddress);
+        setCodeSent(true);
+        hasPreparedRef.current = true;
+        setCode("");
+        setCodeDigits(["", "", "", "", "", ""]);
+        setTimeout(() => {
+          inputRefs.current[0]?.focus();
+        }, 200);
+        return;
+      }
+    }
+
+    // Check if email is already primary
+    if (user.primaryEmailAddressId === currentEmailId) {
+      console.log("Email is already primary - verification complete");
+      setCodeSent(true);
+      setVerification(emailAddress);
+      hasPreparedRef.current = true;
+      preparedEmailIdRef.current = currentEmailId;
+      return;
+    }
+
+    // Check if verification already exists with valid status
+    if (emailAddress.verification) {
+      const existingStatus = (emailAddress.verification as any)?.status;
+      if (existingStatus === "unverified" || existingStatus === "verified") {
+        console.log("Verification already exists - using it");
+        setVerification(emailAddress);
+        setCodeSent(true);
+        hasPreparedRef.current = true;
+        preparedEmailIdRef.current = currentEmailId;
+        setCode("");
+        setCodeDigits(["", "", "", "", "", ""]);
+        setTimeout(() => {
+          inputRefs.current[0]?.focus();
+        }, 200);
+        return;
+      }
+    }
+
+    // Don't prepare if already preparing or already prepared for this email
+    if (isPreparingRef.current || preparedEmailIdRef.current === currentEmailId) {
+      console.log("Already preparing or prepared - skipping");
+      return;
+    }
+    
+    // Reset state for new preparation
     setCode("");
     setCodeDigits(["", "", "", "", "", ""]);
-    setCodeSent(true); // Set to true immediately so inputs are editable
+    setCodeSent(false);
     setError("");
     setVerification(null);
-    hasPreparedRef.current = false;
     hasVerifiedRef.current = false;
-    // Focus first input after a small delay
-    setTimeout(() => {
-      inputRefs.current[0]?.focus();
+    
+    // Delay sending code to allow sheet to render first
+    const timer = setTimeout(async () => {
+      if (!user || !emailAddress || user.primaryEmailAddressId === emailAddress.id) {
+        return;
+      }
+
+      const sendCode = sendVerificationCodeRef.current;
+      if (sendCode) {
+        try {
+          await sendCode();
+          setTimeout(() => {
+            inputRefs.current[0]?.focus();
+          }, 200);
+        } catch (error) {
+          console.error("Error preparing verification:", error);
+          isPreparingRef.current = false;
+          if (preparedEmailIdRef.current === emailAddress.id) {
+            preparedEmailIdRef.current = null;
+            hasPreparedRef.current = false;
+          }
+        }
+      }
     }, 300);
-    // Delay sending code to allow sheet to measure content first
-    const timer = setTimeout(() => {
-      sendVerificationCode();
-    }, 100);
     return () => clearTimeout(timer);
-  }, [visible, user, sendVerificationCode]);
+  }, [visible, emailAddress?.id, user?.id]);
 
   // Handle native OTP autofill
   const handleAutofill = (text: string) => {
@@ -233,7 +306,7 @@ export function IdentityVerificationModal({
     }
   };
 
-  // Handle digit input - matching SignUpVerificationBottomSheet exactly
+  // Handle digit input - matching IdentityVerificationModal exactly
   const handleDigitChange = (index: number, value: string) => {
     const numericValue = value.replace(/[^0-9]/g, "");
     const newDigits = [...codeDigits];
@@ -283,7 +356,7 @@ export function IdentityVerificationModal({
   };
 
   const handleConfirm = useCallback(async (codeToVerify?: string) => {
-    if (!user) return;
+    if (!emailAddress || !user) return;
 
     // Use provided code or fall back to state
     const verificationCode = codeToVerify || code;
@@ -307,10 +380,14 @@ export function IdentityVerificationModal({
 
       // If no verification object, try to get it from the emailAddress
       let verificationToUse = verification;
-      if (!verificationToUse && user?.emailAddresses?.[0]) {
-        const emailAddress = user.emailAddresses[0];
-        // Check if emailAddress itself has a verification object
-        if (emailAddress.verification) {
+      if (!verificationToUse) {
+        // Reload user to get latest emailAddress state
+        await user.reload();
+        const updatedEmailAddress = user.emailAddresses?.find(e => e.id === emailAddress.id);
+        if (updatedEmailAddress?.verification) {
+          console.log("Using verification from updated emailAddress object");
+          verificationToUse = updatedEmailAddress;
+        } else if (emailAddress.verification) {
           console.log("Using verification from emailAddress object");
           verificationToUse = emailAddress;
         } else {
@@ -337,24 +414,40 @@ export function IdentityVerificationModal({
 
       // Check if the verification is already verified (this can happen if email is auto-verified)
       const verificationStatus = verificationToUse.verification?.status || verificationToUse.status;
+      console.log("Verification status before attempting:", verificationStatus);
+      
       if (verificationStatus === "verified") {
-        console.log("Verification already verified - Clerk may have auto-verified this email. Proceeding with identity confirmation.");
+        console.log("Verification already verified - Clerk may have auto-verified this email. Proceeding with email confirmation.");
         hasVerifiedRef.current = true;
-        try {
-          await onConfirm();
-          console.log("onConfirm completed successfully");
-        } catch (confirmError) {
-          console.error("Error in onConfirm:", confirmError);
-          // Don't close modal if onConfirm fails
-          hasVerifiedRef.current = false;
-          setError("Failed to proceed. Please try again.");
-        }
+        await onConfirm();
         return;
       }
       
+      // If verification status is null, we need to prepare verification first
+      if (!verificationStatus || verificationStatus === null) {
+        console.log("Verification status is null, preparing verification first...");
+        try {
+          const preparedVerification = await emailAddress.prepareVerification({ strategy: "email_code" });
+          if (preparedVerification) {
+            verificationToUse = preparedVerification;
+            setVerification(preparedVerification);
+            console.log("Verification prepared successfully");
+          } else {
+            throw new Error("Failed to prepare verification");
+          }
+        } catch (prepError: any) {
+          console.error("Error preparing verification in handleConfirm:", prepError);
+          const prepErrorMessage = prepError.errors?.[0]?.message || prepError.message || "Failed to prepare verification";
+          setError(prepErrorMessage || "Please request a new code using the 'Resend Code' button.");
+          setIsLoading(false);
+          hasVerifiedRef.current = false;
+          return;
+        }
+      }
+      
       // Check if the verification is unverified or expired - if so, we need a code
-      if (verificationStatus === "unverified" || verificationStatus === "expired" || !verificationStatus) {
-        // Need to verify with code
+      if (verificationStatus === "unverified" || verificationStatus === "expired") {
+        // Need to verify with code - proceed below
       }
       
       hasVerifiedRef.current = true;
@@ -372,7 +465,6 @@ export function IdentityVerificationModal({
           result = await verificationToUse.verification.attemptVerification({ code: verificationCode });
         } else {
           // Fallback: try using the emailAddress directly
-          const emailAddress = user.emailAddresses[0];
           if (emailAddress?.attemptVerification) {
             result = await emailAddress.attemptVerification({ code: verificationCode });
           } else {
@@ -385,15 +477,7 @@ export function IdentityVerificationModal({
         if (resultStatus === "verified") {
           console.log("Verification successful!");
           hasVerifiedRef.current = true;
-          try {
-            await onConfirm();
-            console.log("onConfirm completed successfully");
-          } catch (confirmError) {
-            console.error("Error in onConfirm:", confirmError);
-            // Don't close modal if onConfirm fails
-            hasVerifiedRef.current = false;
-            setError("Failed to proceed. Please try again.");
-          }
+          await onConfirm();
           return;
         } else {
           hasVerifiedRef.current = false;
@@ -411,15 +495,7 @@ export function IdentityVerificationModal({
             errorMessage.includes("This verification has already been verified")) {
           console.log("Verification already verified, proceeding with onConfirm");
           hasVerifiedRef.current = true;
-          try {
-            await onConfirm();
-            console.log("onConfirm completed successfully");
-          } catch (confirmError) {
-            console.error("Error in onConfirm:", confirmError);
-            // Don't close modal if onConfirm fails
-            hasVerifiedRef.current = false;
-            setError("Failed to proceed. Please try again.");
-          }
+          await onConfirm();
           return;
         } else {
           // For any other error (invalid code, expired, etc.), show the error
@@ -453,33 +529,37 @@ export function IdentityVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [user, code, verification, onConfirm]);
+  }, [emailAddress, user, code, verification, onConfirm]);
 
   const onResendCode = async () => {
-    if (!user) return;
+    if (!emailAddress || !user) return;
 
     setError("");
     setIsSendingCode(true);
+    // Don't reset preparedEmailIdRef here - we're resending for the same email
+    // Just prepare verification again (which will create a new verification object)
     hasPreparedRef.current = false;
 
     try {
-      const emailAddress = user.emailAddresses[0];
-      if (!emailAddress) {
-        setError("No email address found");
-        return;
-      }
-
       const verificationObj = await emailAddress.prepareVerification({ strategy: "email_code" });
       if (verificationObj) {
         setVerification(verificationObj);
         setCodeSent(true);
         hasPreparedRef.current = true;
+        preparedEmailIdRef.current = emailAddress.id; // Track which email we prepared
+        setCode("");
+        setCodeDigits(["", "", "", "", "", ""]);
       }
     } catch (err: any) {
       const errorMessage = err.errors?.[0]?.message || "Failed to resend code";
       setError(errorMessage);
       console.error("Error resending code:", err);
-      hasPreparedRef.current = false;
+      // If resend fails, don't reset preparedEmailIdRef - we might still have a valid verification
+      // Only reset if there's no existing verification
+      if (!emailAddress.verification) {
+        hasPreparedRef.current = false;
+        preparedEmailIdRef.current = null;
+      }
     } finally {
       setIsSendingCode(false);
     }
@@ -490,23 +570,22 @@ export function IdentityVerificationModal({
     const combinedCode = codeDigits.join("");
     setCode(combinedCode);
     
-    // Auto-verify when all 6 digits are entered and code is valid
+    // Auto-verify when all 6 digits are entered, code is sent, verification is ready, and we're not already verifying
     if (combinedCode.length === 6 && 
         codeSent && 
+        verification && // Make sure verification object is set
         !isLoading && 
+        !isSendingCode &&
         !isVerifying && 
-        !hasVerifiedRef.current &&
-        verification) { // Make sure verification exists before auto-verifying
-      // Small delay to ensure state is updated
+        !hasVerifiedRef.current) {
+      // Small delay to ensure state is updated and verification is ready
       const timer = setTimeout(() => {
-        if (!hasVerifiedRef.current && !isLoading) {
-          handleConfirm(combinedCode);
-        }
-      }, 300); // Increased delay slightly
+        handleConfirm(combinedCode);
+      }, 200);
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, [codeDigits, codeSent, isLoading, isVerifying, verification, handleConfirm]);
+  }, [codeDigits, codeSent, verification, isLoading, isSendingCode, isVerifying, handleConfirm]);
 
   const handleCancel = () => {
     setCode("");
@@ -516,24 +595,33 @@ export function IdentityVerificationModal({
     setVerification(null);
     hasPreparedRef.current = false;
     hasVerifiedRef.current = false;
+    isPreparingRef.current = false;
+    preparedEmailIdRef.current = null;
     onCancel();
   };
 
-  if (!user) return null;
+  if (!emailAddress || !user) {
+    return null;
+  }
 
-  const emailAddress = user.emailAddresses[0]?.emailAddress || "";
+  const email = emailAddress.emailAddress || "";
 
   return (
     <BottomSheet 
       visible={visible} 
       onClose={handleCancel} 
       autoHeight={true}
+      maxHeight={SCREEN_HEIGHT * 0.8}
+      keyboardBehavior="extend"
+      enablePanDownToClose={true}
+      enableContentPanningGesture={true}
+      enableHandlePanningGesture={true}
       stackBehavior="switch"
     >
-      {/* Header - Title with action button on right (matching CreateWishlistSheet pattern) */}
+      {/* Header - Title with action button on right (matching IdentityVerificationModal pattern) */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-          Verify Your Identity
+          Verify Your Email
         </Text>
         <TouchableOpacity
           onPress={() => handleConfirm()}
@@ -566,7 +654,7 @@ export function IdentityVerificationModal({
       {/* Content */}
       <View style={[styles.content, { paddingBottom: bottomPadding }]}>
         <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-          Enter the verification code sent to {emailAddress}
+          Enter the verification code sent to {email}
         </Text>
 
         <View style={styles.inputContainer}>
@@ -797,3 +885,4 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 });
+

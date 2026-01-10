@@ -1,17 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
+  Platform,
+  Keyboard,
+  Pressable,
 } from "react-native";
 import { BottomSheetTextInput } from "@gorhom/bottom-sheet";
 import { Text } from "./Text";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
-import { useUser } from "@clerk/clerk-expo";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface PasswordVerificationModalProps {
   visible: boolean;
@@ -27,24 +29,39 @@ export function PasswordVerificationModal({
   isVerifying = false,
 }: PasswordVerificationModalProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const bottomPadding = Math.max(20, Platform.OS === "ios" ? insets.bottom + 30 : 20);
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (visible) {
+      setPassword("");
+      setError("");
+    } else {
+      setPassword("");
+      setError("");
+    }
+  }, [visible]);
 
   const handleConfirm = async () => {
     if (!password.trim()) {
-      Alert.alert("Error", "Please enter your password");
+      setError("Please enter your password");
       return;
     }
 
     try {
       setIsLoading(true);
+      setError("");
       await onConfirm(password);
       setPassword(""); // Clear password on success
     } catch (error: any) {
-      Alert.alert(
-        "Verification Failed",
-        error.message || "Incorrect password. Please try again."
-      );
+      const errorMessage = error.message || "Incorrect password. Please try again.";
+      setError(errorMessage);
       setPassword(""); // Clear password on error
     } finally {
       setIsLoading(false);
@@ -53,12 +70,13 @@ export function PasswordVerificationModal({
 
   const handleCancel = () => {
     setPassword("");
+    setError("");
     onCancel();
   };
 
   return (
     <BottomSheet visible={visible} onClose={handleCancel} autoHeight={true}>
-      {/* Header - Standard pattern: centered title, no X button */}
+      {/* Header - Standard pattern */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
           Verify Your Identity
@@ -66,74 +84,78 @@ export function PasswordVerificationModal({
       </View>
 
       {/* Content */}
-      <View style={styles.content}>
-        <Text style={[styles.message, { color: theme.colors.textPrimary }]}>
-          For your security, please enter your password to confirm this action.
-        </Text>
+      <Pressable onPress={Keyboard.dismiss} style={{ flex: 1 }}>
+        <View style={[styles.content, { paddingBottom: bottomPadding }]}>
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            For your security, please enter your password to confirm this action.
+          </Text>
 
-        <BottomSheetTextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.colors.surface,
-              color: theme.colors.textPrimary,
-              borderColor: theme.colors.textSecondary + '30',
-            },
-          ]}
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Enter your password"
-          placeholderTextColor={theme.colors.textSecondary}
-          secureTextEntry
-          autoCapitalize="none"
-          editable={!isLoading && !isVerifying}
-          onSubmitEditing={handleConfirm}
-        />
-
-          {/* Action Buttons */}
-          <View style={styles.actions}>
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.cancelButton,
-                {
-                  backgroundColor: theme.isDark ? '#2E2E2E' : '#F3F4F6',
-                  borderColor: theme.colors.textSecondary + '40',
-                }
-              ]}
-              onPress={handleCancel}
-              disabled={isLoading || isVerifying}
-              activeOpacity={0.7}
-            >
-              <Text style={[
-                styles.cancelButtonText,
-                { color: theme.colors.textPrimary }
-              ]}>
-                Cancel
+          <View style={styles.inputContainer}>
+            <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+              Password
+            </Text>
+            <View style={styles.passwordInputWrapper}>
+              <BottomSheetTextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    color: theme.colors.textPrimary,
+                    borderColor: error 
+                      ? (theme.colors.error || "#EF4444")
+                      : (theme.isDark ? "#666666" : "#9CA3AF"),
+                  },
+                ]}
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  setError("");
+                }}
+                placeholder="Enter your password"
+                placeholderTextColor={theme.colors.textSecondary}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                editable={!isLoading && !isVerifying}
+                onSubmitEditing={handleConfirm}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Feather
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+            {error ? (
+              <Text style={[styles.errorText, { color: theme.colors.error || "#EF4444" }]}>
+                {error}
               </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.confirmButton,
-                { backgroundColor: theme.colors.primary },
-                (isLoading || isVerifying) && styles.buttonDisabled
-              ]}
-              onPress={handleConfirm}
-              disabled={isLoading || isVerifying}
-              activeOpacity={0.7}
-            >
-              {isLoading || isVerifying ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.confirmButtonText}>
-                  Verify
-                </Text>
-              )}
-            </TouchableOpacity>
+            ) : null}
           </View>
+
+          <TouchableOpacity
+            onPress={handleConfirm}
+            disabled={!password.trim() || isLoading || isVerifying}
+            style={[
+              styles.verifyButton,
+              {
+                backgroundColor: theme.colors.primary,
+                opacity: (!password.trim() || isLoading || isVerifying) ? 0.5 : 1,
+              },
+            ]}
+          >
+            {isLoading || isVerifying ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.verifyButtonText}>Verify</Text>
+            )}
+          </TouchableOpacity>
         </View>
+      </Pressable>
     </BottomSheet>
   );
 }
@@ -142,7 +164,7 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingTop: 0,
-    paddingBottom: 0,
+    paddingBottom: 8,
     minHeight: 0,
     justifyContent: "center",
     alignItems: "center",
@@ -152,55 +174,57 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   content: {
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 8,
   },
-  message: {
+  subtitle: {
     fontSize: 14,
     textAlign: "center",
+    marginBottom: 24,
     lineHeight: 20,
-    marginBottom: 20,
-    paddingHorizontal: 8,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+  passwordInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    position: "relative",
   },
   input: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 12,
-    fontSize: 16,
-    borderWidth: 1,
-    marginBottom: 24,
-  },
-  actions: {
-    flexDirection: "row",
-    width: "100%",
-    gap: 12,
-  },
-  button: {
     flex: 1,
-    paddingVertical: 14,
+    height: 40,
+    borderWidth: 1,
+    borderRadius: 8,
     paddingHorizontal: 16,
-    marginBottom: 10,
-    borderRadius: 12,
+    fontSize: 15,
+    paddingRight: 48, // Make space for the eye icon
+  },
+  eyeButton: {
+    position: "absolute",
+    right: 12,
+    padding: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: 8,
+  },
+  verifyButton: {
+    height: 44,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 48,
+    marginBottom: 12,
   },
-  cancelButton: {
-    borderWidth: 1,
-  },
-  cancelButtonText: {
+  verifyButtonText: {
+    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
-  },
-  confirmButton: {
-    backgroundColor: "#EF4444",
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  confirmButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#fff",
   },
 });
 

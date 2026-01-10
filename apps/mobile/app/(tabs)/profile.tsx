@@ -10,6 +10,10 @@ import api from "@/services/api";
 import { getDisplayName } from "@/lib/utils";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { IdentityVerificationModal } from "@/components/IdentityVerificationModal";
+import { EditProfileSheet } from "@/components/EditProfileSheet";
+import { ChangeEmailSheet } from "@/components/ChangeEmailSheet";
+import { ChangePasswordSheet } from "@/components/ChangePasswordSheet";
+import { PasswordVerificationModal } from "@/components/PasswordVerificationModal";
 
 interface UserProfile {
   id: string;
@@ -18,6 +22,7 @@ interface UserProfile {
   firstName: string | null;
   lastName: string | null;
   avatar: string | null;
+  displayName?: string | null;
 }
 
 export default function ProfileScreen() {
@@ -31,6 +36,12 @@ export default function ProfileScreen() {
   const [identityVerifyVisible, setIdentityVerifyVisible] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [editProfileVisible, setEditProfileVisible] = useState(false);
+  const [changeEmailVisible, setChangeEmailVisible] = useState(false);
+  const [changePasswordVisible, setChangePasswordVisible] = useState(false);
+  const [passwordVerifyVisible, setPasswordVerifyVisible] = useState(false);
+  const [verifiedPassword, setVerifiedPassword] = useState<string | undefined>(undefined);
+  const [identityVerifyForEmailChange, setIdentityVerifyForEmailChange] = useState(false);
 
   // If user signed out, redirect immediately (only after Clerk is loaded)
   useEffect(() => {
@@ -148,7 +159,7 @@ export default function ProfileScreen() {
         <View style={styles.menuContainer}>
           <TouchableOpacity 
             style={styles.menuItem}
-            onPress={() => router.push("/profile/edit")}
+            onPress={() => setEditProfileVisible(true)}
           >
             <Feather name="edit-3" size={24} color={theme.colors.primary} />
             <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Edit Profile</Text>
@@ -159,7 +170,10 @@ export default function ProfileScreen() {
 
           <TouchableOpacity 
             style={styles.menuItem}
-            onPress={() => router.push("/profile/change-email")}
+            onPress={() => {
+              setIdentityVerifyForEmailChange(true);
+              setIdentityVerifyVisible(true);
+            }}
           >
             <Feather name="mail" size={24} color={theme.colors.primary} />
             <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Change Email</Text>
@@ -170,7 +184,7 @@ export default function ProfileScreen() {
 
           <TouchableOpacity 
             style={styles.menuItem}
-            onPress={() => router.push("/profile/change-password")}
+            onPress={() => setPasswordVerifyVisible(true)}
           >
             <Feather name="lock" size={24} color={theme.colors.primary} />
             <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Change Password</Text>
@@ -180,7 +194,10 @@ export default function ProfileScreen() {
 
         <TouchableOpacity 
           style={[styles.dangerButton, { backgroundColor: theme.colors.error }]}
-          onPress={() => setIdentityVerifyVisible(true)}
+          onPress={() => {
+            setIdentityVerifyForEmailChange(false);
+            setIdentityVerifyVisible(true);
+          }}
         >
           <Feather name="trash-2" size={20} color="#FFFFFF" />
           <Text style={styles.dangerButtonText}>
@@ -189,16 +206,86 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Identity Verification Modal */}
+      {/* Bottom Sheets - Always render to ensure proper mounting */}
+      <EditProfileSheet
+        visible={editProfileVisible}
+        onClose={() => setEditProfileVisible(false)}
+        onSuccess={() => {
+          setEditProfileVisible(false);
+          fetchUserProfile(); // Refresh profile data
+          clerkUser?.reload(); // Reload Clerk user data
+        }}
+      />
+
+      {/* Identity Verification Modal - Used for both email change and delete account */}
       <IdentityVerificationModal
         visible={identityVerifyVisible}
         onConfirm={async () => {
-          // Identity verified, show delete confirmation
+          // Store the flag value before resetting - CRITICAL!
+          const isForEmailChange = identityVerifyForEmailChange;
+          console.log("Identity verification onConfirm called, isForEmailChange:", isForEmailChange);
+          
+          // Close modal first - allow it to animate out
           setIdentityVerifyVisible(false);
-          setDeleteConfirmVisible(true);
+          setIdentityVerifyForEmailChange(false); // Reset flag after storing
+          
+          // Delay to ensure modal fully closes before opening next sheet
+          // Using requestAnimationFrame + setTimeout for better timing
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              console.log("Opening next step after identity verification, isForEmailChange:", isForEmailChange);
+              if (isForEmailChange) {
+                // For email change, open ChangeEmailSheet
+                console.log("Setting changeEmailVisible to true");
+                setChangeEmailVisible(true);
+              } else {
+                // For delete account, open delete confirmation
+                console.log("Setting deleteConfirmVisible to true");
+                setDeleteConfirmVisible(true);
+              }
+            }, 400); // Increased delay to ensure smooth transition
+          });
         }}
-        onCancel={() => setIdentityVerifyVisible(false)}
+        onCancel={() => {
+          setIdentityVerifyVisible(false);
+          setIdentityVerifyForEmailChange(false); // Reset flag
+        }}
         isVerifying={false}
+      />
+
+      <ChangeEmailSheet
+        visible={changeEmailVisible}
+        onClose={() => setChangeEmailVisible(false)}
+        onSuccess={() => {
+          setChangeEmailVisible(false);
+          fetchUserProfile(); // Refresh profile data
+          clerkUser?.reload(); // Reload Clerk user data
+        }}
+      />
+
+      {/* Password Verification Modal - For password change */}
+      <PasswordVerificationModal
+        visible={passwordVerifyVisible}
+        onConfirm={async (password) => {
+          setVerifiedPassword(password); // Store the verified password
+          setPasswordVerifyVisible(false);
+          setChangePasswordVisible(true); // Open the ChangePasswordSheet
+        }}
+        onCancel={() => setPasswordVerifyVisible(false)}
+        isVerifying={false}
+      />
+
+      <ChangePasswordSheet
+        visible={changePasswordVisible}
+        currentPassword={verifiedPassword}
+        onClose={() => {
+          setChangePasswordVisible(false);
+          setVerifiedPassword(undefined); // Clear verified password
+        }}
+        onSuccess={() => {
+          setChangePasswordVisible(false);
+          setVerifiedPassword(undefined); // Clear verified password
+        }}
       />
 
       {/* Delete Account Confirmation */}
