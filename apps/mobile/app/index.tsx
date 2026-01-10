@@ -82,7 +82,8 @@ export default function Index() {
     if (isLoaded) {
       checkProfile();
     }
-  }, [isLoaded, isSignedIn, getToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn]); // getToken is stable, don't include in deps to prevent loops
 
   // Wait for Clerk to load before making routing decisions
   if (!isLoaded || checkingProfile) {

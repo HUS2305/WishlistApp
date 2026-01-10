@@ -14,7 +14,7 @@ import {
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
 import { Text } from "@/components/Text";
-import { useUser } from "@clerk/clerk-expo";
+import { useUser, useAuth } from "@clerk/clerk-expo";
 import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,29 +29,112 @@ interface EditProfileSheetProps {
   onSuccess?: () => void;
 }
 
+interface BackendUserProfile {
+  id: string;
+  email: string;
+  username: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  avatar: string | null;
+  displayName?: string | null;
+}
+
 export function EditProfileSheet({ visible, onClose, onSuccess }: EditProfileSheetProps) {
   const { theme } = useTheme();
   const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
   const insets = useSafeAreaInsets();
   
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");
+  const [originalUsername, setOriginalUsername] = useState<string | null>(null); // Track original username for comparison
+  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [usernameError, setUsernameError] = useState("");
   const [checkingUsername, setCheckingUsername] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false); // Track if we've already loaded data
 
   const bottomPadding = Math.max(20, Platform.OS === "ios" ? insets.bottom + 30 : 20);
 
-  // Load user data when sheet opens
+  // Reset hasLoaded when sheet closes
   useEffect(() => {
-    if (visible && user && isLoaded) {
-      setFirstName(user.firstName || "");
-      setLastName(user.lastName || "");
-      setUsername(user.username || "");
-      setUsernameError("");
+    if (!visible) {
+      setHasLoaded(false);
     }
-  }, [visible, user, isLoaded]);
+  }, [visible]);
+
+  // Load user data from both Clerk and backend when sheet opens
+  useEffect(() => {
+    // Only load if sheet is visible, user is loaded, and we haven't loaded yet
+    if (!visible || !user || !isLoaded || hasLoaded) {
+      return;
+    }
+
+    const loadUserData = async () => {
+      setIsLoading(true);
+      setUsernameError("");
+
+      // Store current user reference to avoid stale closure
+      const currentUser = user;
+
+      try {
+        // First, load from Clerk as fallback
+        let loadedFirstName = currentUser.firstName || "";
+        let loadedLastName = currentUser.lastName || "";
+        let loadedUsername = currentUser.username || "";
+
+        // Try to fetch from backend database for more accurate data (especially username)
+        try {
+          const token = await getToken();
+          if (token) {
+            const response = await api.get<BackendUserProfile>("/users/me");
+            const backendProfile = response.data;
+            
+            console.log("📝 EditProfileSheet: Loaded profile from backend:", {
+              firstName: backendProfile.firstName,
+              lastName: backendProfile.lastName,
+              username: backendProfile.username,
+            });
+            
+            // Use backend data if available, fallback to Clerk
+            loadedFirstName = backendProfile.firstName || currentUser.firstName || "";
+            loadedLastName = backendProfile.lastName || currentUser.lastName || "";
+            loadedUsername = backendProfile.username || currentUser.username || "";
+            setOriginalUsername(backendProfile.username || null);
+          }
+        } catch (backendError: any) {
+          console.log("Could not fetch profile from backend, using Clerk data:", backendError?.response?.status || backendError?.message);
+          // Continue with Clerk data if backend fetch fails
+          setOriginalUsername(currentUser.username || null);
+        }
+
+        console.log("📝 EditProfileSheet: Setting form values:", {
+          firstName: loadedFirstName,
+          lastName: loadedLastName,
+          username: loadedUsername,
+        });
+
+        setFirstName(loadedFirstName);
+        setLastName(loadedLastName);
+        setUsername(loadedUsername);
+        setHasLoaded(true);
+      } catch (error) {
+        console.error("Error loading user data:", error);
+        // Fallback to Clerk data only
+        setFirstName(currentUser.firstName || "");
+        setLastName(currentUser.lastName || "");
+        setUsername(currentUser.username || "");
+        setOriginalUsername(currentUser.username || null);
+        setHasLoaded(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUserData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, isLoaded]); // Only depend on visible and isLoaded - hasLoaded is checked inside to prevent loops
 
   const validateUsername = async (): Promise<boolean> => {
     if (!username.trim()) {
@@ -65,8 +148,8 @@ export function EditProfileSheet({ visible, onClose, onSuccess }: EditProfileShe
       return false;
     }
 
-    // Check if username changed
-    if (username.trim() === (user?.username || "")) {
+    // Check if username changed (compare against original username from backend or Clerk)
+    if (username.trim() === (originalUsername || user?.username || "")) {
       setUsernameError("");
       return true;
     }
@@ -110,14 +193,7 @@ export function EditProfileSheet({ visible, onClose, onSuccess }: EditProfileShe
     try {
       setIsSaving(true);
 
-      // Update Clerk user data
-      await user.update({
-        firstName: firstName.trim() || undefined,
-        lastName: lastName.trim() || undefined,
-        username: username.trim() || undefined,
-      });
-
-      // Also update backend database
+      // Update backend database first (source of truth, especially for username)
       try {
         await api.patch("/users/me", {
           firstName: firstName.trim() || null,
@@ -125,10 +201,30 @@ export function EditProfileSheet({ visible, onClose, onSuccess }: EditProfileShe
           username: username.trim() || null,
         });
       } catch (backendError: any) {
-        console.warn("Failed to update backend, but Clerk update succeeded:", backendError);
-        // Don't fail the whole operation if backend update fails
-        // Clerk webhook will eventually sync it
+        console.error("Failed to update backend:", backendError);
+        const errorMessage = backendError.response?.data?.message || backendError.message || "Failed to update profile in database. Please try again.";
+        Alert.alert("Error", errorMessage);
+        setIsSaving(false);
+        return;
       }
+
+      // Update Clerk user data (firstName and lastName only - username is not supported by Clerk Expo SDK)
+      // Username is only stored in our backend database, not in Clerk
+      try {
+        await user.update({
+          firstName: firstName.trim() || undefined,
+          lastName: lastName.trim() || undefined,
+          // Note: username is not supported by Clerk's user.update() in Expo SDK
+          // Username is only stored and managed in our backend database
+        });
+      } catch (clerkError: any) {
+        console.warn("Failed to update Clerk, but backend update succeeded:", clerkError);
+        // Don't fail the whole operation if Clerk update fails
+        // Backend is the source of truth, and webhook can sync back if needed
+      }
+
+      // Reload user data to get latest from both sources
+      await user.reload();
 
       onClose();
       if (onSuccess) {
@@ -138,7 +234,7 @@ export function EditProfileSheet({ visible, onClose, onSuccess }: EditProfileShe
       console.error("Error updating profile:", error);
       Alert.alert(
         "Error",
-        error.errors?.[0]?.message || "Failed to update profile. Please try again."
+        error.errors?.[0]?.message || error.message || "Failed to update profile. Please try again."
       );
     } finally {
       setIsSaving(false);
@@ -149,10 +245,30 @@ export function EditProfileSheet({ visible, onClose, onSuccess }: EditProfileShe
     return null;
   }
 
+  // Show loading state while fetching profile data
+  if (isLoading) {
+    return (
+      <BottomSheet 
+        visible={visible} 
+        onClose={onClose} 
+        autoHeight={true}
+        maxHeight={SCREEN_HEIGHT * 0.9}
+        stackBehavior="switch"
+        keyboardBehavior="interactive"
+        scrollable={false}
+      >
+        <View style={[styles.contentContainer, { paddingBottom: bottomPadding, alignItems: "center", justifyContent: "center", minHeight: 200 }]}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </BottomSheet>
+    );
+  }
+
+  // Check if there are changes (compare against original values)
   const hasChanges = 
     firstName !== (user.firstName || "") ||
     lastName !== (user.lastName || "") ||
-    username !== (user.username || "");
+    username !== (originalUsername || user.username || "");
 
   return (
     <BottomSheet 

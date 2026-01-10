@@ -438,7 +438,7 @@ export function VerificationBottomSheet({
                      ));
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} autoHeight={true}>
+    <BottomSheet visible={visible} onClose={onClose} autoHeight={true} stackBehavior="switch">
       {/* Header - Standard pattern */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>

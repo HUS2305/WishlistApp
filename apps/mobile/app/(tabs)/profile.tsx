@@ -1,6 +1,6 @@
-import { View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
 import { Text } from "@/components/Text";
-import { useUser, useAuth, useClerk } from "@clerk/clerk-expo";
+import { useUser, useAuth } from "@clerk/clerk-expo";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState, useEffect } from "react";
@@ -8,12 +8,10 @@ import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { useTheme } from "@/contexts/ThemeContext";
 import api from "@/services/api";
 import { getDisplayName } from "@/lib/utils";
-import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { IdentityVerificationModal } from "@/components/IdentityVerificationModal";
 import { EditProfileSheet } from "@/components/EditProfileSheet";
 import { ChangeEmailSheet } from "@/components/ChangeEmailSheet";
 import { ChangePasswordSheet } from "@/components/ChangePasswordSheet";
-import { PasswordVerificationModal } from "@/components/PasswordVerificationModal";
 
 interface UserProfile {
   id: string;
@@ -29,19 +27,15 @@ export default function ProfileScreen() {
   const { theme } = useTheme();
   const { user: clerkUser, isLoaded: userLoaded } = useUser();
   const { isSignedIn, isLoaded, getToken } = useAuth();
-  const { signOut } = useClerk();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [identityVerifyVisible, setIdentityVerifyVisible] = useState(false);
-  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [editProfileVisible, setEditProfileVisible] = useState(false);
   const [changeEmailVisible, setChangeEmailVisible] = useState(false);
   const [changePasswordVisible, setChangePasswordVisible] = useState(false);
-  const [passwordVerifyVisible, setPasswordVerifyVisible] = useState(false);
-  const [verifiedPassword, setVerifiedPassword] = useState<string | undefined>(undefined);
   const [identityVerifyForEmailChange, setIdentityVerifyForEmailChange] = useState(false);
+  const [identityVerifyForPasswordChange, setIdentityVerifyForPasswordChange] = useState(false);
 
   // If user signed out, redirect immediately (only after Clerk is loaded)
   useEffect(() => {
@@ -184,26 +178,27 @@ export default function ProfileScreen() {
 
           <TouchableOpacity 
             style={styles.menuItem}
-            onPress={() => setPasswordVerifyVisible(true)}
+            onPress={() => {
+              setIdentityVerifyForPasswordChange(true);
+              setIdentityVerifyVisible(true);
+            }}
           >
             <Feather name="lock" size={24} color={theme.colors.primary} />
             <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Change Password</Text>
             <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
-        </View>
 
-        <TouchableOpacity 
-          style={[styles.dangerButton, { backgroundColor: theme.colors.error }]}
-          onPress={() => {
-            setIdentityVerifyForEmailChange(false);
-            setIdentityVerifyVisible(true);
-          }}
-        >
-          <Feather name="trash-2" size={20} color="#FFFFFF" />
-          <Text style={styles.dangerButtonText}>
-            Delete Account
-          </Text>
-        </TouchableOpacity>
+          <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '25' }]} />
+
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push("/profile/delete-account")}
+          >
+            <Feather name="trash-2" size={24} color={theme.colors.error || "#EF4444"} />
+            <Text style={[styles.menuText, { color: theme.colors.error || "#EF4444" }]}>Delete Account</Text>
+            <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* Bottom Sheets - Always render to ensure proper mounting */}
@@ -217,31 +212,33 @@ export default function ProfileScreen() {
         }}
       />
 
-      {/* Identity Verification Modal - Used for both email change and delete account */}
+      {/* Identity Verification Modal - Used for email change and password change */}
       <IdentityVerificationModal
         visible={identityVerifyVisible}
         onConfirm={async () => {
-          // Store the flag value before resetting - CRITICAL!
+          // Store the flag values before resetting - CRITICAL!
           const isForEmailChange = identityVerifyForEmailChange;
-          console.log("Identity verification onConfirm called, isForEmailChange:", isForEmailChange);
+          const isForPasswordChange = identityVerifyForPasswordChange;
+          console.log("Identity verification onConfirm called, isForEmailChange:", isForEmailChange, "isForPasswordChange:", isForPasswordChange);
           
           // Close modal first - allow it to animate out
           setIdentityVerifyVisible(false);
           setIdentityVerifyForEmailChange(false); // Reset flag after storing
+          setIdentityVerifyForPasswordChange(false); // Reset flag after storing
           
           // Delay to ensure modal fully closes before opening next sheet
           // Using requestAnimationFrame + setTimeout for better timing
           requestAnimationFrame(() => {
             setTimeout(() => {
-              console.log("Opening next step after identity verification, isForEmailChange:", isForEmailChange);
+              console.log("Opening next step after identity verification, isForEmailChange:", isForEmailChange, "isForPasswordChange:", isForPasswordChange);
               if (isForEmailChange) {
                 // For email change, open ChangeEmailSheet
                 console.log("Setting changeEmailVisible to true");
                 setChangeEmailVisible(true);
-              } else {
-                // For delete account, open delete confirmation
-                console.log("Setting deleteConfirmVisible to true");
-                setDeleteConfirmVisible(true);
+              } else if (isForPasswordChange) {
+                // For password change, open ChangePasswordSheet
+                console.log("Setting changePasswordVisible to true");
+                setChangePasswordVisible(true);
               }
             }, 400); // Increased delay to ensure smooth transition
           });
@@ -249,6 +246,7 @@ export default function ProfileScreen() {
         onCancel={() => {
           setIdentityVerifyVisible(false);
           setIdentityVerifyForEmailChange(false); // Reset flag
+          setIdentityVerifyForPasswordChange(false); // Reset flag
         }}
         isVerifying={false}
       />
@@ -263,91 +261,14 @@ export default function ProfileScreen() {
         }}
       />
 
-      {/* Password Verification Modal - For password change */}
-      <PasswordVerificationModal
-        visible={passwordVerifyVisible}
-        onConfirm={async (password) => {
-          setVerifiedPassword(password); // Store the verified password
-          setPasswordVerifyVisible(false);
-          setChangePasswordVisible(true); // Open the ChangePasswordSheet
-        }}
-        onCancel={() => setPasswordVerifyVisible(false)}
-        isVerifying={false}
-      />
-
       <ChangePasswordSheet
         visible={changePasswordVisible}
-        currentPassword={verifiedPassword}
-        onClose={() => {
-          setChangePasswordVisible(false);
-          setVerifiedPassword(undefined); // Clear verified password
-        }}
+        onClose={() => setChangePasswordVisible(false)}
         onSuccess={() => {
           setChangePasswordVisible(false);
-          setVerifiedPassword(undefined); // Clear verified password
+          fetchUserProfile(); // Refresh profile data
+          clerkUser?.reload(); // Reload Clerk user data
         }}
-      />
-
-      {/* Delete Account Confirmation */}
-      <DeleteConfirmModal
-        visible={deleteConfirmVisible}
-        title="your account"
-        modalTitle="Delete Account"
-        onConfirm={async () => {
-          try {
-            setIsDeleting(true);
-            const token = await getToken();
-            
-            // Delete user from database FIRST (while token is still valid)
-            // This ensures database is cleaned even if Clerk deletion fails
-            if (token) {
-              try {
-                await api.delete("/users/me");
-                console.log("✅ User deleted from database");
-              } catch (error: any) {
-                console.error("❌ Error deleting user from database:", error);
-                Alert.alert(
-                  "Deletion Failed",
-                  "Failed to delete account from database. Please try again or contact support.",
-                  [{ text: "OK" }]
-                );
-                setIsDeleting(false);
-                setDeleteConfirmVisible(false);
-                return;
-              }
-            }
-            
-            // Delete user from Clerk (requires verification)
-            // If this fails, database is already cleaned, so we can still proceed
-            try {
-              await clerkUser?.delete();
-              console.log("✅ User deleted from Clerk");
-            } catch (clerkError: any) {
-              console.error("⚠️ Error deleting user from Clerk:", clerkError);
-              // Database is already deleted, so show a warning but proceed
-              Alert.alert(
-                "Partial Deletion",
-                "Your account was deleted from our database, but there was an error deleting it from Clerk. You may need to contact Clerk support to complete the deletion.",
-                [{ text: "OK" }]
-              );
-            }
-            
-            // Sign out and redirect
-            await signOut();
-            router.replace("/(auth)/onboarding");
-          } catch (error) {
-            console.error("Error deleting account:", error);
-            Alert.alert(
-              "Deletion Failed",
-              "An unexpected error occurred. Please try again."
-            );
-            setIsDeleting(false);
-            setDeleteConfirmVisible(false);
-          }
-        }}
-        onCancel={() => setDeleteConfirmVisible(false)}
-        isDeleting={isDeleting}
-        type="wishlist"
       />
     </View>
   );
@@ -413,20 +334,6 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     marginRight: 16,
     opacity: 1,
-  },
-  dangerButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-    marginTop: 8,
-  },
-  dangerButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFFFFF",
   },
   emptyState: {
     flex: 1,

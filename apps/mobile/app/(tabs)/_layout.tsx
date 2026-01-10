@@ -53,7 +53,8 @@ export default function TabsLayout() {
     }
 
     checkProfile();
-  }, [isLoaded, isSignedIn, getToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn]); // getToken is stable, don't include in deps to prevent loops
 
   // Wait for Clerk to load and profile check to complete
   if (!isLoaded || checkingProfile) {

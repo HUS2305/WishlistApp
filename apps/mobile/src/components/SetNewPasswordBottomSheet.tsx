@@ -11,11 +11,13 @@ import { router } from "expo-router";
 interface SetNewPasswordBottomSheetProps {
   visible: boolean;
   onClose: () => void;
+  onComplete?: (newPassword: string) => void; // Optional callback for signed-in users
 }
 
 export function SetNewPasswordBottomSheet({
   visible,
   onClose,
+  onComplete,
 }: SetNewPasswordBottomSheetProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -77,8 +79,16 @@ export function SetNewPasswordBottomSheet({
       if (result.status === "complete") {
         await signInHook.setActive({ session: result.createdSessionId });
         await new Promise(resolve => setTimeout(resolve, 100));
-        onClose();
-        router.replace("/");
+        
+        // If callback provided (for signed-in users), use it instead of navigating
+        if (onComplete) {
+          onClose();
+          onComplete(password);
+        } else {
+          // Default behavior for login flow - navigate to home
+          onClose();
+          router.replace("/");
+        }
       } else {
         setError("Failed to reset password. Please try again.");
       }
@@ -97,7 +107,7 @@ export function SetNewPasswordBottomSheet({
   }
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} autoHeight={true} stackBehavior="replace">
+    <BottomSheet visible={visible} onClose={onClose} autoHeight={true} stackBehavior="switch">
       {/* Header - Standard pattern */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>

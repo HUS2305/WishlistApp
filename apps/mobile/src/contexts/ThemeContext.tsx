@@ -218,7 +218,8 @@ export function ThemeProvider({ children, userId }: { children: ReactNode; userI
     }
     // If Clerk is not loaded yet, we'll use the synchronous default theme
     // and this effect will re-run when isLoaded becomes true
-  }, [userId, isLoaded, isSignedIn, getToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, isLoaded, isSignedIn]); // getToken is stable, don't include in deps to prevent loops
 
   // Listen for app state changes to reload theme (when app comes to foreground)
   useEffect(() => {

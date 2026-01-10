@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { useTheme } from "@/contexts/ThemeContext";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
+import { HelpSupportSheet } from "@/components/HelpSupportSheet";
 
 export default function SettingsScreen() {
   const { theme } = useTheme();
@@ -15,6 +16,7 @@ export default function SettingsScreen() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [signOutConfirmVisible, setSignOutConfirmVisible] = useState(false);
+  const [helpSupportVisible, setHelpSupportVisible] = useState(false);
 
   const handleSignOut = () => {
     setSignOutConfirmVisible(true);
@@ -92,25 +94,12 @@ export default function SettingsScreen() {
 
           <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '25' }]} />
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Feather name="bell" size={24} color={theme.colors.primary} />
-            <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Notifications</Text>
-            <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
-
-          <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '25' }]} />
-
-          <TouchableOpacity style={styles.menuItem}>
-            <Feather name="lock" size={24} color={theme.colors.primary} />
-            <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Privacy</Text>
-            <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
-
-          <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '25' }]} />
-
-          <TouchableOpacity style={styles.menuItem}>
-            <Feather name="help-circle" size={24} color={theme.colors.primary} />
-            <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Help & Support</Text>
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push("/preferences")}
+          >
+            <Feather name="settings" size={24} color={theme.colors.primary} />
+            <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Preferences</Text>
             <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
 
@@ -118,10 +107,10 @@ export default function SettingsScreen() {
 
           <TouchableOpacity 
             style={styles.menuItem}
-            onPress={() => router.push("/appearance")}
+            onPress={() => setHelpSupportVisible(true)}
           >
-            <Feather name="sliders" size={24} color={theme.colors.primary} />
-            <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Appearance</Text>
+            <Feather name="help-circle" size={24} color={theme.colors.primary} />
+            <Text style={[styles.menuText, { color: theme.colors.textPrimary }]}>Help & Support</Text>
             <Feather name="chevron-right" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
@@ -145,6 +134,11 @@ export default function SettingsScreen() {
         onCancel={() => setSignOutConfirmVisible(false)}
         isDeleting={isSigningOut}
         type="wishlist"
+      />
+
+      <HelpSupportSheet
+        visible={helpSupportVisible}
+        onClose={() => setHelpSupportVisible(false)}
       />
     </View>
   );

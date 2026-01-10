@@ -12,17 +12,17 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing } from "@/lib/theme";
 
-interface EmailChangeSuccessSheetProps {
+interface PasswordChangeSuccessSheetProps {
   visible: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }
 
-export function EmailChangeSuccessSheet({
+export function PasswordChangeSuccessSheet({
   visible,
   onClose,
   onConfirm,
-}: EmailChangeSuccessSheetProps) {
+}: PasswordChangeSuccessSheetProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
@@ -166,7 +166,7 @@ export function EmailChangeSuccessSheet({
             { color: theme.colors.textPrimary },
           ]}
         >
-          Your email address has been successfully changed.
+          Your password has been successfully changed.
         </Text>
 
         {/* Done Button */}

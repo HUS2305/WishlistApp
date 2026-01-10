@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useEffect } from "react";
-import { View, StyleSheet, TouchableOpacity } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Linking } from "react-native";
 import {
   BottomSheetModal,
   BottomSheetBackdrop,
@@ -12,17 +12,17 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing } from "@/lib/theme";
 
-interface EmailChangeSuccessSheetProps {
+interface HelpSupportSheetProps {
   visible: boolean;
   onClose: () => void;
-  onConfirm: () => void;
 }
 
-export function EmailChangeSuccessSheet({
+const SUPPORT_EMAIL = "support@wishlistapp.com"; // TODO: Update with actual support email
+
+export function HelpSupportSheet({
   visible,
   onClose,
-  onConfirm,
-}: EmailChangeSuccessSheetProps) {
+}: HelpSupportSheetProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
@@ -74,17 +74,21 @@ export function EmailChangeSuccessSheet({
       // Closing programmatically: set flag and dismiss
       isDismissingRef.current = true;
       bottomSheetRef.current?.dismiss();
+      return undefined;
     }
+    return undefined;
   }, [visible]);
 
   // Handle sheet changes
   const handleSheetChanges = useCallback(
     (index: number) => {
       if (index === -1) {
-        // Sheet was dismissed - reset flag and call onClose
-        // (handleConfirm will also call onClose for programmatic dismissals, but it's idempotent)
+        const wasDismissingProgrammatically = isDismissingRef.current;
         isDismissingRef.current = false;
-        onClose();
+
+        if (!wasDismissingProgrammatically) {
+          onClose();
+        }
       }
     },
     [onClose]
@@ -103,15 +107,18 @@ export function EmailChangeSuccessSheet({
     []
   );
 
-  const handleConfirm = () => {
+  const handleEmailPress = () => {
+    const mailtoUrl = `mailto:${SUPPORT_EMAIL}?subject=Support Request`;
+    Linking.openURL(mailtoUrl).catch((err) => {
+      console.error("Failed to open email client:", err);
+    });
+  };
+
+  const handleDone = () => {
     // Set dismissing flag and dismiss the sheet programmatically
     isDismissingRef.current = true;
     bottomSheetRef.current?.dismiss();
     // onChange handler will call onClose when sheet is dismissed
-    // Then call onConfirm after a delay to allow the sheet to close
-    setTimeout(() => {
-      onConfirm();
-    }, 300);
   };
 
   // Snap points for dynamic sizing (undefined enables autoHeight)
@@ -141,7 +148,7 @@ export function EmailChangeSuccessSheet({
       }}
     >
       <BottomSheetView style={styles.contentContainer}>
-        {/* Success Icon */}
+        {/* Help Icon */}
         <View
           style={[
             styles.iconContainer,
@@ -153,21 +160,40 @@ export function EmailChangeSuccessSheet({
           ]}
         >
           <Feather
-            name="check-circle"
+            name="help-circle"
             size={64}
             color={theme.colors.primary}
           />
         </View>
 
-        {/* Success Message */}
+        {/* Support Message */}
         <Text
           style={[
             styles.message,
             { color: theme.colors.textPrimary },
           ]}
         >
-          Your email address has been successfully changed.
+          Need help? Contact us at:
         </Text>
+
+        {/* Email Section */}
+        <View style={styles.emailSection}>
+          <TouchableOpacity
+            onPress={handleEmailPress}
+            style={styles.emailButton}
+            activeOpacity={0.7}
+          >
+            <Feather name="mail" size={18} color={theme.colors.primary} />
+            <Text
+              style={[
+                styles.emailText,
+                { color: theme.colors.primary },
+              ]}
+            >
+              {SUPPORT_EMAIL}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Done Button */}
         <TouchableOpacity
@@ -177,7 +203,7 @@ export function EmailChangeSuccessSheet({
               backgroundColor: theme.colors.primary,
             },
           ]}
-          onPress={handleConfirm}
+          onPress={handleDone}
           activeOpacity={0.8}
         >
           <Text style={styles.buttonText}>Done</Text>
@@ -204,14 +230,37 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: spacing.xl, // 32px (increased since no title)
+    marginBottom: spacing.xl, // 32px
   },
   message: {
     fontSize: 16,
     fontWeight: "500",
     lineHeight: 24,
     textAlign: "center",
+    marginBottom: spacing.sm, // 24px
+  },
+  emailSection: {
+    width: "100%",
+    alignItems: "center",
     marginBottom: spacing.xl, // 32px
+  },
+  emailLabel: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: spacing.sm, // 12px
+  },
+  emailButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm, // 12px
+    paddingVertical: spacing.sm, // 12px
+    paddingHorizontal: spacing.base, // 16px
+  },
+  emailText: {
+    fontSize: 16,
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
   button: {
     width: "100%",
