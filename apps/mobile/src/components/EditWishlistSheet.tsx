@@ -37,7 +37,6 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoO
   const updateWishlist = useUpdateWishlist();
 
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [privacyLevel, setPrivacyLevel] = useState<PrivacyLevel>("PRIVATE");
   const [allowReservations, setAllowReservations] = useState(true);
   const [isTitleFocused, setIsTitleFocused] = useState(false);
@@ -49,7 +48,6 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoO
   useEffect(() => {
     if (wishlist && visible) {
       setTitle(wishlist.title || "");
-      setDescription(wishlist.description || "");
       setPrivacyLevel(wishlist.privacyLevel);
       setAllowReservations(wishlist.allowReservations ?? true);
       
@@ -107,7 +105,6 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoO
       {
         id: wishlist.id,
         title: title.trim(),
-        description: description.trim() || undefined,
         privacyLevel,
         allowReservations,
       },
@@ -266,34 +263,6 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoO
                 onBlur={() => setIsTitleFocused(false)}
                 editable={!isLoading}
               />
-            </View>
-
-            {/* Description Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionContent}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-                  Description
-                </Text>
-                <BottomSheetTextInput
-                  style={[
-                    styles.input,
-                    styles.textArea,
-                    {
-                      backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
-                      borderColor: theme.colors.textSecondary + '40',
-                      color: theme.colors.textPrimary,
-                    },
-                  ]}
-                  placeholder="Add a description..."
-                  placeholderTextColor={theme.colors.textSecondary + '80'}
-                  value={description}
-                  onChangeText={setDescription}
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                  editable={!isLoading}
-                />
-              </View>
             </View>
 
             {/* Privacy Settings - Horizontal Row (hidden when friends/collaborators are selected - becomes GROUP) */}

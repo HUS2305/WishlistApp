@@ -8,11 +8,13 @@ import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { useTheme } from "@/contexts/ThemeContext";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { HelpSupportSheet } from "@/components/HelpSupportSheet";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function SettingsScreen() {
   const { theme } = useTheme();
   const { signOut } = useClerk();
   const { isSignedIn, isLoaded } = useAuth();
+  const queryClient = useQueryClient();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [signOutConfirmVisible, setSignOutConfirmVisible] = useState(false);
@@ -25,6 +27,8 @@ export default function SettingsScreen() {
   const confirmSignOut = async () => {
     try {
       setIsSigningOut(true);
+      // Clear React Query cache before signing out to prevent data leakage
+      queryClient.clear();
       await signOut();
       // Wait a moment for Clerk to update the session state
       await new Promise(resolve => setTimeout(resolve, 100));

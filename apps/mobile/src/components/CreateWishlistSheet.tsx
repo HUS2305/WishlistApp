@@ -39,7 +39,6 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
     console.log("CreateWishlistSheet visible:", visible);
   }, [visible]);
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [privacyLevel, setPrivacyLevel] = useState<PrivacyLevel>("PRIVATE");
   const [allowReservations, setAllowReservations] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -79,7 +78,6 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
 
     console.log("🎯 Creating wishlist with data:", {
       title: title.trim(),
-      description: description.trim() || undefined,
       privacyLevel,
       allowReservations,
     });
@@ -89,7 +87,6 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
       const collaboratorIds = Array.from(selectedFriends);
       const wishlist = await wishlistsService.createWishlist({
         title: title.trim(),
-        description: description.trim() || undefined,
         privacyLevel, // Backend will change to GROUP if collaboratorIds are provided
         allowReservations,
         allowComments: true,
@@ -100,7 +97,6 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
       
       // Reset form
       setTitle("");
-      setDescription("");
       setPrivacyLevel("PRIVATE");
       setAllowReservations(true);
       setSelectedFriends(new Set());
@@ -137,7 +133,6 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
   const handleClose = () => {
     // Reset form when closing
     setTitle("");
-    setDescription("");
     setPrivacyLevel("PRIVATE");
     setAllowReservations(true);
     setSelectedFriends(new Set());
@@ -258,33 +253,6 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
                 onBlur={() => setIsTitleFocused(false)}
                 autoFocus
               />
-            </View>
-
-            {/* Description Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionContent}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-                  Description
-                </Text>
-                <BottomSheetTextInput
-                  style={[
-                    styles.input,
-                    styles.textArea,
-                    {
-                      backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
-                      borderColor: theme.colors.textSecondary + '40',
-                      color: theme.colors.textPrimary,
-                    },
-                  ]}
-                  placeholder="Add a description..."
-                  placeholderTextColor={theme.colors.textSecondary + '80'}
-                  value={description}
-                  onChangeText={setDescription}
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                />
-              </View>
             </View>
 
             {/* Privacy Settings - Horizontal Row (hidden when friends are selected - becomes GROUP) */}

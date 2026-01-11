@@ -11,11 +11,6 @@ export class CreateWishlistDto {
   @MaxLength(100)
   title: string;
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  description?: string;
-
   @IsEnum(PrivacyLevel)
   privacyLevel: PrivacyLevel;
 

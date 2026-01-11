@@ -6,30 +6,18 @@ import { router } from "expo-router";
 import { useState, useEffect } from "react";
 import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { useTheme } from "@/contexts/ThemeContext";
-import api from "@/services/api";
 import { getDisplayName } from "@/lib/utils";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { IdentityVerificationModal } from "@/components/IdentityVerificationModal";
 import { EditProfileSheet } from "@/components/EditProfileSheet";
 import { ChangeEmailSheet } from "@/components/ChangeEmailSheet";
 import { ChangePasswordSheet } from "@/components/ChangePasswordSheet";
 
-interface UserProfile {
-  id: string;
-  email: string;
-  username: string | null;
-  firstName: string | null;
-  lastName: string | null;
-  avatar: string | null;
-  displayName?: string | null;
-}
-
 export default function ProfileScreen() {
   const { theme } = useTheme();
-  const { user: clerkUser, isLoaded: userLoaded } = useUser();
-  const { isSignedIn, isLoaded, getToken } = useAuth();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const { user: clerkUser } = useUser();
+  const { isSignedIn, isLoaded } = useAuth();
+  const { data: userProfile, isLoading: isLoadingProfile, refetch: refetchUserProfile, isFetching: isRefreshing } = useCurrentUser();
   const [identityVerifyVisible, setIdentityVerifyVisible] = useState(false);
   const [editProfileVisible, setEditProfileVisible] = useState(false);
   const [changeEmailVisible, setChangeEmailVisible] = useState(false);
@@ -44,43 +32,13 @@ export default function ProfileScreen() {
     }
   }, [isLoaded, isSignedIn]);
 
-  // Fetch user profile from backend
-  const fetchUserProfile = async () => {
-    try {
-      const token = await getToken();
-      if (!token) {
-        setIsLoadingProfile(false);
-        return;
-      }
-      
-      const response = await api.get("/users/me");
-      setUserProfile(response.data);
-    } catch (error: any) {
-      // If user doesn't exist or error, that's okay - we'll use Clerk data as fallback
-      console.log("Error fetching user profile (will use Clerk data):", error?.response?.status || error?.message);
-      setUserProfile(null); // Set to null so we use Clerk fallback
-    } finally {
-      setIsLoadingProfile(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isSignedIn && userLoaded) {
-      fetchUserProfile();
-    }
-  }, [isSignedIn, userLoaded]);
-
   const onRefresh = async () => {
-    setIsRefreshing(true);
     try {
-      await fetchUserProfile();
+      await refetchUserProfile();
       // Also reload Clerk user data
       await clerkUser?.reload();
-      await new Promise(resolve => setTimeout(resolve, 200)); // Small delay for visual feedback
     } catch (error) {
       console.error("Error refreshing profile:", error);
-    } finally {
-      setIsRefreshing(false);
     }
   };
 
@@ -105,8 +63,8 @@ export default function ProfileScreen() {
     );
   }
 
-  // Show loading state while fetching profile
-  if (isLoadingProfile && !userProfile) {
+  // Show loading state while fetching profile (only if we don't have cached data)
+  if (isLoadingProfile && userProfile === undefined) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <StandardPageHeader title="Profile" backButton={false} />
@@ -207,7 +165,7 @@ export default function ProfileScreen() {
         onClose={() => setEditProfileVisible(false)}
         onSuccess={() => {
           setEditProfileVisible(false);
-          fetchUserProfile(); // Refresh profile data
+          refetchUserProfile(); // Refresh profile data
           clerkUser?.reload(); // Reload Clerk user data
         }}
       />
@@ -256,7 +214,7 @@ export default function ProfileScreen() {
         onClose={() => setChangeEmailVisible(false)}
         onSuccess={() => {
           setChangeEmailVisible(false);
-          fetchUserProfile(); // Refresh profile data
+          refetchUserProfile(); // Refresh profile data
           clerkUser?.reload(); // Reload Clerk user data
         }}
       />
@@ -266,7 +224,7 @@ export default function ProfileScreen() {
         onClose={() => setChangePasswordVisible(false)}
         onSuccess={() => {
           setChangePasswordVisible(false);
-          fetchUserProfile(); // Refresh profile data
+          refetchUserProfile(); // Refresh profile data
           clerkUser?.reload(); // Reload Clerk user data
         }}
       />

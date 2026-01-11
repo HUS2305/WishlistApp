@@ -20,7 +20,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
 import { SelectWishlistSheet } from "./SelectWishlistSheet";
 import { wishlistsService } from "@/services/wishlists";
-import { useWishlists, wishlistKeys } from "@/hooks/useWishlists";
+import { useWishlists, wishlistKeys, useUpdateItem, useCreateItem } from "@/hooks/useWishlists";
 import { useUserCurrency } from "@/hooks/useUserCurrency";
 import { getCurrencyByCode } from "@/utils/currencies";
 import { useQueryClient } from "@tanstack/react-query";
@@ -41,6 +41,8 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
   const { data: wishlists = [], refetch: refetchWishlists } = useWishlists();
   const { userCurrency, isLoading: isLoadingCurrency } = useUserCurrency();
   const queryClient = useQueryClient();
+  const updateItem = useUpdateItem();
+  const createItem = useCreateItem();
   const isEditMode = !!item;
   
   // Refetch wishlists when sheet opens to ensure we have the latest data including group wishlists
@@ -53,7 +55,6 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
   const [selectedWishlistId, setSelectedWishlistId] = useState(wishlistId || "");
   const [showWishlistBottomSheet, setShowWishlistBottomSheet] = useState(false);
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [url, setUrl] = useState("");
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [price, setPrice] = useState("");
@@ -67,7 +68,6 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
     if (visible && item) {
       // Edit mode - prefill with item data when modal becomes visible
       setTitle(item.title || "");
-      setDescription(item.description || "");
       setUrl(item.url || "");
       setImageUri(item.imageUrl || null);
       setPrice(item.price !== undefined && item.price !== null ? item.price.toString() : "");
@@ -78,7 +78,6 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
     } else if (visible && prefillItem) {
       // Prefill mode (e.g., adding from friend's wishlist)
       setTitle(prefillItem.title || "");
-      setDescription(prefillItem.description || "");
       setUrl(prefillItem.url || "");
       setPrice(prefillItem.price !== undefined && prefillItem.price !== null ? prefillItem.price.toString() : "");
       setCurrency(prefillItem.currency || "USD");
@@ -87,7 +86,6 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
     } else if (visible && !item && !prefillItem) {
       // Add mode - reset form and set currency to user's preference
       setTitle("");
-      setDescription("");
       setUrl("");
       setImageUri(null);
       setPrice("");
@@ -112,11 +110,8 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
   }, [visible, userCurrency, isEditMode, prefillItem, item, currency, isLoadingCurrency]);
 
   const handleAdd = async () => {
-    if (!title.trim() && !isEditMode) {
-      Alert.alert("Error", "Please enter an item title");
-      return;
-    }
-
+    // Title validation is now handled by button disabled state
+    // Only check wishlist selection for create mode
     if (!selectedWishlistId && !isEditMode) {
       Alert.alert("Error", "Please select a wishlist");
       return;
@@ -129,11 +124,12 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
         const updatePayload: any = {
           id: item.id,
           title: title.trim(),
-          description: description.trim() || undefined,
-          url: url.trim() || undefined,
-          price: price ? parseFloat(price) : undefined,
+          // Backend expects empty string to clear URL (sets to null), undefined means don't change
+          url: url.trim() || '',
+          // Always send price and quantity - parse to number if provided, or null to clear
+          price: price.trim() ? parseFloat(price) : null,
           currency,
-          quantity: quantity ? parseInt(quantity, 10) : undefined,
+          quantity: quantity.trim() ? parseInt(quantity, 10) : null,
           priority,
         };
         
@@ -145,7 +141,17 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
           updatePayload.wishlistId = item.wishlistId;
         }
         
-        await wishlistsService.updateItem(updatePayload);
+        // Use React Query mutation hook for proper cache invalidation
+        const updatedItem = await updateItem.mutateAsync(updatePayload);
+        
+        // If item was moved to a different wishlist, also invalidate the old wishlist cache
+        if (selectedWishlistId && selectedWishlistId !== item.wishlistId) {
+          queryClient.invalidateQueries({ queryKey: wishlistKeys.items(item.wishlistId) });
+        }
+        
+        // Also invalidate wishlist detail cache to update item counts
+        queryClient.invalidateQueries({ queryKey: wishlistKeys.detail(updatedItem.wishlistId) });
+        queryClient.invalidateQueries({ queryKey: wishlistKeys.lists() });
         
         if (onSuccess) {
           onSuccess();
@@ -154,28 +160,26 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
         }
       } else {
         // Create new item
-        await wishlistsService.createItem({
+        const createPayload = {
           wishlistId: selectedWishlistId,
           title: title.trim(),
-          description: description.trim() || undefined,
           url: url.trim() || undefined,
           price: price ? parseFloat(price) : undefined,
           currency,
           quantity: quantity ? parseInt(quantity, 10) : undefined,
           priority,
-        });
+        };
 
-        // Invalidate wishlists list query to refresh the wishlists page with updated item counts
+        // Use React Query mutation hook for proper cache invalidation
+        await createItem.mutateAsync(createPayload);
+
+        // Also invalidate wishlists list query to refresh the wishlists page with updated item counts
         queryClient.invalidateQueries({ queryKey: wishlistKeys.lists() });
-        // Also invalidate the specific wishlist detail and items
-        queryClient.invalidateQueries({ queryKey: wishlistKeys.detail(selectedWishlistId) });
-        queryClient.invalidateQueries({ queryKey: wishlistKeys.items(selectedWishlistId) });
         // Emit event to notify wishlists page to refresh (for pages using custom state management)
         wishlistEvents.emit();
 
         // Reset form
         setTitle("");
-        setDescription("");
         setUrl("");
         setImageUri(null);
         setPrice("");
@@ -218,22 +222,20 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
           </Text>
           <TouchableOpacity
             onPress={handleAdd}
-            disabled={isLoading || (!isEditMode && (!title.trim() || !selectedWishlistId))}
+            disabled={isLoading || !title.trim() || (!isEditMode && !selectedWishlistId)}
             activeOpacity={0.6}
             style={styles.headerButton}
           >
             {isLoading ? (
               <ActivityIndicator 
                 size="small" 
-                color={(!isEditMode && (!title.trim() || !selectedWishlistId)) || isLoading
-                  ? theme.colors.textSecondary
-                  : theme.colors.primary} 
+                color={theme.colors.textSecondary} 
               />
             ) : (
               <Text style={[
                 styles.headerButtonText,
                 {
-                  color: (!isEditMode && (!title.trim() || !selectedWishlistId)) || isLoading
+                  color: (!title.trim() || (!isEditMode && !selectedWishlistId))
                     ? theme.colors.textSecondary
                     : theme.colors.primary,
                 }
@@ -481,31 +483,6 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
                 autoCapitalize="none"
                 keyboardType="url"
                 autoCorrect={false}
-              />
-            </View>
-
-            {/* Description */}
-            <View style={styles.section}>
-              <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-                Description
-              </Text>
-              <BottomSheetTextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
-                    borderColor: theme.colors.textSecondary + '40',
-                    color: theme.colors.textPrimary,
-                  },
-                ]}
-                placeholder="Add details about the item..."
-                placeholderTextColor={theme.colors.textSecondary + '80'}
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
               />
             </View>
 

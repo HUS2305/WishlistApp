@@ -216,7 +216,6 @@ export class WishlistsService {
     const wishlist = await this.prisma.wishlist.create({
       data: {
         title: wishlistData.title,
-        description: wishlistData.description,
         privacyLevel: privacyLevel as "PRIVATE" | "FRIENDS_ONLY" | "PUBLIC" | "GROUP",
         allowComments: wishlistData.allowComments,
         allowReservations: wishlistData.allowReservations,

@@ -44,6 +44,8 @@ export function useWishlists() {
     queryKey: wishlistKeys.lists(),
     queryFn: () => wishlistsService.getWishlists(),
     enabled: isAuthLoaded,
+    staleTime: 30 * 1000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   });
 }
 
@@ -54,6 +56,8 @@ export function useWishlist(id: string) {
     queryKey: wishlistKeys.detail(id),
     queryFn: () => wishlistsService.getWishlist(id),
     enabled: !!id && isAuthLoaded,
+    staleTime: 30 * 1000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   });
 }
 
@@ -64,6 +68,8 @@ export function useWishlistItems(wishlistId: string) {
     queryKey: wishlistKeys.items(wishlistId),
     queryFn: () => wishlistsService.getWishlistItems(wishlistId),
     enabled: !!wishlistId && isAuthLoaded,
+    staleTime: 30 * 1000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   });
 }
 

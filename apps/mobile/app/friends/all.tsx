@@ -16,15 +16,13 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { HeaderButton } from "@/lib/navigation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFriends } from "@/hooks/useFriends";
 
 export default function AllFriendsScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { isLoaded: isClerkLoaded, userId } = useAuth();
-  const [friends, setFriends] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const { data: friends = [], isLoading, refetch, isFetching: isRefreshing } = useFriends();
   const [friendMenuVisible, setFriendMenuVisible] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
   const [selectedFriendBlockStatus, setSelectedFriendBlockStatus] = useState<{ isBlockedByMe?: boolean; isBlockedByThem?: boolean }>({});
@@ -59,47 +57,9 @@ export default function AllFriendsScreen() {
   }, [isSearchActive]);
 
 
-  const fetchFriends = useCallback(async (showLoader = true) => {
-    try {
-      const shouldShowLoader = showLoader && !hasLoadedOnce;
-      if (shouldShowLoader) {
-        setIsLoading(true);
-      }
-      const friendsData = await friendsService.getFriends();
-      setFriends(friendsData);
-      if (!hasLoadedOnce) {
-        setHasLoadedOnce(true);
-      }
-      console.log("✅ Loaded", friendsData.length, "friends");
-    } catch (error) {
-      console.error("❌ Error fetching friends:", error);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [hasLoadedOnce]);
-
-  useEffect(() => {
-    if (isClerkLoaded && userId && !hasLoadedOnce) {
-      fetchFriends(true);
-    }
-  }, [isClerkLoaded, userId, hasLoadedOnce, fetchFriends]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (isClerkLoaded && userId) {
-        if (hasLoadedOnce) {
-          fetchFriends(false);
-        } else {
-          fetchFriends(true);
-        }
-      }
-    }, [fetchFriends, isClerkLoaded, userId, hasLoadedOnce])
-  );
-
+  // React Query handles fetching automatically when enabled
   const onRefresh = () => {
-    setIsRefreshing(true);
-    fetchFriends(false);
+    refetch();
   };
 
   const handleViewProfile = (friendId: string) => {
@@ -120,7 +80,7 @@ export default function AllFriendsScreen() {
       setSelectedFriend(null);
       setSelectedFriendBlockStatus({});
       setRemoveConfirmVisible(false);
-      fetchFriends(false);
+      refetch();
     } catch (error: any) {
       console.error("Error removing friend:", error);
       Alert.alert("Error", error.response?.data?.message || "Failed to remove friend");
@@ -144,7 +104,7 @@ export default function AllFriendsScreen() {
       setSelectedFriend(null);
       setSelectedFriendBlockStatus({});
       setBlockConfirmVisible(false);
-      fetchFriends(false);
+      refetch();
     } catch (error: any) {
       console.error("Error blocking user:", error);
       Alert.alert("Error", error.response?.data?.message || "Failed to block user");
@@ -160,7 +120,7 @@ export default function AllFriendsScreen() {
       setFriendMenuVisible(false);
       setSelectedFriend(null);
       setSelectedFriendBlockStatus({});
-      fetchFriends(false);
+      refetch();
     } catch (error: any) {
       console.error("Error unblocking user:", error);
       Alert.alert("Error", error.response?.data?.message || "Failed to unblock user");
@@ -271,7 +231,7 @@ export default function AllFriendsScreen() {
       await friendsService.sendFriendRequest(userId);
       Alert.alert("Success", "Friend request sent!");
       // Refresh friends list after sending request
-      fetchFriends(false);
+      refetch();
       // Re-run search if there's a search query
       if (searchQuery.trim()) {
         handleSearch(searchQuery.trim());

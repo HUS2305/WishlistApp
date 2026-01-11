@@ -19,11 +19,6 @@ export class CreateItemDto {
   title: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(1000)
-  description?: string;
-
-  @IsOptional()
   @ValidateIf((o) => o.url !== undefined && o.url !== null && o.url !== '')
   @IsUrl()
   url?: string;

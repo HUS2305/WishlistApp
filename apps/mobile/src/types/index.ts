@@ -34,7 +34,6 @@ export interface Collaborator {
 export interface Wishlist {
   id: string;
   title: string;
-  description?: string;
   coverImage?: string;
   privacyLevel: PrivacyLevel;
   shareToken?: string;
@@ -53,7 +52,6 @@ export interface Wishlist {
 export interface Item {
   id: string;
   title: string;
-  description?: string;
   addedBy?: {
     id: string;
     username?: string;

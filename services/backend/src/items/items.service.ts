@@ -164,9 +164,6 @@ export class ItemsService {
     };
 
     // Only include optional fields if they are provided
-    if (data.description !== undefined && data.description !== null) {
-      itemData.description = data.description;
-    }
     if (data.url !== undefined && data.url !== null && data.url !== '') {
       itemData.url = data.url;
     }
@@ -269,7 +266,6 @@ export class ItemsService {
     // Build update data object, handling optional fields properly
     const updateData: any = {};
     if (data.title !== undefined) updateData.title = data.title;
-    if (data.description !== undefined) updateData.description = data.description;
     if (data.url !== undefined && data.url !== null && data.url !== '') {
       updateData.url = data.url;
     } else if (data.url === '') {
@@ -335,7 +331,6 @@ export class ItemsService {
     return {
       url,
       title: "Product from URL",
-      description: "URL parsing coming soon",
       price: 0,
     };
   }

@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
+  FlatList,
   ScrollView,
   TouchableOpacity,
-  Pressable,
   Alert,
+  Share,
   ActivityIndicator,
   Linking,
   RefreshControl,
@@ -14,29 +15,27 @@ import {
 import { Text } from "@/components/Text";
 import { router, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import type { Item, Wishlist, User, Collaborator } from "@/types";
+import type { Item, Wishlist } from "@/types";
 import { getDisplayName } from "@/lib/utils";
 import { useWishlist, useWishlistItems, useDeleteWishlist, useUpdateItem, useDeleteItem } from "@/hooks/useWishlists";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { WishlistMenu } from "@/components/WishlistMenu";
 import { ItemMenu } from "@/components/ItemMenu";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { wishlistsService } from "@/services/wishlists";
-import { FABMenu } from "@/components/FABMenu";
 import { useTheme } from "@/contexts/ThemeContext";
 import { AddItemSheet } from "@/components/AddItemSheet";
 import { EditWishlistSheet } from "@/components/EditWishlistSheet";
 import { BottomSheet } from "@/components/BottomSheet";
-import { MembersSheet } from "@/components/MembersSheet";
-import { SelectWishlistSheet } from "@/components/SelectWishlistSheet";
 import { useAuth } from "@clerk/clerk-expo";
-import api from "@/services/api";
 import { PriceDisplay } from "@/components/PriceDisplay";
 import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { HeaderButtons } from "@/lib/navigation";
+import { MembersSheet } from "@/components/MembersSheet";
 
 export default function WishlistDetailScreen() {
   const { theme } = useTheme();
-  const { userId: clerkUserId, isLoaded: isAuthLoaded } = useAuth();
+  const { isLoaded: isAuthLoaded } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const wishlistId = id as string;
   
@@ -53,81 +52,58 @@ export default function WishlistDetailScreen() {
   const [sortFilter, setSortFilter] = useState<"wanted" | "purchased">("wanted");
   const [editItemSheetVisible, setEditItemSheetVisible] = useState(false);
   const [addToWishlistModalVisible, setAddToWishlistModalVisible] = useState(false);
+  const [allWishlists, setAllWishlists] = useState<Wishlist[]>([]);
   const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
-  const [fabMenuVisible, setFabMenuVisible] = useState(false);
   const [addItemSheetVisible, setAddItemSheetVisible] = useState(false);
   const [editWishlistSheetVisible, setEditWishlistSheetVisible] = useState(false);
-  const [autoOpenFriendSelection, setAutoOpenFriendSelection] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const { data: currentUser, isLoading: isLoadingUser } = useCurrentUser();
   const [addItemFromFriendSheetVisible, setAddItemFromFriendSheetVisible] = useState(false);
   const [itemToAdd, setItemToAdd] = useState<Item | null>(null);
   const [reservedItems, setReservedItems] = useState<Set<string>>(new Set());
   const [reservingItemId, setReservingItemId] = useState<string | null>(null);
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [collaboratorsModalVisible, setCollaboratorsModalVisible] = useState(false);
-  const [removeCollaboratorModalVisible, setRemoveCollaboratorModalVisible] = useState(false);
-  const [collaboratorToRemove, setCollaboratorToRemove] = useState<Collaborator | null>(null);
-  const [isRemovingCollaborator, setIsRemovingCollaborator] = useState(false);
+  const [shouldAutoOpenFriendSelection, setShouldAutoOpenFriendSelection] = useState(false);
   const [leaveWishlistModalVisible, setLeaveWishlistModalVisible] = useState(false);
 
   // Check if current user is the owner of the wishlist
   // Only determine ownership when we have both wishlist and currentUser
   // Use undefined to indicate "unknown" - don't show non-owner UI until we know for sure
-  const isOwner = wishlist && currentUser !== null 
+  const isOwner = wishlist && currentUser
     ? wishlist.ownerId === currentUser.id 
     : undefined;
 
   // Check if current user is a collaborator (not owner)
-  const isCollaborator = wishlist && currentUser !== null && isOwner === false
+  const isCollaborator = wishlist && currentUser && isOwner === false
     ? wishlist.collaborators?.some(collab => collab.userId === currentUser.id)
     : false;
 
   // Check if user can add items (owner or collaborator)
   const canAddItems = isOwner === true || isCollaborator === true;
 
+  // Current user is now fetched via useCurrentUser hook (with React Query caching)
 
-  // Fetch current user to check ownership
+  // Load all wishlists for the "Add to Another Wishlist" modal
   useEffect(() => {
-    const fetchCurrentUser = async () => {
-      if (!isAuthLoaded || !clerkUserId) {
-        setIsLoadingUser(false);
-        return;
-      }
-      setIsLoadingUser(true);
+    const loadAllWishlists = async () => {
       try {
-        const response = await api.get<User>("/users/me");
-        setCurrentUser(response.data);
+        const wishlists = await wishlistsService.getWishlists();
+        setAllWishlists(wishlists);
       } catch (error) {
-        console.error("Error fetching current user:", error);
-        setCurrentUser(null); // Set to null to indicate we tried but failed
-      } finally {
-        setIsLoadingUser(false);
+        console.error("Error loading wishlists:", error);
       }
     };
-    fetchCurrentUser();
-  }, [isAuthLoaded, clerkUserId]);
-
+    if (addToWishlistModalVisible) {
+      loadAllWishlists();
+    }
+  }, [addToWishlistModalVisible]);
 
   const handleAddItem = () => {
-    console.log("🔵 handleAddItem called - closing FAB menu and opening add item sheet");
-    setFabMenuVisible(false);
-    // Small delay to ensure FAB menu closes first, then sheet can animate up smoothly
-    setTimeout(() => {
-      console.log("🔵 Setting addItemSheetVisible to true");
-      setAddItemSheetVisible(true);
-    }, 150);
+    setAddItemSheetVisible(true);
   };
 
   const handleEditWishlist = () => {
     setMenuVisible(false);
-    setAutoOpenFriendSelection(false);
-    setEditWishlistSheetVisible(true);
-  };
-
-  const handleAddFriends = () => {
-    setMenuVisible(false);
-    setAutoOpenFriendSelection(true);
     setEditWishlistSheetVisible(true);
   };
 
@@ -137,6 +113,40 @@ export default function WishlistDetailScreen() {
     setEditWishlistSheetVisible(false);
   };
 
+  const handleShareWishlist = async () => {
+    if (!wishlist) return;
+    
+    try {
+      let shareUrl = "";
+      let shareToken = wishlist.shareToken;
+      
+      if (!shareToken) {
+        try {
+          const shareData = await wishlistsService.shareWishlist(wishlistId);
+          shareToken = shareData.shareToken;
+          shareUrl = shareData.shareUrl || "";
+        } catch (error) {
+          console.warn("Share endpoint not available, using existing token");
+        }
+      }
+      
+      if (shareToken) {
+        const { getApiUrl } = require("@/utils/apiUrl");
+        const apiUrl = getApiUrl();
+        shareUrl = shareUrl || `${apiUrl}/wishlists/public/${shareToken}`;
+      }
+      
+      await Share.share({
+        message: `Check out my wishlist: ${wishlist.title}${shareUrl ? `\n${shareUrl}` : ""}`,
+        url: shareUrl || `wishlist://share/${shareToken || wishlistId}`,
+      });
+    } catch (error: any) {
+      console.error("Error sharing wishlist:", error);
+      if (error.message !== "User did not share") {
+        Alert.alert("Error", "Failed to share wishlist. Please try again.");
+      }
+    }
+  };
 
   const handleDeleteWishlist = () => {
     if (!wishlist) return;
@@ -306,7 +316,6 @@ export default function WishlistDetailScreen() {
       await wishlistsService.createItem({
         wishlistId: targetWishlistId,
         title: selectedItem.title,
-        description: selectedItem.description || undefined,
         url: selectedItem.url || undefined,
         price: selectedItem.price || undefined,
         currency: selectedItem.currency || "USD", // Keep original currency when copying item
@@ -319,6 +328,7 @@ export default function WishlistDetailScreen() {
       setSelectedItem(null);
       // Refresh items list
       refetchItems();
+      Alert.alert("Success", "Item added to wishlist");
     } catch (error: any) {
       console.error("Error duplicating item:", error);
       const errorMessage = error.response?.data?.message || error.message || "Failed to add item to wishlist";
@@ -506,9 +516,18 @@ export default function WishlistDetailScreen() {
     const isMustHave = item.priority === 'MUST_HAVE';
     const hasImage = item.imageUrl && item.imageUrl.trim();
     
+    // Determine if this is a group wishlist
+    const isGroupWishlist = wishlist?.privacyLevel === "GROUP";
+    
+    // For group wishlists, determine item type:
+    // Check both addedById and addedBy?.id since addedById can be null/undefined
+    const isAddedByMe = isGroupWishlist && (
+      item.addedById === currentUser?.id || 
+      item.addedBy?.id === currentUser?.id
+    );
+    
     return (
       <View
-        key={item.id}
         style={[
           styles.itemCard,
           { 
@@ -552,7 +571,271 @@ export default function WishlistDetailScreen() {
           )}
           
           {/* Main Content Area */}
-          <View style={styles.itemMainContent}>
+          {isGroupWishlist ? (
+            // Group wishlist: 3-row layout with image aligned to rows 1-2, row 3 independent
+            <View style={styles.itemMainContentGroup}>
+              {/* Image and rows 1-2 - aligned together */}
+              <View style={styles.itemImageAndRowsGroup}>
+                {/* Image */}
+                <View style={styles.itemImageContainerGroup3Row}>
+                  <View style={[styles.itemImageWrapperGroup, { 
+                    backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
+                    borderColor: itemIsReserved 
+                      ? theme.colors.textSecondary + '20' 
+                      : theme.colors.textSecondary + '40',
+                  }]}>
+                    {hasImage ? (
+                      <Feather 
+                        name="image" 
+                        size={24} 
+                        color={itemIsReserved 
+                          ? theme.colors.textSecondary + '80' 
+                          : theme.colors.textSecondary} 
+                      />
+                    ) : (
+                      <Feather 
+                        name="image" 
+                        size={24} 
+                        color={itemIsReserved 
+                          ? theme.colors.textSecondary + '80' 
+                          : theme.colors.textSecondary} 
+                      />
+                    )}
+                  </View>
+                </View>
+                
+                {/* Content rows - starts after image */}
+                <View style={styles.itemContentRowsGroup}>
+                  {/* Row 1: Title */}
+                  <View style={styles.itemRow1Group3Row}>
+                    <Text 
+                      style={[
+                        styles.itemTitleGroup3Row, 
+                        { 
+                          color: itemIsReserved 
+                            ? theme.colors.textSecondary 
+                            : theme.colors.textPrimary 
+                        }
+                      ]} 
+                      numberOfLines={1}
+                    >
+                      {item.title}
+                    </Text>
+                    
+                    {/* Spacer for menu button alignment - same width as menu button */}
+                    {(isOwner === true || (isCollaborator === true && item.addedById === currentUser?.id)) && (
+                      <View style={styles.itemMenuButtonGroup3RowSpacer} />
+                    )}
+                  </View>
+                  
+                  {/* Row 2: Price · Quantity · Must Have · Owner */}
+                  <View style={styles.itemRow2Group3Row}>
+                    <View style={styles.itemMetadataRowGroup3Row}>
+                      {/* Price */}
+                      {hasPrice && item.price !== undefined && item.price !== null && (
+                        <>
+                          <PriceDisplay
+                            amount={item.price}
+                            currency={item.currency || 'USD'}
+                            textStyle={[
+                              styles.itemPriceGroup3Row, 
+                              { 
+                                color: itemIsReserved 
+                                  ? theme.colors.textSecondary + '80' 
+                                  : theme.colors.textSecondary 
+                              }
+                            ]}
+                          />
+                          {item.quantity && item.quantity > 1 && (
+                            <Text style={[
+                              styles.itemPriceGroup3Row, 
+                              { 
+                                color: itemIsReserved 
+                                  ? theme.colors.textSecondary + '80' 
+                                  : theme.colors.textSecondary,
+                                marginLeft: 6
+                              }
+                            ]}>
+                              x{item.quantity}
+                            </Text>
+                          )}
+                        </>
+                      )}
+                      
+                      {/* Priority/Tag */}
+                      {isMustHave && (
+                        <View style={[
+                          styles.itemPriorityContainerGroupInline3Row,
+                          { marginLeft: 6 }
+                        ]}>
+                          <Feather 
+                            name="star" 
+                            size={9} 
+                            color={itemIsReserved ? theme.colors.textSecondary + '80' : theme.colors.primary} 
+                            style={{ marginRight: 3 }} 
+                            fill={itemIsReserved ? theme.colors.textSecondary + '80' : theme.colors.primary}
+                          />
+                          <Text style={[
+                            styles.itemPriorityGroupInline3Row, 
+                            { 
+                              color: itemIsReserved 
+                                ? theme.colors.textSecondary + '80' 
+                                : theme.colors.primary 
+                            }
+                          ]}>
+                            Must Have
+                          </Text>
+                        </View>
+                      )}
+                      
+                      {/* Owner - Badge style */}
+                      {item.addedBy && (
+                        <View style={[
+                          styles.itemOwnerBadgeGroup3Row,
+                          { 
+                            backgroundColor: itemIsReserved 
+                              ? theme.colors.textSecondary + '15'
+                              : theme.colors.textSecondary + '20',
+                            marginLeft: 6
+                          }
+                        ]}>
+                          <Text style={[
+                            styles.itemOwnerBadgeTextGroup3Row,
+                            { 
+                              color: itemIsReserved 
+                                ? theme.colors.textSecondary + '80' 
+                                : theme.colors.textSecondary 
+                            }
+                          ]}>
+                            {isAddedByMe ? 'You' : (item.addedBy.displayName || item.addedBy.username || item.addedBy.firstName || 'Someone')}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    
+                    {/* Menu Button - on right side, vertically aligned to Row 2 */}
+                    {(isOwner === true || (isCollaborator === true && item.addedById === currentUser?.id)) && (
+                      <TouchableOpacity
+                        style={styles.itemMenuButtonGroup3Row}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setSelectedItem(item);
+                          setItemMenuVisible(true);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Feather 
+                          name="more-horizontal" 
+                          size={16} 
+                          color={theme.colors.textSecondary} 
+                        />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              </View>
+              
+              {/* Row 3: Action buttons (centered independently, below image and rows 1-2) */}
+              <View style={styles.itemRow3Group3Row}>
+                <View style={styles.itemActionButtonsRow3Row}>
+                  {/* Add to wishlist button (heart) - different functionality for items added by me vs friends */}
+                  <TouchableOpacity
+                    style={styles.itemActionButtonGroup3Row}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      if (isAddedByMe) {
+                        // Add to another wishlist
+                        setSelectedItem(item);
+                        setAddToWishlistModalVisible(true);
+                      } else {
+                        // Add to wishlist (for items added by friends)
+                        handleAddItemToWishlist(item);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Feather 
+                      name="heart" 
+                      size={16} 
+                      color={theme.colors.primary} 
+                    />
+                  </TouchableOpacity>
+                  
+                  {/* Buy this gift button (centered) */}
+                  {wishlist?.allowReservations && (
+                    <TouchableOpacity
+                      style={[
+                        styles.itemBuyButtonGroup3Row,
+                        { 
+                          backgroundColor: theme.colors.primary,
+                          borderWidth: 0,
+                        }
+                      ]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        if (!isReservedBySomeoneElse(item)) {
+                          handleReserveItem(item);
+                        }
+                      }}
+                      disabled={isReserving || isReservedBySomeoneElse(item)}
+                      activeOpacity={0.7}
+                    >
+                      {isReserving ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={[
+                          styles.itemBuyButtonTextGroup3Row,
+                          { 
+                            color: '#FFFFFF',
+                          }
+                        ]}>
+                          {getReserveButtonText(item)}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                  
+                  {/* Link button - always reserve space for consistent alignment */}
+                  {hasUrl ? (
+                    <TouchableOpacity
+                      style={styles.itemActionButtonGroup3Row}
+                      onPress={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          let url = item.url?.trim();
+                          if (url) {
+                            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                              url = 'https://' + url;
+                            }
+                            const supported = await Linking.canOpenURL(url);
+                            if (supported) {
+                              await Linking.openURL(url);
+                            } else {
+                              Alert.alert("Error", `Cannot open URL: ${url}`);
+                            }
+                          }
+                        } catch (error) {
+                          Alert.alert("Error", "Failed to open link");
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Feather 
+                        name="external-link" 
+                        size={16} 
+                        color={theme.colors.primary} 
+                      />
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.itemActionButtonGroup3Row} />
+                  )}
+                </View>
+              </View>
+            </View>
+          ) : (
+            // Personal wishlist: Original layout
+            <>
+            <View style={styles.itemMainContent}>
             {/* Image and Details Row */}
             <View style={styles.itemImageDetailsRow}>
               {/* Image Placeholder - always show */}
@@ -601,7 +884,7 @@ export default function WishlistDetailScreen() {
                   {item.title}
                 </Text>
                 
-                {/* Price and Quantity - combined on one line */}
+                {/* Price */}
                 {hasPrice && item.price !== undefined && item.price !== null && (
                   <View style={styles.itemPriceContainer}>
                     <Feather 
@@ -628,24 +911,33 @@ export default function WishlistDetailScreen() {
                         color: itemIsReserved 
                           ? theme.colors.textSecondary + '80' 
                           : theme.colors.textSecondary,
-                        marginLeft: 6,
-                        marginRight: 4
+                        marginLeft: 6
                       }
                     ]}>
-                      x
-                    </Text>
-                    <Text style={[
-                      styles.itemPrice, 
-                      { 
-                        color: itemIsReserved 
-                          ? theme.colors.textSecondary + '80' 
-                          : theme.colors.textSecondary 
-                      }
-                    ]}>
-                      {item.quantity || 1}
+                      / per piece
                     </Text>
                   </View>
                 )}
+                
+                {/* Quantity - always show, default to 1 if not set */}
+                <View style={styles.itemQuantityContainer}>
+                  <Feather 
+                    name="x" 
+                    size={12} 
+                    color={itemIsReserved ? theme.colors.textSecondary + '80' : theme.colors.textSecondary} 
+                    style={{ marginRight: 4 }} 
+                  />
+                  <Text style={[
+                    styles.itemQuantity, 
+                    { 
+                      color: itemIsReserved 
+                        ? theme.colors.textSecondary + '80' 
+                        : theme.colors.textSecondary 
+                    }
+                  ]}>
+                    {item.quantity || 1}
+                  </Text>
+                </View>
                 
                 {/* Priority - on its own row if present */}
                 {isMustHave && (
@@ -670,8 +962,8 @@ export default function WishlistDetailScreen() {
                   </View>
                 )}
                 
-                {/* Added By - Only show for GROUP wishlists */}
-                {item.addedBy && wishlist?.privacyLevel === "GROUP" && (
+                {/* Added By - Show for all items */}
+                {item.addedBy && (
                   <View style={[styles.itemAddedByChip, { backgroundColor: theme.colors.primary + '15' }]}>
                     <Feather 
                       name="user" 
@@ -693,7 +985,7 @@ export default function WishlistDetailScreen() {
             </View>
           </View>
           
-          {/* Action Buttons - Show for owner or collaborator who created the item */}
+          {/* Action Buttons - Show for owner or collaborator who created the item (Personal wishlists only) */}
           {(isOwner === true || (isCollaborator === true && item.addedById === currentUser?.id)) && (
             <View style={styles.itemOwnerActions}>
               {/* Link Button - only show if item has URL */}
@@ -791,10 +1083,12 @@ export default function WishlistDetailScreen() {
               )}
             </View>
           )}
+          </>
+          )}
         </TouchableOpacity>
 
-        {/* Action Buttons - Only show for non-owners/collaborators who can't edit this item */}
-        {isOwner === false && !(isCollaborator === true && item.addedById === currentUser?.id) && (
+        {/* Action Buttons - Only show for non-owners/collaborators who can't edit this item (Personal wishlists only) */}
+        {!isGroupWishlist && isOwner === false && !(isCollaborator === true && item.addedById === currentUser?.id) && (
           <View style={styles.itemActionButtons}>
             {/* Heart Button - Add to Wishlist */}
             <TouchableOpacity
@@ -920,16 +1214,35 @@ export default function WishlistDetailScreen() {
   };
 
   // Show loading if we're still determining ownership
-  const isLoadingOwnership = isLoadingUser || (wishlist && currentUser === null && isAuthLoaded);
-
+  const isLoadingOwnership = isLoadingUser || (wishlist && !currentUser && isAuthLoaded);
+  
+  // Build header buttons dynamically
+  const headerButtons = [];
+  if (wishlist && (isOwner === true || isCollaborator === true)) {
+    if (isOwner === true) {
+      headerButtons.push({
+        icon: "send" as const,
+        onPress: handleShareWishlist,
+      });
+    }
+    headerButtons.push({
+      icon: "more-horizontal" as const,
+      onPress: () => setMenuVisible(true),
+    });
+  }
+  
   if (isLoadingWishlist || isLoadingItems || isLoadingOwnership) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StandardPageHeader
-        title="Wishlist"
-        backButton={true}
-        onBack={() => router.push("/(tabs)/")}
-      />
+        <StandardPageHeader
+          title={wishlist?.title || "Wishlist"}
+          backButton={true}
+          onBack={() => router.push("/(tabs)/")}
+          rightActions={
+            headerButtons.length > 0 ? <HeaderButtons buttons={headerButtons} /> : null
+          }
+        />
+        
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading wishlist...</Text>
@@ -941,11 +1254,12 @@ export default function WishlistDetailScreen() {
   if (!wishlist) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StandardPageHeader
-        title="Wishlist"
-        backButton={true}
-        onBack={() => router.push("/(tabs)/")}
-      />
+        <StandardPageHeader
+          title="Wishlist"
+          backButton={true}
+          onBack={() => router.push("/(tabs)/")}
+        />
+        
         <View style={styles.loadingContainer}>
           <Feather name="alert-circle" size={48} color={theme.colors.error} />
           <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Wishlist not found</Text>
@@ -956,15 +1270,6 @@ export default function WishlistDetailScreen() {
 
   const cardBackgroundColor = theme.isDark ? '#2E2E2E' : '#D3D3D3';
   const screenHeight = Dimensions.get('window').height;
-
-  // Build header buttons dynamically
-  const headerButtons = [];
-  if (isOwner === true || isCollaborator === true) {
-    headerButtons.push({
-      icon: "more-horizontal" as const,
-      onPress: () => setMenuVisible(true),
-    });
-  }
 
   return (
     <View 
@@ -984,6 +1289,7 @@ export default function WishlistDetailScreen() {
           headerButtons.length > 0 ? <HeaderButtons buttons={headerButtons} /> : null
         }
       />
+
       {/* Scrollable Content */}
       <ScrollView
         style={{ flex: 1 }}
@@ -1094,9 +1400,10 @@ export default function WishlistDetailScreen() {
             styles.cardContainer, 
             { 
               backgroundColor: cardBackgroundColor,
-              // Always fill remaining space - use minHeight to ensure it extends to bottom
-              minHeight: screenHeight - 350, // Adjust based on header and content above
-              flexGrow: 1, // Allow it to grow to fill available space
+              // Use flex: 1 to fill remaining space in ScrollView when there are items
+              flex: filteredItems.length > 0 ? 1 : undefined,
+              // Ensure minHeight for both empty and non-empty states to extend grey background to bottom
+              minHeight: Math.max(screenHeight - 350, 600),
               // Add paddingBottom for FAB spacing when there are items
               paddingBottom: filteredItems.length > 0 ? 100 : 0,
             }
@@ -1165,7 +1472,11 @@ export default function WishlistDetailScreen() {
             </View>
           ) : (
             <View style={styles.listContent}>
-              {filteredItems.map((item, index) => renderItem({ item, index }))}
+              {filteredItems.map((item, index) => (
+                <View key={item.id}>
+                  {renderItem({ item, index })}
+                </View>
+              ))}
             </View>
           )}
         </View>
@@ -1179,7 +1490,6 @@ export default function WishlistDetailScreen() {
         onViewMembers={() => setCollaboratorsModalVisible(true)}
         showMembersOption={wishlist?.collaborators && wishlist.collaborators.length > 0}
         onLeave={isCollaborator === true ? handleLeaveWishlist : undefined}
-        onAddFriends={isOwner === true ? handleAddFriends : undefined}
       />
 
       <DeleteConfirmModal
@@ -1206,21 +1516,69 @@ export default function WishlistDetailScreen() {
         itemUrl={selectedItem?.url || null}
       />
 
-      {/* Select Wishlist Sheet */}
-      <SelectWishlistSheet
-        visible={addToWishlistModalVisible}
+      {/* Wishlist Selector BottomSheet for Duplicating Item */}
+      <BottomSheet 
+        visible={addToWishlistModalVisible} 
         onClose={() => {
           setAddToWishlistModalVisible(false);
           setSelectedItem(null);
         }}
-        onSelect={(targetWishlistId) => {
-          if (selectedItem) {
-            handleDuplicateToWishlist(targetWishlistId);
-          }
-        }}
-        excludeWishlistId={wishlistId}
-        emptyMessage="No other wishlists available"
-      />
+        autoHeight={true}
+      >
+        <View style={[styles.bottomSheetContainer, { backgroundColor: theme.colors.background }]}>
+          {/* Header */}
+          <View style={styles.bottomSheetHeader}>
+            <View style={styles.headerSpacer} />
+            <Text style={[styles.bottomSheetTitle, { color: theme.colors.textPrimary }]}>
+              Select Wishlist
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setAddToWishlistModalVisible(false);
+                setSelectedItem(null);
+              }}
+              style={styles.closeButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Feather name="x" size={24} color={theme.colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Wishlist List */}
+          <FlatList
+            data={allWishlists.filter(w => w.id !== wishlistId)}
+            keyExtractor={(item) => item.id}
+            style={{ flex: 1 }}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[styles.wishlistOptionRow, { borderBottomColor: theme.colors.textSecondary + '20' }]}
+                onPress={() => {
+                  if (selectedItem) {
+                    handleDuplicateToWishlist(item.id);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.wishlistOptionText, { color: theme.colors.textPrimary }]}>
+                  {item.title}
+                </Text>
+                <Feather
+                  name="chevron-right"
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={
+              <View style={styles.modalEmptyState}>
+                <Text style={[styles.modalEmptyText, { color: theme.colors.textSecondary }]}>
+                  No other wishlists available
+                </Text>
+              </View>
+            }
+          />
+        </View>
+      </BottomSheet>
 
       {/* Edit Item Sheet */}
       <AddItemSheet
@@ -1267,12 +1625,10 @@ export default function WishlistDetailScreen() {
         wishlist={wishlist}
         onClose={() => {
           setEditWishlistSheetVisible(false);
-          setAutoOpenFriendSelection(false);
         }}
         onSuccess={handleEditWishlistSuccess}
-        autoOpenFriendSelection={autoOpenFriendSelection}
+        autoOpenFriendSelection={false}
       />
-
 
       {/* Members Sheet */}
       <MembersSheet
@@ -1281,21 +1637,28 @@ export default function WishlistDetailScreen() {
         wishlist={wishlist}
         currentUserId={currentUser?.id}
         isOwner={isOwner === true}
-        onRemoveCollaborator={async (collaborator) => {
-          // Directly remove collaborator without confirmation for admin/owner
-          setIsRemovingCollaborator(true);
-          try {
-            await wishlistsService.removeCollaborator(wishlistId, collaborator.userId);
-            await refetchWishlist();
-            // Keep the sheet open for multi-remove capability
-          } catch (error: any) {
-            console.error("Error removing collaborator:", error);
-            const errorMessage = error.response?.data?.message || error.message || "Failed to remove member";
-            Alert.alert("Error", errorMessage);
-          } finally {
-            setIsRemovingCollaborator(false);
-          }
+        onOpenEditWishlist={() => {
+          // Close members sheet first
+          setCollaboratorsModalVisible(false);
+          // Set flag to auto-open friend selection
+          setShouldAutoOpenFriendSelection(true);
+          // Small delay to ensure members sheet closes before opening edit sheet
+          setTimeout(() => {
+            setEditWishlistSheetVisible(true);
+          }, 300);
         }}
+      />
+
+      {/* Edit Wishlist Sheet */}
+      <EditWishlistSheet
+        visible={editWishlistSheetVisible}
+        wishlist={wishlist}
+        onClose={() => {
+          setEditWishlistSheetVisible(false);
+          setShouldAutoOpenFriendSelection(false);
+        }}
+        onSuccess={handleEditWishlistSuccess}
+        autoOpenFriendSelection={shouldAutoOpenFriendSelection}
       />
 
       {/* Delete confirmation only for wanted items - purchased items delete directly */}
@@ -1347,46 +1710,22 @@ export default function WishlistDetailScreen() {
         isDeleting={false}
       />
 
-      {/* Remove Collaborator Confirmation Modal */}
-      <DeleteConfirmModal
-        visible={removeCollaboratorModalVisible}
-        title={collaboratorToRemove ? (getDisplayName(collaboratorToRemove.user.firstName, collaboratorToRemove.user.lastName) || collaboratorToRemove.user.username || collaboratorToRemove.user.email || "Member") : "Member"}
-        modalTitle="Remove Member"
-        onConfirm={async () => {
-          if (!collaboratorToRemove) return;
-          setIsRemovingCollaborator(true);
-          try {
-            await wishlistsService.removeCollaborator(wishlistId, collaboratorToRemove.userId);
-            await refetchWishlist();
-            setRemoveCollaboratorModalVisible(false);
-            setCollaboratorToRemove(null);
-          } catch (error: any) {
-            console.error("Error removing collaborator:", error);
-            const errorMessage = error.response?.data?.message || error.message || "Failed to remove member";
-            Alert.alert("Error", errorMessage);
-          } finally {
-            setIsRemovingCollaborator(false);
-          }
-        }}
-        onCancel={() => {
-          setRemoveCollaboratorModalVisible(false);
-          setCollaboratorToRemove(null);
-        }}
-        isDeleting={isRemovingCollaborator}
-      />
 
 
-      {/* FAB Menu - positioned on the right for add item - Show for owner or collaborator */}
+      {/* FAB Button - directly opens add item sheet - Show for owner or collaborator */}
       {canAddItems && (
-        <FABMenu
-          visible={fabMenuVisible}
-          onToggle={() => setFabMenuVisible(!fabMenuVisible)}
-          onClose={() => setFabMenuVisible(false)}
-          onManualAdd={handleAddItem}
-          variant="bottom-right"
-          positionStyle="screen"
-          bypassMenu={true}
-        />
+        <TouchableOpacity
+          style={[
+            styles.fabButton,
+            {
+              backgroundColor: theme.colors.primary,
+            }
+          ]}
+          onPress={handleAddItem}
+          activeOpacity={0.8}
+        >
+          <Feather name="plus" size={32} color="#FFFFFF" />
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -1603,7 +1942,7 @@ const styles = StyleSheet.create({
   },
   itemImageDetailsRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     minHeight: 70,
   },
   itemImageContainer: {
@@ -1679,6 +2018,124 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "500",
   },
+  // Group wishlist 3-row layout styles
+  itemMainContentGroup: {
+    flex: 1,
+    flexDirection: "column",
+  },
+  itemImageAndRowsGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  itemImageContainerGroup3Row: {
+    width: 70,
+    height: 70,
+    marginRight: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  itemImageWrapperGroup: {
+    width: 70,
+    height: 70,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  itemContentRowsGroup: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  itemRow1Group3Row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  itemRow2Group3Row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  itemRow3Group3Row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    width: "100%",
+  },
+  itemTitleGroup3Row: {
+    fontSize: 14,
+    fontWeight: "600",
+    flex: 1,
+    marginRight: 8,
+  },
+  itemMetadataRowGroup3Row: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    flex: 1,
+  },
+  itemPriceGroup3Row: {
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: "500",
+  },
+  itemPriorityContainerGroupInline3Row: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  itemPriorityGroupInline3Row: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  itemOwnerBadgeGroup3Row: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  itemOwnerBadgeTextGroup3Row: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  itemActionButtonsRow3Row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  itemActionButtonGroup3Row: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  itemBuyButtonGroup3Row: {
+    minWidth: 100,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  itemBuyButtonTextGroup3Row: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  itemMenuButtonGroup3Row: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+  },
+  itemMenuButtonGroup3RowSpacer: {
+    width: 32,
+    marginLeft: 8,
+  },
   collaboratorsSection: {
     flexDirection: "row",
     alignItems: "center",
@@ -1713,6 +2170,87 @@ const styles = StyleSheet.create({
   collaboratorMore: {
     fontSize: 12,
     fontWeight: "500",
+  },
+  collaboratorsModal: {
+    padding: 20,
+    paddingTop: 0,
+    maxHeight: '80%',
+  },
+  collaboratorsModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 25,
+    position: "relative",
+  },
+  collaboratorsModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  collaboratorsModalContent: {
+    maxHeight: 400,
+  },
+  collaboratorItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 0,
+  },
+  collaboratorDivider: {
+    height: 1,
+    marginVertical: 0,
+  },
+  collaboratorItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  collaboratorAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  collaboratorAvatarText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  collaboratorItemInfo: {
+    flex: 1,
+  },
+  collaboratorItemName: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  collaboratorItemUsername: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  collaboratorItemRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  roleBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  roleBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  collaboratorRemoveButton: {
+    padding: 8,
+    minWidth: 36,
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
   itemPriority: {
     fontSize: 11,
@@ -1825,5 +2363,68 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
+  },
+  bottomSheetContainer: {
+    flex: 1,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  bottomSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 0, 0, 0.1)",
+    position: "relative",
+  },
+  bottomSheetTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    position: "absolute",
+    left: 0,
+    right: 0,
+    textAlign: "center",
+  },
+  headerSpacer: {
+    width: 24,
+  },
+  closeButton: {
+    padding: 4,
+    zIndex: 1,
+  },
+  wishlistOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  wishlistOptionText: {
+    fontSize: 16,
+  },
+  modalEmptyState: {
+    padding: 24,
+    alignItems: "center",
+  },
+  modalEmptyText: {
+    fontSize: 14,
+  },
+  fabButton: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
 });

@@ -41,7 +41,6 @@ model User {
 model Wishlist {
   id                String                 @id @default(cuid())
   title             String
-  description       String?
   coverImage        String?
   privacyLevel      PrivacyLevel           @default(PRIVATE)
   shareToken        String?                @unique
@@ -60,7 +59,6 @@ model Wishlist {
 model Item {
   id              String            @id @default(cuid())
   title           String
-  description     String?
   price           Float?
   currency        String            @default("USD")
   url             String?

@@ -9,12 +9,14 @@ import { useTheme } from "@/contexts/ThemeContext";
 import api from "@/services/api";
 import { DeleteConfirmModal } from "@/components/DeleteConfirmModal";
 import { IdentityVerificationModal } from "@/components/IdentityVerificationModal";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function DeleteAccountScreen() {
   const { theme } = useTheme();
   const { user: clerkUser, isLoaded: userLoaded } = useUser();
   const { isSignedIn, isLoaded, getToken } = useAuth();
   const { signOut } = useClerk();
+  const queryClient = useQueryClient();
   const [identityVerifyVisible, setIdentityVerifyVisible] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -91,6 +93,8 @@ export default function DeleteAccountScreen() {
         );
       }
       
+      // Clear React Query cache before signing out to prevent data leakage
+      queryClient.clear();
       // Sign out and redirect
       await signOut();
       router.replace("/(auth)/onboarding");

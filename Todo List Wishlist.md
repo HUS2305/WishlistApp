@@ -95,3 +95,10 @@
 * choose interests on onboarding
 
 * Add item from link, scan barcode, manual entry --, share link to app
+
+
+
+
+
+Currency in prefrences
+Remove item description

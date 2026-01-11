@@ -3,7 +3,6 @@ import type { Wishlist, Item, PrivacyLevel, Priority, ItemStatus } from "@/types
 
 interface CreateWishlistPayload {
   title: string;
-  description?: string;
   privacyLevel: PrivacyLevel;
   allowComments: boolean;
   allowReservations: boolean;
@@ -17,7 +16,6 @@ interface UpdateWishlistPayload extends Partial<CreateWishlistPayload> {
 interface CreateItemPayload {
   wishlistId: string;
   title: string;
-  description?: string;
   url?: string;
   price?: number;
   currency?: string;
@@ -30,7 +28,6 @@ interface UpdateItemPayload {
   id: string;
   wishlistId?: string; // Required for cache invalidation
   title?: string;
-  description?: string;
   url?: string;
   price?: number;
   currency?: string;

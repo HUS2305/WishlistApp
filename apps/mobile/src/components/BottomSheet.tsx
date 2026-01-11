@@ -235,9 +235,11 @@ export function BottomSheet({
   // Content style - adjust based on sizing mode
   const contentStyle = useMemo(() => {
     if (autoHeight) {
-      // Dynamic sizing: don't use flex
-      // Don't add padding here - let content handle its own padding
-      return {};
+      // Dynamic sizing: don't use flex, let content determine height
+      // Remove any constraints that might interfere with height calculation
+      return {
+        flexShrink: 1,
+      };
     }
     // Fixed height: use flex to fill available space
     // BottomSheetView automatically handles safe area, so no padding needed

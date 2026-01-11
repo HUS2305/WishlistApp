@@ -17,20 +17,18 @@ import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
 import { CreateGroupGiftSheet } from "@/components/CreateGroupGiftSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFriends, usePendingRequests, useSentRequests } from "@/hooks/useFriends";
 
 export default function FriendsScreen() {
   const { theme } = useTheme();
   const { refreshUnreadNotificationsCount, refreshPendingRequestsCount } = useNotificationContext();
   const { isLoaded: isClerkLoaded, userId } = useAuth();
   const insets = useSafeAreaInsets();
-  const [friends, setFriends] = useState<User[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
-  const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const hasInitialFetchRef = useRef(false);
-  const fetchDataRef = useRef<typeof fetchData | null>(null);
+  const { data: friends = [], isLoading: isLoadingFriends, refetch: refetchFriends, isFetching: isFetchingFriends } = useFriends();
+  const { data: pendingRequests = [], refetch: refetchPendingRequests, isFetching: isFetchingPendingRequests } = usePendingRequests();
+  const { data: sentRequests = [], refetch: refetchSentRequests, isFetching: isFetchingSentRequests } = useSentRequests();
+  const isLoading = isLoadingFriends;
+  const isRefreshing = isFetchingFriends || isFetchingPendingRequests || isFetchingSentRequests;
   const wasSearchActiveOnBlurRef = useRef(false);
   const [friendMenuVisible, setFriendMenuVisible] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
@@ -66,60 +64,12 @@ export default function FriendsScreen() {
     }
   }, []);
 
-  const fetchData = useCallback(async (showLoader = true) => {
-    try {
-      // Only show loading spinner if we have no data AND it's the first load
-      const shouldShowLoader = showLoader && !hasLoadedOnce;
-      if (shouldShowLoader) {
-        setIsLoading(true);
-      }
-      const [friendsData, requestsData, sentRequestsData] = await Promise.all([
-        friendsService.getFriends(),
-        friendsService.getPendingRequests(),
-        friendsService.getSentRequests(),
-      ]);
-      setFriends(friendsData);
-      setPendingRequests(requestsData);
-      setSentRequests(sentRequestsData);
-      if (!hasLoadedOnce) {
-        setHasLoadedOnce(true);
-      }
-      console.log("✅ Loaded", friendsData.length, "friends,", requestsData.length, "pending requests, and", sentRequestsData.length, "sent requests");
-    } catch (error) {
-      console.error("❌ Error fetching friends:", error);
-      // Ensure loading state is cleared even on error
-      setIsLoading(false);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [hasLoadedOnce]);
-
-  // Keep ref updated with latest fetchData
-  useEffect(() => {
-    fetchDataRef.current = fetchData;
-  }, [fetchData]);
-
-  // Fetch data on initial mount (browser refresh) - but only after Clerk is loaded
-  // This ensures the auth token is available when making API requests
-  useEffect(() => {
-    console.log("🔵 FriendsScreen: useEffect running on mount, isClerkLoaded:", isClerkLoaded, "userId:", userId, "hasInitialFetchRef:", hasInitialFetchRef.current);
-    
-    // Wait for Clerk to be loaded and user to be authenticated before fetching
-    if (isClerkLoaded && userId && !hasInitialFetchRef.current) {
-      const doFetch = fetchDataRef.current || fetchData;
-      if (doFetch) {
-        hasInitialFetchRef.current = true;
-        console.log("🔵 FriendsScreen: Clerk loaded, calling fetchData(true) from useEffect");
-        doFetch(true);
-      }
-    } else if (!isClerkLoaded) {
-      console.log("🔵 FriendsScreen: Waiting for Clerk to load...");
-    } else if (!userId) {
-      console.log("🔵 FriendsScreen: No user authenticated, skipping fetch");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isClerkLoaded, userId]); // Re-run when Clerk loads or user changes
+  // Helper function to refetch all friend data
+  const refetchAll = useCallback(() => {
+    refetchFriends();
+    refetchPendingRequests();
+    refetchSentRequests();
+  }, [refetchFriends, refetchPendingRequests, refetchSentRequests]);
 
   // Also fetch when screen comes into focus (navigation between tabs)
   // Keep ref in sync with state
@@ -130,7 +80,6 @@ export default function FriendsScreen() {
   // But only if Clerk is loaded and user is authenticated
   useFocusEffect(
     useCallback(() => {
-      console.log("🟢 FriendsScreen: useFocusEffect running, isClerkLoaded:", isClerkLoaded, "userId:", userId, "hasInitialFetchRef:", hasInitialFetchRef.current);
       
       // Reset search state when navigating back to this tab (industry standard behavior)
       // Only reset if search was active when we navigated away
@@ -150,19 +99,7 @@ export default function FriendsScreen() {
         wasSearchActiveOnBlurRef.current = false; // Reset the flag
       }
       
-      // Only fetch if Clerk is loaded and user is authenticated
-      if (isClerkLoaded && userId) {
-        // If initial fetch hasn't happened yet, let useEffect handle it
-        // Otherwise, do a silent refresh when navigating back to this tab
-        if (hasInitialFetchRef.current) {
-          console.log("🟢 FriendsScreen: Calling fetchData(false) from useFocusEffect");
-          fetchData(false); // Silent refresh when navigating back
-        } else {
-          console.log("🟢 FriendsScreen: Initial fetch not done yet, useEffect will handle it");
-        }
-      } else {
-        console.log("🟢 FriendsScreen: Clerk not loaded or user not authenticated, skipping fetch");
-      }
+      // React Query handles fetching automatically when enabled, no need to manually fetch
       
       // Cleanup: Track if search was active when we lose focus
 
@@ -172,19 +109,18 @@ export default function FriendsScreen() {
         console.log("🔴 FriendsScreen: useFocusEffect cleanup - screen losing focus, isSearchActive:", isSearchActiveRef.current);
         wasSearchActiveOnBlurRef.current = isSearchActiveRef.current;
       };
-    }, [fetchData, isClerkLoaded, userId])
+    }, [isClerkLoaded, userId])
   );
 
   const onRefresh = () => {
-    setIsRefreshing(true);
-    fetchData(false);
+    refetchAll();
   };
 
   const handleAcceptRequest = async (requestId: string) => {
     try {
       await friendsService.acceptFriendRequest(requestId);
       Alert.alert("Success", "Friend request accepted!");
-      fetchData(false);
+      refetchAll();
       await refreshUnreadNotificationsCount();
       await refreshPendingRequestsCount(); // Update the counter
       // Refresh search results if search is active
@@ -202,7 +138,7 @@ export default function FriendsScreen() {
     try {
       await friendsService.rejectFriendRequest(requestId);
       Alert.alert("Success", "Friend request rejected");
-      fetchData(false);
+      refetchAll();
       await refreshPendingRequestsCount(); // Update the counter
       // Refresh search results if search is active
       if (isSearchActive && searchQuery.trim()) {
@@ -233,7 +169,7 @@ export default function FriendsScreen() {
       setSelectedFriend(null);
       setSelectedFriendBlockStatus({});
       setRemoveConfirmVisible(false);
-      fetchData(false);
+      refetchAll();
       // Refresh search results if search is active
       if (isSearchActive && searchQuery.trim()) {
         const results = await friendsService.searchUsers(searchQuery.trim());
@@ -264,7 +200,7 @@ export default function FriendsScreen() {
       setSelectedFriend(null);
       setSelectedFriendBlockStatus({});
       setBlockConfirmVisible(false);
-      fetchData(false);
+      refetchAll();
       // Refresh search results if search is active - add small delay to ensure DB is updated
       if (isSearchActive && searchQuery.trim()) {
         setTimeout(async () => {
@@ -292,7 +228,7 @@ export default function FriendsScreen() {
       setFriendMenuVisible(false);
       setSelectedFriend(null);
       setSelectedFriendBlockStatus({}); // Clear block status
-      fetchData(false);
+      refetchAll();
       // Refresh search results if search is active - add small delay to ensure DB is updated
       if (isSearchActive && searchQuery.trim()) {
         setTimeout(async () => {
@@ -314,7 +250,7 @@ export default function FriendsScreen() {
     try {
       await friendsService.cancelFriendRequest(requestId);
       Alert.alert("Success", "Friend request cancelled");
-      fetchData(false);
+      refetchAll();
       // Refresh search results if search is active
       if (isSearchActive && searchQuery.trim()) {
         const results = await friendsService.searchUsers(searchQuery.trim());
@@ -363,7 +299,7 @@ export default function FriendsScreen() {
         // Reset rotation values
         xButtonRotation.setValue(0);
         // Refresh friends data to show any new sent requests
-        fetchData(false);
+        refetchAll();
       });
     } else {
       // Open search - set state first, then animate
@@ -485,7 +421,7 @@ export default function FriendsScreen() {
       }
 
       // Refresh friends data to update sent requests list
-      fetchData(false);
+      refetchAll();
 
       await refreshUnreadNotificationsCount();
     } catch (error) {

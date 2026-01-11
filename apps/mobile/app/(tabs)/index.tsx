@@ -4,7 +4,6 @@ import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { wishlistsService } from "@/services/wishlists";
 import type { Wishlist } from "@/types";
 import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { HeaderButton } from "@/components/PageHeader";
@@ -17,113 +16,36 @@ import { useAuth } from "@clerk/clerk-expo";
 import { wishlistEvents } from "@/utils/wishlistEvents";
 import { useUserCurrency } from "@/hooks/useUserCurrency";
 import { PriceDisplay } from "@/components/PriceDisplay";
+import { useWishlists } from "@/hooks/useWishlists";
 
 export default function WishlistsScreen() {
   const { theme } = useTheme();
   const { userId, isLoaded, isSignedIn } = useAuth();
   const { userCurrency } = useUserCurrency();
   const { unreadNotificationsCount, refreshUnreadNotificationsCount, refreshPendingRequestsCount } = useNotificationContext();
-  const [wishlists, setWishlists] = useState<Wishlist[]>([]);
-  const [isLoading, setIsLoading] = useState(false); // Start as false to prevent flash
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const { data: wishlists = [], isLoading, refetch, isFetching } = useWishlists();
   const [sortModalVisible, setSortModalVisible] = useState(false);
   const [currentSort, setCurrentSort] = useState<SortOption>("last_added");
 
-  // Reset hasLoadedOnce when auth state changes (e.g., after login)
-  useEffect(() => {
-    if (!isSignedIn || !userId) {
-      // User signed out or not authenticated - reset state
-      setHasLoadedOnce(false);
-      setWishlists([]);
-    }
-  }, [isSignedIn, userId]);
-
-  // Fetch wishlists when auth becomes ready (handles case where user signs in while already on screen)
-  useEffect(() => {
-    if (isLoaded && isSignedIn && userId && !hasLoadedOnce) {
-      console.log("🔐 Auth ready - triggering wishlist fetch");
-      // Call fetchWishlists directly here to avoid dependency issues
-      const loadWishlists = async () => {
-        if (!isLoaded || !isSignedIn || !userId) return;
-        try {
-          setIsLoading(true);
-          const data = await wishlistsService.getWishlists();
-          setWishlists(data);
-          setHasLoadedOnce(true);
-          console.log("✅ Loaded", data.length, "wishlists");
-        } catch (error) {
-          console.error("❌ Error fetching wishlists:", error);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      loadWishlists();
-    }
-  }, [isLoaded, isSignedIn, userId, hasLoadedOnce]);
-
-  const fetchWishlists = useCallback(async (showLoader = true) => {
-    // Don't fetch if auth is not ready or user is not signed in
-    if (!isLoaded || !isSignedIn || !userId) {
-      console.log("⏳ Skipping wishlist fetch - auth not ready");
-      // Make sure to clear refreshing state if we're not fetching
-      setIsRefreshing(false);
-      return;
-    }
-
-    try {
-      // Only show loading spinner if we have no data AND it's the first load
-      if (showLoader && !hasLoadedOnce && wishlists.length === 0) {
-        setIsLoading(true);
-      }
-      const data = await wishlistsService.getWishlists();
-      setWishlists(data);
-      if (!hasLoadedOnce) {
-        setHasLoadedOnce(true);
-      }
-      console.log("✅ Loaded", data.length, "wishlists");
-    } catch (error) {
-      console.error("❌ Error fetching wishlists:", error);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [hasLoadedOnce, wishlists.length, isLoaded, isSignedIn, userId]);
-
-  // Fetch wishlists when screen comes into focus (but don't show spinner if already loaded)
+  // Refresh notification counts when page comes into focus
   useFocusEffect(
     useCallback(() => {
-      // Wait for auth to be ready before fetching
-      if (!isLoaded || !isSignedIn || !userId) {
-        console.log("⏳ Waiting for authentication to be ready");
-        return;
-      }
-
-      // Only fetch if we haven't loaded yet, or silently refresh if we have data
-      if (!hasLoadedOnce) {
-        fetchWishlists(true); // First load - show spinner
-      } else {
-        fetchWishlists(false); // Subsequent loads - silent refresh
-      }
-      
-      // Refresh notification counts when page comes into focus
       refreshUnreadNotificationsCount();
       refreshPendingRequestsCount();
-    }, [fetchWishlists, hasLoadedOnce, isLoaded, isSignedIn, userId, refreshUnreadNotificationsCount, refreshPendingRequestsCount])
+    }, [refreshUnreadNotificationsCount, refreshPendingRequestsCount])
   );
 
   // Subscribe to wishlist creation events to refresh the list
   useEffect(() => {
     const unsubscribe = wishlistEvents.subscribe(() => {
       // Refresh wishlists when a new one is created
-      fetchWishlists(false);
+      refetch();
     });
     return unsubscribe;
-  }, [fetchWishlists]);
+  }, [refetch]);
 
   const onRefresh = () => {
-    setIsRefreshing(true);
-    fetchWishlists(false);
+    refetch();
   };
 
   // Load sort preference on mount
@@ -246,14 +168,14 @@ export default function WishlistsScreen() {
           ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={["#4A90E2"]} />
+            <RefreshControl refreshing={isFetching} onRefresh={onRefresh} colors={["#4A90E2"]} />
           }
         >
           {/* Personal Wishlists Section */}
           {personalWishlists.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Feather name="list" size={20} color={theme.colors.primary} />
+                <Feather name="list" size={18} color={theme.colors.primary} />
                 <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
                   My Wishlists ({personalWishlists.length})
                 </Text>
@@ -281,7 +203,7 @@ export default function WishlistsScreen() {
                             </Text>
                             <Feather 
                               name={privacyInfo.icon as any} 
-                              size={16} 
+                              size={14} 
                               color={theme.colors.primary} 
                             />
                           </View>
@@ -308,7 +230,7 @@ export default function WishlistsScreen() {
                           </View>
                         </View>
                         <View style={styles.imagePlaceholder}>
-                          <Feather name="image" size={24} color={theme.colors.textSecondary} />
+                          <Feather name="image" size={20} color={theme.colors.textSecondary} />
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -325,7 +247,7 @@ export default function WishlistsScreen() {
           {groupWishlists.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Feather name="users" size={20} color={theme.colors.primary} />
+                <Feather name="users" size={18} color={theme.colors.primary} />
                   <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
                     Group Wishlists ({groupWishlists.length})
                   </Text>
@@ -355,7 +277,7 @@ export default function WishlistsScreen() {
                             </Text>
                             <Feather 
                               name="users" 
-                              size={16} 
+                              size={14} 
                               color={theme.colors.primary} 
                             />
                           </View>
@@ -387,7 +309,7 @@ export default function WishlistsScreen() {
                           </View>
                         </View>
                         <View style={styles.imagePlaceholder}>
-                          <Feather name="image" size={24} color={theme.colors.textSecondary} />
+                          <Feather name="image" size={20} color={theme.colors.textSecondary} />
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -443,26 +365,27 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   section: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    justifyContent: "center",
+    marginBottom: 12,
     gap: 8,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
   },
   groupInfo: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
   groupInfoText: {
-    fontSize: 12,
+    fontSize: 11,
   },
   card: {
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
   cardContent: {
     flexDirection: "row",
@@ -473,7 +396,7 @@ const styles = StyleSheet.create({
     height: 1,
     width: "95%",
     alignSelf: "center",
-    marginVertical: 12,
+    marginVertical: 8,
   },
   cardLeft: {
     flex: 1,
@@ -482,29 +405,29 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
     gap: 6,
     flexWrap: "wrap",
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
   },
   metricsContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 0,
-    gap: 8,
+    gap: 6,
   },
   metricLabel: {
-    fontSize: 14,
+    fontSize: 12,
     marginRight: 4,
   },
   metricValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: "Poppins_600SemiBold",
     letterSpacing: 0.2,
-    lineHeight: 20,
+    lineHeight: 18,
     includeFontPadding: false,
     color: "red",
   },
@@ -514,9 +437,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   imagePlaceholder: {
-    width: 70,
-    height: 70,
-    borderRadius: 12,
+    width: 60,
+    height: 60,
+    borderRadius: 10,
     backgroundColor: "#4B5563",
     alignItems: "center",
     justifyContent: "center",

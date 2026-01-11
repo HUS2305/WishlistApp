@@ -20,6 +20,7 @@ import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
 import { CreateGroupGiftSheet } from "@/components/CreateGroupGiftSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useUserProfile } from "@/hooks/useFriends";
 
 interface UserProfile {
   profile: User & {
@@ -50,9 +51,8 @@ export default function FriendProfileScreen() {
   const cardBackgroundColor = theme.isDark ? '#2E2E2E' : '#D3D3D3';
   const { refreshPendingRequestsCount, refreshUnreadNotificationsCount } = useNotificationContext();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { data: profileData, isLoading, refetch, isFetching: isRefreshing, error } = useUserProfile(id || "");
+  const profile = profileData || null;
   const [menuVisible, setMenuVisible] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [blockConfirmVisible, setBlockConfirmVisible] = useState(false);
@@ -66,37 +66,22 @@ export default function FriendProfileScreen() {
   const [createWishlistSheetVisible, setCreateWishlistSheetVisible] = useState(false);
   const [createGroupGiftSheetVisible, setCreateGroupGiftSheetVisible] = useState(false);
 
-  const fetchProfile = async () => {
-    if (!id || !isAuthLoaded) return;
-    
-    try {
-      const data = await friendsService.getUserProfile(id);
-      setProfile(data);
-    } catch (error: any) {
-      console.error("❌ Error fetching user profile:", error);
-      if (error.response?.status === 404) {
+  // Handle errors from React Query
+  useEffect(() => {
+    if (error && id) {
+      const errorAny = error as any;
+      if (errorAny?.response?.status === 404) {
         Alert.alert("Error", "User not found");
         router.push("/(tabs)/friends");
-      } else if (error.response?.status === 403) {
+      } else if (errorAny?.response?.status === 403) {
         Alert.alert("Error", "Access denied");
         router.push("/(tabs)/friends");
       }
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    if (isAuthLoaded && id) {
-      fetchProfile();
-    }
-  }, [id, isAuthLoaded]);
+  }, [error, id]);
 
   const onRefresh = () => {
-    if (!isAuthLoaded) return;
-    setIsRefreshing(true);
-    fetchProfile();
+    refetch();
   };
 
   const handleBack = () => {
@@ -130,7 +115,7 @@ export default function FriendProfileScreen() {
       await friendsService.blockUser(id);
       Alert.alert("Success", "User blocked successfully");
       setBlockConfirmVisible(false);
-      await fetchProfile();
+      refetch();
     } catch (error: any) {
       console.error("Error blocking user:", error);
       Alert.alert("Error", error.response?.data?.message || error.message || "Failed to block user");
@@ -147,7 +132,7 @@ export default function FriendProfileScreen() {
       setIsBlockingUser(true);
       await friendsService.unblockUser(id);
       Alert.alert("Success", "User unblocked successfully");
-      await fetchProfile();
+      refetch();
     } catch (error: any) {
       console.error("Error unblocking user:", error);
       Alert.alert("Error", error.response?.data?.message || "Failed to unblock user");
@@ -180,7 +165,7 @@ export default function FriendProfileScreen() {
       setIsProcessingRequest(true);
       await friendsService.acceptFriendRequest(profile.pendingRequestId);
       Alert.alert("Success", "Friend request accepted!");
-      await fetchProfile();
+      refetch();
       await refreshPendingRequestsCount();
       await refreshUnreadNotificationsCount();
     } catch (error: any) {
@@ -198,7 +183,7 @@ export default function FriendProfileScreen() {
       setIsProcessingRequest(true);
       await friendsService.rejectFriendRequest(profile.pendingRequestId);
       Alert.alert("Success", "Friend request declined");
-      await fetchProfile();
+      refetch();
       await refreshPendingRequestsCount();
     } catch (error: any) {
       console.error("Error declining friend request:", error);
@@ -215,7 +200,7 @@ export default function FriendProfileScreen() {
       setIsProcessingRequest(true);
       await friendsService.cancelFriendRequest(profile.sentRequestId);
       Alert.alert("Success", "Friend request cancelled");
-      await fetchProfile();
+      refetch();
     } catch (error: any) {
       console.error("Error cancelling friend request:", error);
       Alert.alert("Error", error.response?.data?.message || "Failed to cancel friend request");
