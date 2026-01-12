@@ -15,8 +15,9 @@ interface ItemMenuProps {
   onEdit?: () => void;
   onGoToLink?: () => void;
   onAddToWishlist?: () => void;
+  onMarkAsPurchased?: () => void;
   onRestoreToWanted?: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   isPurchased?: boolean;
   itemUrl?: string | null;
 }
@@ -26,7 +27,8 @@ export function ItemMenu({
   onClose, 
   onEdit, 
   onGoToLink,
-  onAddToWishlist, 
+  onAddToWishlist,
+  onMarkAsPurchased,
   onRestoreToWanted,
   onDelete,
   isPurchased = false,
@@ -52,6 +54,13 @@ export function ItemMenu({
     onClose();
     setTimeout(() => {
       onAddToWishlist?.();
+    }, 100);
+  };
+
+  const handleMarkAsPurchased = () => {
+    onClose();
+    setTimeout(() => {
+      onMarkAsPurchased?.();
     }, 100);
   };
 
@@ -162,7 +171,7 @@ export function ItemMenu({
             >
               <View style={styles.optionLeft}>
                 <Feather 
-                  name="list" 
+                  name="heart" 
                   size={20} 
                   color={theme.colors.textPrimary} 
                   style={styles.optionIcon}
@@ -174,6 +183,41 @@ export function ItemMenu({
                   ]}
                 >
                   Add to Another Wishlist
+                </Text>
+              </View>
+              <Feather
+                name="chevron-right"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
+
+          {!isPurchased && onMarkAsPurchased && (
+            <TouchableOpacity
+              style={[
+                styles.optionRow,
+                {
+                  borderBottomColor: theme.colors.textSecondary + '20',
+                },
+              ]}
+              onPress={handleMarkAsPurchased}
+              activeOpacity={0.7}
+            >
+              <View style={styles.optionLeft}>
+                <Feather 
+                  name="check-circle" 
+                  size={20} 
+                  color={theme.colors.textPrimary} 
+                  style={styles.optionIcon}
+                />
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Mark as Purchased
                 </Text>
               </View>
               <Feather
@@ -219,33 +263,35 @@ export function ItemMenu({
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            style={styles.optionRowLast}
-            onPress={handleDelete}
-            activeOpacity={0.7}
-          >
-            <View style={styles.optionLeft}>
-              <Feather 
-                name="trash-2" 
-                size={20} 
-                color="#EF4444" 
-                style={styles.optionIcon}
+          {onDelete && (
+            <TouchableOpacity
+              style={styles.optionRowLast}
+              onPress={handleDelete}
+              activeOpacity={0.7}
+            >
+              <View style={styles.optionLeft}>
+                <Feather 
+                  name="trash-2" 
+                  size={20} 
+                  color="#EF4444" 
+                  style={styles.optionIcon}
+                />
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: "#EF4444" },
+                  ]}
+                >
+                  Delete Item
+                </Text>
+              </View>
+              <Feather
+                name="chevron-right"
+                size={20}
+                color={theme.colors.textSecondary}
               />
-              <Text
-                style={[
-                  styles.optionText,
-                  { color: "#EF4444" },
-                ]}
-              >
-                Delete Item
-              </Text>
-            </View>
-            <Feather
-              name="chevron-right"
-              size={20}
-              color={theme.colors.textSecondary}
-            />
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </BottomSheet>

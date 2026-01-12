@@ -442,7 +442,7 @@ export default function FriendProfileScreen() {
                 <View key={wishlist.id}>
                   <TouchableOpacity
                     style={styles.card}
-                    onPress={() => router.push(`/wishlist/${wishlist.id}`)}
+                    onPress={() => router.push(`/wishlist/${wishlist.id}?ownerId=${profile.profile.id}`)}
                     activeOpacity={0.7}
                   >
                     <View style={styles.cardContent}>

@@ -32,11 +32,13 @@ import { PriceDisplay } from "@/components/PriceDisplay";
 import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { HeaderButtons } from "@/lib/navigation";
 import { MembersSheet } from "@/components/MembersSheet";
+import { SuccessModal } from "@/components/SuccessModal";
+import { friendsService } from "@/services/friends";
 
 export default function WishlistDetailScreen() {
   const { theme } = useTheme();
   const { isLoaded: isAuthLoaded } = useAuth();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ownerId: ownerIdParam } = useLocalSearchParams<{ id: string; ownerId?: string }>();
   const wishlistId = id as string;
   
   const { data: wishlist, isLoading: isLoadingWishlist, refetch: refetchWishlist } = useWishlist(wishlistId);
@@ -65,6 +67,9 @@ export default function WishlistDetailScreen() {
   const [collaboratorsModalVisible, setCollaboratorsModalVisible] = useState(false);
   const [shouldAutoOpenFriendSelection, setShouldAutoOpenFriendSelection] = useState(false);
   const [leaveWishlistModalVisible, setLeaveWishlistModalVisible] = useState(false);
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [areFriendsWithOwner, setAreFriendsWithOwner] = useState<boolean | null>(null);
 
   // Check if current user is the owner of the wishlist
   // Only determine ownership when we have both wishlist and currentUser
@@ -78,10 +83,45 @@ export default function WishlistDetailScreen() {
     ? wishlist.collaborators?.some(collab => collab.userId === currentUser.id)
     : false;
 
+  // Check if current user is an admin (owner OR collaborator with ADMIN role)
+  const isAdmin = wishlist && currentUser
+    ? (isOwner === true || wishlist.collaborators?.some(collab => 
+        collab.userId === currentUser.id && collab.role === "ADMIN"
+      ))
+    : false;
+
   // Check if user can add items (owner or collaborator)
   const canAddItems = isOwner === true || isCollaborator === true;
 
   // Current user is now fetched via useCurrentUser hook (with React Query caching)
+
+  // Check friendship status with owner when viewing other users' wishlists
+  useEffect(() => {
+    const checkFriendship = async () => {
+      if (!wishlist || !currentUser || isOwner === true) {
+        setAreFriendsWithOwner(null);
+        return;
+      }
+
+      // Only check for public or friends-only wishlists
+      if (wishlist.privacyLevel !== "PUBLIC" && wishlist.privacyLevel !== "FRIENDS_ONLY") {
+        setAreFriendsWithOwner(null);
+        return;
+      }
+
+      try {
+        const profile = await friendsService.getUserProfile(wishlist.ownerId);
+        setAreFriendsWithOwner(profile.areFriends);
+      } catch (error) {
+        console.error("Error checking friendship:", error);
+        setAreFriendsWithOwner(false);
+      }
+    };
+
+    if (wishlist && currentUser && isOwner === false) {
+      checkFriendship();
+    }
+  }, [wishlist, currentUser, isOwner]);
 
   // Load all wishlists for the "Add to Another Wishlist" modal
   useEffect(() => {
@@ -221,11 +261,33 @@ export default function WishlistDetailScreen() {
     setTogglingItemId(item.id);
     try {
       const newStatus = item.status === "PURCHASED" ? "WANTED" : "PURCHASED";
+      
+      // Before updating, check if this is the last purchased item
+      // (only relevant when moving from purchased to wanted)
+      const isLastPurchasedItem = newStatus === "WANTED" && 
+        items.filter((i) => i.status === "PURCHASED").length === 1;
+      
       await updateItem.mutateAsync({
         id: item.id,
         status: newStatus,
         wishlistId: item.wishlistId,
       });
+      
+      // Show success modal based on the action
+      if (newStatus === "WANTED") {
+        // Moving from purchased to wanted
+        setSuccessMessage("Item restored to wanted list");
+        setSuccessModalVisible(true);
+        
+        // Only switch to wanted tab if this was the last purchased item
+        if (isLastPurchasedItem) {
+          setSortFilter("wanted");
+        }
+      } else {
+        // Moving from wanted to purchased
+        setSuccessMessage("Item marked as purchased");
+        setSuccessModalVisible(true);
+      }
     } catch (error) {
       console.error("Error updating item status:", error);
       Alert.alert("Error", "Failed to update item status");
@@ -234,14 +296,74 @@ export default function WishlistDetailScreen() {
     }
   };
 
-  const handleItemPress = (item: Item) => {
-    // Check if user can edit this item (owner or item creator if collaborator)
-    const canEditItem = isOwner === true || (isCollaborator === true && item.addedById === currentUser?.id);
+  const handleMarkAsPurchased = async (item: Item) => {
+    if (!currentUser) return;
+    
+    // Only mark as purchased if item is currently WANTED
+    if (item.status !== "WANTED") {
+      return;
+    }
+    
+    // Check permissions: only admin can mark any item as purchased, else only item owners can mark their own items
+    const itemAddedByMe = item.addedById === currentUser.id || item.addedBy?.id === currentUser.id;
+    const canMarkAsPurchased = isAdmin || itemAddedByMe;
+    
+    if (!canMarkAsPurchased) {
+      Alert.alert("Permission Denied", "You can only mark items you created as purchased. Only admins can mark any item as purchased.");
+      return;
+    }
+    
+    try {
+      await updateItem.mutateAsync({
+        id: item.id,
+        status: "PURCHASED",
+        wishlistId: item.wishlistId,
+      });
+      // Show success modal
+      setSuccessMessage("Item marked as purchased");
+      setSuccessModalVisible(true);
+    } catch (error) {
+      console.error("Error marking item as purchased:", error);
+      Alert.alert("Error", "Failed to mark item as purchased");
+    }
+  };
+
+  const handleItemPress = async (item: Item) => {
+    // When viewing other users' wishlists, open the menu instead of marking as purchased
+    if (isOwner === false) {
+      setSelectedItem(item);
+      setItemMenuVisible(true);
+      return;
+    }
+    
+    // If item is WANTED, mark it as purchased (if user has permission)
+    if (item.status === "WANTED") {
+      await handleMarkAsPurchased(item);
+      return;
+    }
+    
+    // Check if user can edit this item (only if they added it themselves, and they're owner or collaborator)
+    // Check both addedById and addedBy?.id since addedById can be null/undefined
+    const canEditItem = (item.addedById === currentUser?.id || item.addedBy?.id === currentUser?.id) && (isOwner === true || isCollaborator === true);
     
     // If user can't edit items, just open URL if available
     if (!canEditItem) {
       if (item.url) {
-        Linking.openURL(item.url);
+        try {
+          let url = item.url.trim();
+          // Ensure URL has a protocol
+          if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://' + url;
+          }
+          const supported = await Linking.canOpenURL(url);
+          if (supported) {
+            await Linking.openURL(url);
+          } else {
+            Alert.alert("Error", `Cannot open URL: ${url}`);
+          }
+        } catch (error) {
+          Alert.alert("Error", "Failed to open link");
+        }
       }
       return;
     }
@@ -291,16 +413,35 @@ export default function WishlistDetailScreen() {
   };
 
   const handleAddToWishlist = () => {
-    if (!selectedItem) {
-      console.error("No item selected for adding to wishlist");
+    if (!selectedItem || !wishlist || !currentUser) {
+      console.error("Missing required data for adding to wishlist");
       return;
     }
-    console.log("Opening add to wishlist modal for item:", selectedItem.id);
+    
     setItemMenuVisible(false);
-    // Small delay to ensure menu closes before opening wishlist selector
-    setTimeout(() => {
-      setAddToWishlistModalVisible(true);
-    }, 150);
+    
+    // Determine the action based on context (same logic as heart icon)
+    const isGroupWishlist = wishlist.privacyLevel === "GROUP";
+    const isAddedByMe = selectedItem.addedById === currentUser.id || selectedItem.addedBy?.id === currentUser.id;
+    const isViewingOtherUsersWishlist = wishlist.ownerId !== currentUser.id;
+    
+    if (isViewingOtherUsersWishlist) {
+      // Viewing other users' wishlists - always add to my wishlist
+      handleAddItemToWishlist(selectedItem);
+    } else if (isGroupWishlist && isAddedByMe) {
+      // Group wishlist owned by me, item added by me - add to another wishlist
+      setTimeout(() => {
+        setAddToWishlistModalVisible(true);
+      }, 150);
+    } else if (isGroupWishlist && !isAddedByMe) {
+      // Group wishlist owned by me, item added by friend - add to my wishlist
+      handleAddItemToWishlist(selectedItem);
+    } else {
+      // Personal wishlist owned by me - add to another wishlist
+      setTimeout(() => {
+        setAddToWishlistModalVisible(true);
+      }, 150);
+    }
   };
 
   const handleDuplicateToWishlist = async (targetWishlistId: string) => {
@@ -433,7 +574,7 @@ export default function WishlistDetailScreen() {
     if (isCurrentlyReserving) return "";
     if (isReservedByCurrentUser) return "Reserved by you";
     if (isReservedBySomeoneElse(item)) return "Already reserved";
-    return "Buy this gift";
+    return "Reserve";
   };
 
   const onRefresh = async () => {
@@ -454,14 +595,25 @@ export default function WishlistDetailScreen() {
     setItemMenuVisible(false);
     setTogglingItemId(selectedItem.id);
     try {
+      // Before updating, check if this is the last purchased item
+      const isLastPurchasedItem = 
+        items.filter((i) => i.status === "PURCHASED").length === 1;
+      
       await updateItem.mutateAsync({
         id: selectedItem.id,
         status: "WANTED",
         wishlistId: selectedItem.wishlistId,
       });
       setSelectedItem(null);
-      // Switch to wanted tab after restoring
-      setSortFilter("wanted");
+      
+      // Only switch to wanted tab if this was the last purchased item
+      if (isLastPurchasedItem) {
+        setSortFilter("wanted");
+      }
+      
+      // Show success modal
+      setSuccessMessage("Item restored to wanted list");
+      setSuccessModalVisible(true);
     } catch (error) {
       console.error("Error restoring item:", error);
       Alert.alert("Error", "Failed to restore item");
@@ -471,7 +623,16 @@ export default function WishlistDetailScreen() {
   };
 
   const handleDeleteItem = async () => {
-    if (!selectedItem) return;
+    if (!selectedItem || !currentUser) return;
+    
+    // Check delete permissions: only admins can delete any item, others can only delete their own items
+    const itemAddedByMe = selectedItem.addedById === currentUser.id || selectedItem.addedBy?.id === currentUser.id;
+    const canDelete = isAdmin || itemAddedByMe;
+    
+    if (!canDelete) {
+      Alert.alert("Permission Denied", "You can only delete items you created. Only admins can delete any item.");
+      return;
+    }
     
     // If on purchased tab, delete directly without confirmation
     if (sortFilter === "purchased") {
@@ -490,7 +651,20 @@ export default function WishlistDetailScreen() {
   };
 
   const confirmDeleteItem = async () => {
-    if (!selectedItem) return;
+    if (!selectedItem || !currentUser) return;
+    
+    // Check delete permissions again (defense in depth)
+    const itemAddedByMe = selectedItem.addedById === currentUser.id || selectedItem.addedBy?.id === currentUser.id;
+    const canDelete = isAdmin || itemAddedByMe;
+    
+    if (!canDelete) {
+      Alert.alert("Permission Denied", "You can only delete items you created. Only admins can delete any item.");
+      setItemDeleteConfirmVisible(false);
+      setItemMenuVisible(false);
+      setSelectedItem(null);
+      return;
+    }
+    
     try {
       await deleteItem.mutateAsync(selectedItem.id);
       setItemDeleteConfirmVisible(false);
@@ -504,7 +678,6 @@ export default function WishlistDetailScreen() {
 
   const renderItem = ({ item, index }: { item: Item; index: number }) => {
     const isLastItem = index === filteredItems.length - 1;
-    const isPurchased = item.status === "PURCHASED";
     const isLoading = togglingItemId === item.id;
     const itemIsReserved = isItemReserved(item);
     const reservedByMe = isReservedByMe(item);
@@ -516,12 +689,14 @@ export default function WishlistDetailScreen() {
     const isMustHave = item.priority === 'MUST_HAVE';
     const hasImage = item.imageUrl && item.imageUrl.trim();
     
-    // Determine if this is a group wishlist
+    // Determine if this is a group wishlist OR viewing other users' wishlists
+    // Use compact group layout for: GROUP wishlists OR when viewing other users' wishlists (friends-only/public)
     const isGroupWishlist = wishlist?.privacyLevel === "GROUP";
+    const useCompactLayout = isGroupWishlist || isOwner === false;
     
     // For group wishlists, determine item type:
     // Check both addedById and addedBy?.id since addedById can be null/undefined
-    const isAddedByMe = isGroupWishlist && (
+    const isAddedByMe = useCompactLayout && (
       item.addedById === currentUser?.id || 
       item.addedBy?.id === currentUser?.id
     );
@@ -544,34 +719,8 @@ export default function WishlistDetailScreen() {
           activeOpacity={0.7}
           disabled={isLoading}
         >
-          {/* Radio Button - Only show if not purchased AND user is owner */}
-          {!isPurchased && isOwner === true && (
-            <TouchableOpacity
-              style={styles.itemCheckbox}
-              onPress={() => handleToggleItemStatus(item)}
-              activeOpacity={0.7}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color={theme.colors.primary} />
-              ) : (
-                <View style={[
-                  styles.checkboxEmpty,
-                  { borderColor: theme.colors.textSecondary }
-                ]} />
-              )}
-            </TouchableOpacity>
-          )}
-          
-          {/* Loading indicator when purchased item is being toggled - Only for owner */}
-          {isPurchased && isLoading && isOwner === true && (
-            <View style={styles.itemCheckbox}>
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-            </View>
-          )}
-          
           {/* Main Content Area */}
-          {isGroupWishlist ? (
+          {useCompactLayout ? (
             // Group wishlist: 3-row layout with image aligned to rows 1-2, row 3 independent
             <View style={styles.itemMainContentGroup}>
               {/* Image and rows 1-2 - aligned together */}
@@ -608,22 +757,26 @@ export default function WishlistDetailScreen() {
                 <View style={styles.itemContentRowsGroup}>
                   {/* Row 1: Title */}
                   <View style={styles.itemRow1Group3Row}>
-                    <Text 
-                      style={[
-                        styles.itemTitleGroup3Row, 
-                        { 
-                          color: itemIsReserved 
-                            ? theme.colors.textSecondary 
-                            : theme.colors.textPrimary 
-                        }
-                      ]} 
-                      numberOfLines={1}
-                    >
-                      {item.title}
-                    </Text>
+                    <View style={styles.itemTitleContainerGroup3Row}>
+                      <Text 
+                        style={[
+                          styles.itemTitleGroup3Row, 
+                          { 
+                            color: itemIsReserved 
+                              ? theme.colors.textSecondary 
+                              : theme.colors.textPrimary 
+                          }
+                        ]} 
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {item.title}
+                      </Text>
+                    </View>
                     
                     {/* Spacer for menu button alignment - same width as menu button */}
-                    {(isOwner === true || (isCollaborator === true && item.addedById === currentUser?.id)) && (
+                    {/* Show spacer if menu button will be shown (always show for other users' wishlists, or when owner/collaborator) */}
+                    {(isOwner === false || (isOwner === true || isCollaborator === true)) && (
                       <View style={styles.itemMenuButtonGroup3RowSpacer} />
                     )}
                   </View>
@@ -688,8 +841,8 @@ export default function WishlistDetailScreen() {
                         </View>
                       )}
                       
-                      {/* Owner - Badge style */}
-                      {item.addedBy && (
+                      {/* Owner - Badge style - Only show for group wishlists */}
+                      {item.addedBy && isGroupWishlist && (
                         <View style={[
                           styles.itemOwnerBadgeGroup3Row,
                           { 
@@ -714,7 +867,8 @@ export default function WishlistDetailScreen() {
                     </View>
                     
                     {/* Menu Button - on right side, vertically aligned to Row 2 */}
-                    {(isOwner === true || (isCollaborator === true && item.addedById === currentUser?.id)) && (
+                    {/* Show menu for all items - always show when viewing other users' wishlists, or when owner/collaborator */}
+                    {(isOwner === false || (isOwner === true || isCollaborator === true)) && (
                       <TouchableOpacity
                         style={styles.itemMenuButtonGroup3Row}
                         onPress={(e) => {
@@ -723,6 +877,7 @@ export default function WishlistDetailScreen() {
                           setItemMenuVisible(true);
                         }}
                         activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       >
                         <Feather 
                           name="more-horizontal" 
@@ -738,31 +893,72 @@ export default function WishlistDetailScreen() {
               {/* Row 3: Action buttons (centered independently, below image and rows 1-2) */}
               <View style={styles.itemRow3Group3Row}>
                 <View style={styles.itemActionButtonsRow3Row}>
-                  {/* Add to wishlist button (heart) - different functionality for items added by me vs friends */}
-                  <TouchableOpacity
-                    style={styles.itemActionButtonGroup3Row}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      if (isAddedByMe) {
-                        // Add to another wishlist
-                        setSelectedItem(item);
-                        setAddToWishlistModalVisible(true);
-                      } else {
-                        // Add to wishlist (for items added by friends)
-                        handleAddItemToWishlist(item);
-                      }
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Feather 
-                      name="heart" 
-                      size={16} 
-                      color={theme.colors.primary} 
-                    />
-                  </TouchableOpacity>
+                  {/* Left spacer or heart button - ensures Reserve button stays centered */}
+                  {/* Show heart when: viewing other users' wishlists OR any group wishlist item */}
+                  {(() => {
+                    // Always show heart when viewing other users' wishlists (any wishlist where we're not the owner)
+                    if (wishlist && currentUser && wishlist.ownerId !== currentUser.id) {
+                      return true;
+                    }
+                    // For group wishlists, always show heart for all items (both added by you and by others)
+                    if (isGroupWishlist) {
+                      return true;
+                    }
+                    return false;
+                  })() ? (
+                    <TouchableOpacity
+                      style={styles.itemActionButtonGroup3Row}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        if (isOwner === false) {
+                          // Viewing other users' wishlists - always add to my wishlist
+                          handleAddItemToWishlist(item);
+                        } else if (isAddedByMe) {
+                          // Group wishlist owned by me, item added by me - add to another wishlist
+                          setSelectedItem(item);
+                          setAddToWishlistModalVisible(true);
+                        } else {
+                          // Group wishlist owned by me, item added by friend - add to my wishlist
+                          handleAddItemToWishlist(item);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Feather 
+                        name="heart" 
+                        size={20} 
+                        color={theme.colors.primary} 
+                      />
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.itemActionButtonGroup3Row} />
+                  )}
                   
-                  {/* Buy this gift button (centered) */}
-                  {wishlist?.allowReservations && (
+                  {/* Reserve button (centered) */}
+                  {/* Show reserve button only for:
+                      - Group wishlists (user is collaborator)
+                      - Friends-only wishlists where user is friends with owner
+                      - Public wishlists where user is friends with owner
+                      - Own wishlists (isOwner === true) */}
+                  {wishlist?.allowReservations && (() => {
+                    // Always show for own wishlists
+                    if (isOwner === true) {
+                      return true;
+                    }
+                    // For group wishlists, show if user is collaborator
+                    if (isGroupWishlist && isCollaborator === true) {
+                      return true;
+                    }
+                    // For friends-only wishlists, show if user is friends with owner
+                    if (isOwner === false && wishlist.privacyLevel === "FRIENDS_ONLY" && areFriendsWithOwner === true) {
+                      return true;
+                    }
+                    // For public wishlists, show only if user is friends with owner
+                    if (isOwner === false && wishlist.privacyLevel === "PUBLIC" && areFriendsWithOwner === true) {
+                      return true;
+                    }
+                    return false;
+                  })() && (
                     <TouchableOpacity
                       style={[
                         styles.itemBuyButtonGroup3Row,
@@ -795,7 +991,7 @@ export default function WishlistDetailScreen() {
                     </TouchableOpacity>
                   )}
                   
-                  {/* Link button - always reserve space for consistent alignment */}
+                  {/* Right spacer or link button - ensures Reserve button stays centered */}
                   {hasUrl ? (
                     <TouchableOpacity
                       style={styles.itemActionButtonGroup3Row}
@@ -822,7 +1018,7 @@ export default function WishlistDetailScreen() {
                     >
                       <Feather 
                         name="external-link" 
-                        size={16} 
+                        size={20} 
                         color={theme.colors.primary} 
                       />
                     </TouchableOpacity>
@@ -884,59 +1080,38 @@ export default function WishlistDetailScreen() {
                   {item.title}
                 </Text>
                 
-                {/* Price */}
-                {hasPrice && item.price !== undefined && item.price !== null && (
-                  <View style={styles.itemPriceContainer}>
-                    <Feather 
-                      name="tag" 
-                      size={12} 
-                      color={itemIsReserved ? theme.colors.textSecondary + '80' : theme.colors.textSecondary} 
-                      style={{ marginRight: 4 }} 
-                    />
-                    <PriceDisplay
-                      amount={item.price}
-                      currency={item.currency || 'USD'}
-                      textStyle={[
-                        styles.itemPrice, 
-                        { 
-                          color: itemIsReserved 
-                            ? theme.colors.textSecondary + '80' 
-                            : theme.colors.textSecondary 
-                        }
-                      ]}
-                    />
-                    <Text style={[
-                      styles.itemPrice, 
-                      { 
-                        color: itemIsReserved 
-                          ? theme.colors.textSecondary + '80' 
-                          : theme.colors.textSecondary,
-                        marginLeft: 6
-                      }
-                    ]}>
-                      / per piece
-                    </Text>
-                  </View>
-                )}
-                
-                {/* Quantity - always show, default to 1 if not set */}
-                <View style={styles.itemQuantityContainer}>
-                  <Feather 
-                    name="x" 
-                    size={12} 
-                    color={itemIsReserved ? theme.colors.textSecondary + '80' : theme.colors.textSecondary} 
-                    style={{ marginRight: 4 }} 
-                  />
-                  <Text style={[
-                    styles.itemQuantity, 
-                    { 
-                      color: itemIsReserved 
-                        ? theme.colors.textSecondary + '80' 
-                        : theme.colors.textSecondary 
-                    }
-                  ]}>
-                    {item.quantity || 1}
-                  </Text>
+                {/* Price and Quantity - inline layout matching group wishlists */}
+                <View style={styles.itemPriceQuantityContainer}>
+                  {/* Price */}
+                  {hasPrice && item.price !== undefined && item.price !== null && (
+                    <>
+                      <PriceDisplay
+                        amount={item.price}
+                        currency={item.currency || 'USD'}
+                        textStyle={[
+                          styles.itemPrice, 
+                          { 
+                            color: itemIsReserved 
+                              ? theme.colors.textSecondary + '80' 
+                              : theme.colors.textSecondary 
+                          }
+                        ]}
+                      />
+                      {item.quantity && item.quantity > 1 && (
+                        <Text style={[
+                          styles.itemPrice, 
+                          { 
+                            color: itemIsReserved 
+                              ? theme.colors.textSecondary + '80' 
+                              : theme.colors.textSecondary,
+                            marginLeft: 6
+                          }
+                        ]}>
+                          x{item.quantity}
+                        </Text>
+                      )}
+                    </>
+                  )}
                 </View>
                 
                 {/* Priority - on its own row if present */}
@@ -962,8 +1137,8 @@ export default function WishlistDetailScreen() {
                   </View>
                 )}
                 
-                {/* Added By - Show for all items */}
-                {item.addedBy && (
+                {/* Added By - Only show for group wishlists */}
+                {item.addedBy && isGroupWishlist && (
                   <View style={[styles.itemAddedByChip, { backgroundColor: theme.colors.primary + '15' }]}>
                     <Feather 
                       name="user" 
@@ -985,8 +1160,9 @@ export default function WishlistDetailScreen() {
             </View>
           </View>
           
-          {/* Action Buttons - Show for owner or collaborator who created the item (Personal wishlists only) */}
-          {(isOwner === true || (isCollaborator === true && item.addedById === currentUser?.id)) && (
+          {/* Action Buttons - Show for owner or collaborator (Personal wishlists only) */}
+          {/* Menu button shows for all items - menu will show appropriate options based on permissions */}
+          {(isOwner === true || isCollaborator === true) && (
             <View style={styles.itemOwnerActions}>
               {/* Link Button - only show if item has URL */}
               {hasUrl && (
@@ -1021,7 +1197,7 @@ export default function WishlistDetailScreen() {
                   />
                 </TouchableOpacity>
               )}
-              {/* Menu Button */}
+              {/* Menu Button - Show for all items when user is owner or collaborator */}
               <TouchableOpacity
                 style={styles.itemMenuButton}
                 onPress={(e) => {
@@ -1038,8 +1214,35 @@ export default function WishlistDetailScreen() {
                 />
               </TouchableOpacity>
               
-              {/* Reserve Button - Show for everyone when reservations are allowed, but hide for owners in non-group wishlists who created the item */}
-              {wishlist?.allowReservations && !(isOwner === true && wishlist?.privacyLevel !== "GROUP" && item.addedById === currentUser?.id) && (
+              {/* Reserve Button - Show only for:
+                  - Group wishlists (user is collaborator)
+                  - Friends-only wishlists where user is friends with owner
+                  - Public wishlists where user is friends with owner
+                  - Own wishlists (isOwner === true), but hide for owners in non-group wishlists who created the item */}
+              {/* Check both addedById and addedBy?.id since addedById can be null/undefined */}
+              {wishlist?.allowReservations && (() => {
+                // For own wishlists, hide if owner created the item in non-group wishlist
+                if (isOwner === true && wishlist?.privacyLevel !== "GROUP" && (item.addedById === currentUser?.id || item.addedBy?.id === currentUser?.id)) {
+                  return false;
+                }
+                // Always show for own wishlists (if above condition doesn't apply)
+                if (isOwner === true) {
+                  return true;
+                }
+                // For group wishlists, show if user is collaborator
+                if (isGroupWishlist && isCollaborator === true) {
+                  return true;
+                }
+                // For friends-only wishlists, show if user is friends with owner
+                if (isOwner === false && wishlist.privacyLevel === "FRIENDS_ONLY" && areFriendsWithOwner === true) {
+                  return true;
+                }
+                // For public wishlists, show only if user is friends with owner
+                if (isOwner === false && wishlist.privacyLevel === "PUBLIC" && areFriendsWithOwner === true) {
+                  return true;
+                }
+                return false;
+              })() && (
                 <TouchableOpacity
                   style={[
                     styles.itemReserveButtonOwner,
@@ -1088,7 +1291,9 @@ export default function WishlistDetailScreen() {
         </TouchableOpacity>
 
         {/* Action Buttons - Only show for non-owners/collaborators who can't edit this item (Personal wishlists only) */}
-        {!isGroupWishlist && isOwner === false && !(isCollaborator === true && item.addedById === currentUser?.id) && (
+        {/* This section is now handled in the compact layout, so only show for personal wishlists owned by user */}
+        {/* Check both addedById and addedBy?.id since addedById can be null/undefined */}
+        {!useCompactLayout && isOwner !== true && !(isCollaborator === true && (item.addedById === currentUser?.id || item.addedBy?.id === currentUser?.id)) && (
           <View style={styles.itemActionButtons}>
             {/* Heart Button - Add to Wishlist */}
             <TouchableOpacity
@@ -1114,8 +1319,26 @@ export default function WishlistDetailScreen() {
               />
             </TouchableOpacity>
 
-            {/* Reserve Button - Text Button (Center) - Only show if reservations are allowed */}
-            {wishlist?.allowReservations && (
+            {/* Reserve Button - Text Button (Center) - Only show if reservations are allowed and user has permission */}
+            {/* Show reserve button only for:
+                - Group wishlists (user is collaborator)
+                - Friends-only wishlists where user is friends with owner
+                - Public wishlists where user is friends with owner */}
+            {wishlist?.allowReservations && (() => {
+              // For group wishlists, show if user is collaborator
+              if (isGroupWishlist && isCollaborator === true) {
+                return true;
+              }
+              // For friends-only wishlists, show if user is friends with owner
+              if (isOwner === false && wishlist.privacyLevel === "FRIENDS_ONLY" && areFriendsWithOwner === true) {
+                return true;
+              }
+              // For public wishlists, show only if user is friends with owner
+              if (isOwner === false && wishlist.privacyLevel === "PUBLIC" && areFriendsWithOwner === true) {
+                return true;
+              }
+              return false;
+            })() && (
               <TouchableOpacity
                 style={[
                   styles.itemReserveButton,
@@ -1284,7 +1507,15 @@ export default function WishlistDetailScreen() {
       <StandardPageHeader
         title={wishlist.title}
         backButton={true}
-        onBack={() => router.push("/(tabs)/")}
+        onBack={() => {
+          // If we have ownerId param or we're viewing another user's wishlist, go to their profile
+          if (ownerIdParam || (isOwner === false && wishlist.ownerId)) {
+            const ownerId = ownerIdParam || wishlist.ownerId;
+            router.push(`/friends/${ownerId}`);
+          } else {
+            router.push("/(tabs)/");
+          }
+        }}
         rightActions={
           headerButtons.length > 0 ? <HeaderButtons buttons={headerButtons} /> : null
         }
@@ -1507,11 +1738,12 @@ export default function WishlistDetailScreen() {
           // Don't clear selectedItem immediately - it might be needed for edit/add/delete modals
           // The modals will clear it when they close
         }}
-        onEdit={selectedItem && sortFilter === "wanted" && (isOwner === true || (isCollaborator === true && selectedItem.addedById === currentUser?.id)) ? handleEditItem : undefined}
+        onEdit={selectedItem && sortFilter === "wanted" && (selectedItem.addedById === currentUser?.id || selectedItem.addedBy?.id === currentUser?.id) && (isOwner === true || isCollaborator === true) ? handleEditItem : undefined}
         onGoToLink={selectedItem?.url ? handleGoToLink : undefined}
-        onAddToWishlist={selectedItem && sortFilter === "wanted" && isOwner === true ? handleAddToWishlist : undefined}
+        onAddToWishlist={selectedItem && sortFilter === "wanted" ? handleAddToWishlist : undefined}
+        onMarkAsPurchased={selectedItem && sortFilter === "wanted" && currentUser && (isAdmin || (selectedItem.addedById === currentUser.id || selectedItem.addedBy?.id === currentUser.id)) ? () => handleMarkAsPurchased(selectedItem) : undefined}
         onRestoreToWanted={selectedItem && sortFilter === "purchased" && isOwner === true ? handleRestoreToWanted : undefined}
-        onDelete={handleDeleteItem}
+        onDelete={selectedItem && currentUser && (isAdmin || (selectedItem.addedById === currentUser.id || selectedItem.addedBy?.id === currentUser.id)) ? handleDeleteItem : undefined}
         isPurchased={selectedItem?.status === "PURCHASED"}
         itemUrl={selectedItem?.url || null}
       />
@@ -1659,6 +1891,15 @@ export default function WishlistDetailScreen() {
         }}
         onSuccess={handleEditWishlistSuccess}
         autoOpenFriendSelection={shouldAutoOpenFriendSelection}
+      />
+
+      {/* Success Modal */}
+      <SuccessModal
+        visible={successModalVisible}
+        onClose={() => setSuccessModalVisible(false)}
+        message={successMessage}
+        autoDismissDelay={1200}
+        showButton={false}
       />
 
       {/* Delete confirmation only for wanted items - purchased items delete directly */}
@@ -1978,6 +2219,11 @@ const styles = StyleSheet.create({
     height: 22,
     marginBottom: 6,
   },
+  itemPriceQuantityContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
   itemPrice: {
     fontSize: 12,
     lineHeight: 22,
@@ -2045,12 +2291,17 @@ const styles = StyleSheet.create({
   itemContentRowsGroup: {
     flex: 1,
     justifyContent: "center",
+    minWidth: 0, // Allow shrinking
+    overflow: "hidden", // Prevent content from overflowing
   },
   itemRow1Group3Row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 4,
+    minHeight: 20, // Ensure consistent height
+    overflow: "hidden", // Prevent text from overflowing
+    width: "100%", // Ensure full width
   },
   itemRow2Group3Row: {
     flexDirection: "row",
@@ -2065,11 +2316,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
     width: "100%",
   },
+  itemTitleContainerGroup3Row: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    marginRight: 8,
+    // Reserve space for menu button on Row 2 (32px width + 8px margin = 40px)
+    paddingRight: 40,
+  },
   itemTitleGroup3Row: {
     fontSize: 14,
     fontWeight: "600",
-    flex: 1,
-    marginRight: 8,
+    width: "100%",
   },
   itemMetadataRowGroup3Row: {
     flexDirection: "row",
@@ -2106,8 +2364,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   itemActionButtonGroup3Row: {
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",

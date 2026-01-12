@@ -117,6 +117,40 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
       return;
     }
 
+    // Validate price if provided
+    if (price.trim()) {
+      const priceValue = parseFloat(price);
+      if (isNaN(priceValue)) {
+        Alert.alert("Error", "Please enter a valid price");
+        return;
+      }
+      if (priceValue < 0) {
+        Alert.alert("Error", "Price cannot be negative");
+        return;
+      }
+      if (priceValue > 1000000) {
+        Alert.alert("Error", "Price cannot exceed 1,000,000");
+        return;
+      }
+    }
+
+    // Validate quantity if provided
+    if (quantity.trim()) {
+      const quantityValue = parseInt(quantity, 10);
+      if (isNaN(quantityValue)) {
+        Alert.alert("Error", "Please enter a valid quantity");
+        return;
+      }
+      if (quantityValue < 1) {
+        Alert.alert("Error", "Quantity must be at least 1");
+        return;
+      }
+      if (quantityValue > 10000) {
+        Alert.alert("Error", "Quantity cannot exceed 10,000");
+        return;
+      }
+    }
+
     setIsLoading(true);
     try {
       if (isEditMode && item) {
@@ -195,7 +229,25 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
       }
     } catch (error: any) {
       console.error("Error saving item:", error);
-      Alert.alert("Error", error.message || `Failed to ${isEditMode ? 'update' : 'add'} item`);
+      
+      // Extract error message from backend response
+      let errorMessage = `Failed to ${isEditMode ? 'update' : 'add'} item`;
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        // Backend returns message as array or string
+        if (Array.isArray(errorData.message)) {
+          errorMessage = errorData.message.join(", ");
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (typeof errorData === 'string') {
+          errorMessage = errorData;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert("Error", errorMessage);
     } finally {
       setIsLoading(false);
     }

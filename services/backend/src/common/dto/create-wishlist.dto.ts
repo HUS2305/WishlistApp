@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsBoolean, MaxLength } from 'class-validator';
+import { IsString, IsEnum, IsBoolean, MaxLength } from 'class-validator';
 
 export enum PrivacyLevel {
   PRIVATE = 'PRIVATE',
