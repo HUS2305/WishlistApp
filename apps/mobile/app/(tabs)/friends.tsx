@@ -17,7 +17,12 @@ import { CreateWishlistSheet } from "@/components/CreateWishlistSheet";
 import { CreateGroupGiftSheet } from "@/components/CreateGroupGiftSheet";
 import { BottomSheet } from "@/components/BottomSheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFriends, usePendingRequests, useSentRequests } from "@/hooks/useFriends";
+import { useFriends, usePendingRequests, useSentRequests, useReservedItems } from "@/hooks/useFriends";
+import { wishlistsService } from "@/services/wishlists";
+import type { Item, ItemStatus } from "@/types";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { PriceDisplay } from "@/components/PriceDisplay";
+import { SuccessModal } from "@/components/SuccessModal";
 
 export default function FriendsScreen() {
   const { theme } = useTheme();
@@ -27,18 +32,24 @@ export default function FriendsScreen() {
   const { data: friends = [], isLoading: isLoadingFriends, refetch: refetchFriends, isFetching: isFetchingFriends } = useFriends();
   const { data: pendingRequests = [], refetch: refetchPendingRequests, isFetching: isFetchingPendingRequests } = usePendingRequests();
   const { data: sentRequests = [], refetch: refetchSentRequests, isFetching: isFetchingSentRequests } = useSentRequests();
-  const isLoading = isLoadingFriends;
-  const isRefreshing = isFetchingFriends || isFetchingPendingRequests || isFetchingSentRequests;
+  const { data: reservedItems = [], isLoading: isLoadingReserved, refetch: refetchReserved, isFetching: isFetchingReserved } = useReservedItems();
+  const queryClient = useQueryClient();
+  const isLoading = isLoadingFriends || isLoadingReserved;
+  const isRefreshing = isFetchingFriends || isFetchingPendingRequests || isFetchingSentRequests || isFetchingReserved;
   const wasSearchActiveOnBlurRef = useRef(false);
   const [friendMenuVisible, setFriendMenuVisible] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
   const [selectedFriendBlockStatus, setSelectedFriendBlockStatus] = useState<{ isBlockedByMe?: boolean; isBlockedByThem?: boolean }>({});
+  const [selectedFriendPendingStatus, setSelectedFriendPendingStatus] = useState<{ isPending?: boolean; isFriend?: boolean }>({});
   const [blockConfirmVisible, setBlockConfirmVisible] = useState(false);
   const [removeConfirmVisible, setRemoveConfirmVisible] = useState(false);
   const [birthdayGiftModalVisible, setBirthdayGiftModalVisible] = useState(false);
   const [selectedBirthdayFriend, setSelectedBirthdayFriend] = useState<{ id: string; name: string } | null>(null);
   const [createWishlistSheetVisible, setCreateWishlistSheetVisible] = useState(false);
   const [createGroupGiftSheetVisible, setCreateGroupGiftSheetVisible] = useState(false);
+  const [reservedItemsTab, setReservedItemsTab] = useState<"reserved" | "purchased">("reserved");
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   
   // Search state
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -69,7 +80,63 @@ export default function FriendsScreen() {
     refetchFriends();
     refetchPendingRequests();
     refetchSentRequests();
-  }, [refetchFriends, refetchPendingRequests, refetchSentRequests]);
+    refetchReserved();
+  }, [refetchFriends, refetchPendingRequests, refetchSentRequests, refetchReserved]);
+
+  // Mutation for updating item status
+  const updateItemMutation = useMutation({
+    mutationFn: async ({ itemId, status, wishlistId }: { itemId: string; status: ItemStatus; wishlistId: string }) => {
+      return wishlistsService.updateItem({ id: itemId, status, wishlistId });
+    },
+    onSuccess: () => {
+      // Invalidate reserved items query
+      queryClient.invalidateQueries({ queryKey: ['items', 'reserved', 'all'] });
+      // Also invalidate the wishlist items query for the specific wishlist
+      queryClient.invalidateQueries({ queryKey: ['items', 'wishlists'] });
+    },
+  });
+
+  // Handler to mark reserved item as purchased
+  const handleMarkAsPurchased = async (item: Item) => {
+    try {
+      await updateItemMutation.mutateAsync({
+        itemId: item.id,
+        status: "PURCHASED",
+        wishlistId: item.wishlistId,
+      });
+      setSuccessMessage("Item marked as purchased");
+      setSuccessModalVisible(true);
+      // If this was the last reserved item, switch to purchased tab
+      const reservedCount = reservedItems.filter(i => i.status === "WANTED" || i.status === "RESERVED").length;
+      if (reservedCount === 1) {
+        setReservedItemsTab("purchased");
+      }
+    } catch (error: any) {
+      console.error("Error marking item as purchased:", error);
+      Alert.alert("Error", error.response?.data?.message || "Failed to mark item as purchased");
+    }
+  };
+
+  // Handler to restore purchased item to reserved
+  const handleRestoreToReserved = async (item: Item) => {
+    try {
+      await updateItemMutation.mutateAsync({
+        itemId: item.id,
+        status: "WANTED",
+        wishlistId: item.wishlistId,
+      });
+      setSuccessMessage("Item restored to reserved list");
+      setSuccessModalVisible(true);
+      // If this was the last purchased item, switch to reserved tab
+      const purchasedCount = reservedItems.filter(i => i.status === "PURCHASED").length;
+      if (purchasedCount === 1) {
+        setReservedItemsTab("reserved");
+      }
+    } catch (error: any) {
+      console.error("Error restoring item:", error);
+      Alert.alert("Error", error.response?.data?.message || "Failed to restore item");
+    }
+  };
 
   // Also fetch when screen comes into focus (navigation between tabs)
   // Keep ref in sync with state
@@ -119,7 +186,6 @@ export default function FriendsScreen() {
   const handleAcceptRequest = async (requestId: string) => {
     try {
       await friendsService.acceptFriendRequest(requestId);
-      Alert.alert("Success", "Friend request accepted!");
       refetchAll();
       await refreshUnreadNotificationsCount();
       await refreshPendingRequestsCount(); // Update the counter
@@ -130,14 +196,12 @@ export default function FriendsScreen() {
       }
     } catch (error) {
       console.error("❌ Error accepting request:", error);
-      Alert.alert("Error", "Failed to accept friend request");
     }
   };
 
   const handleRejectRequest = async (requestId: string) => {
     try {
       await friendsService.rejectFriendRequest(requestId);
-      Alert.alert("Success", "Friend request rejected");
       refetchAll();
       await refreshPendingRequestsCount(); // Update the counter
       // Refresh search results if search is active
@@ -147,7 +211,6 @@ export default function FriendsScreen() {
       }
     } catch (error) {
       console.error("❌ Error rejecting request:", error);
-      Alert.alert("Error", "Failed to reject friend request");
     }
   };
 
@@ -165,7 +228,6 @@ export default function FriendsScreen() {
     if (!selectedFriend) return;
     try {
       await friendsService.removeFriend(selectedFriend.id);
-      Alert.alert("Success", "Friend removed");
       setSelectedFriend(null);
       setSelectedFriendBlockStatus({});
       setRemoveConfirmVisible(false);
@@ -177,7 +239,6 @@ export default function FriendsScreen() {
       }
     } catch (error: any) {
       console.error("Error removing friend:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to remove friend");
       setRemoveConfirmVisible(false);
     }
   };
@@ -196,7 +257,6 @@ export default function FriendsScreen() {
     if (!selectedFriend) return;
     try {
       await friendsService.blockUser(selectedFriend.id);
-      Alert.alert("Success", "User blocked successfully");
       setSelectedFriend(null);
       setSelectedFriendBlockStatus({});
       setBlockConfirmVisible(false);
@@ -214,7 +274,6 @@ export default function FriendsScreen() {
       }
     } catch (error: any) {
       console.error("Error blocking user:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to block user");
       setBlockConfirmVisible(false);
     }
   };
@@ -224,7 +283,6 @@ export default function FriendsScreen() {
     
     try {
       await friendsService.unblockUser(selectedFriend.id);
-      Alert.alert("Success", "User unblocked successfully");
       setFriendMenuVisible(false);
       setSelectedFriend(null);
       setSelectedFriendBlockStatus({}); // Clear block status
@@ -242,14 +300,12 @@ export default function FriendsScreen() {
       }
     } catch (error: any) {
       console.error("Error unblocking user:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to unblock user");
     }
   };
 
   const handleCancelRequest = async (requestId: string) => {
     try {
       await friendsService.cancelFriendRequest(requestId);
-      Alert.alert("Success", "Friend request cancelled");
       refetchAll();
       // Refresh search results if search is active
       if (isSearchActive && searchQuery.trim()) {
@@ -258,7 +314,6 @@ export default function FriendsScreen() {
       }
     } catch (error: any) {
       console.error("Error cancelling request:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to cancel friend request");
     }
   };
 
@@ -412,7 +467,6 @@ export default function FriendsScreen() {
   const handleSendRequest = async (userId: string) => {
     try {
       await friendsService.sendFriendRequest(userId);
-      Alert.alert("Success", "Friend request sent!");
 
       // Refresh search results
       if (searchQuery.trim()) {
@@ -426,7 +480,6 @@ export default function FriendsScreen() {
       await refreshUnreadNotificationsCount();
     } catch (error) {
       console.error("❌ Error sending friend request:", error);
-      Alert.alert("Error", "Failed to send friend request");
     }
   };
 
@@ -454,7 +507,7 @@ export default function FriendsScreen() {
           {item.isBlockedByMe ? (
             <>
               <View style={[styles.statusBadge, { backgroundColor: theme.colors.textSecondary + '15' }]}>
-                <Feather name="slash" size={14} color={theme.colors.textSecondary} />
+                <Feather name="slash" size={12} color={theme.colors.textSecondary} />
                 <Text style={[styles.statusBadgeText, { color: theme.colors.textSecondary }]}>Blocked</Text>
               </View>
               <TouchableOpacity
@@ -475,17 +528,21 @@ export default function FriendsScreen() {
                     isBlockedByMe: item.isBlockedByMe,
                     isBlockedByThem: item.isBlockedByThem,
                   });
+                  setSelectedFriendPendingStatus({
+                    isPending: item.isPending,
+                    isFriend: item.isFriend,
+                  });
                   setFriendMenuVisible(true);
                 }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Feather name="more-horizontal" size={20} color={theme.colors.textSecondary} />
+                <Feather name="more-horizontal" size={18} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </>
           ) : item.isFriend ? (
             <>
               <View style={[styles.statusBadge, { backgroundColor: theme.colors.textSecondary + '15' }]}>
-                <Feather name="check-circle" size={14} color={theme.colors.textSecondary} />
+                <Feather name="check-circle" size={12} color={theme.colors.textSecondary} />
                 <Text style={[styles.statusBadgeText, { color: theme.colors.textSecondary }]}>Friends</Text>
               </View>
               <TouchableOpacity
@@ -506,11 +563,15 @@ export default function FriendsScreen() {
                     isBlockedByMe: item.isBlockedByMe,
                     isBlockedByThem: item.isBlockedByThem,
                   });
+                  setSelectedFriendPendingStatus({
+                    isPending: item.isPending,
+                    isFriend: item.isFriend,
+                  });
                   setFriendMenuVisible(true);
                 }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Feather name="more-horizontal" size={20} color={theme.colors.textSecondary} />
+                <Feather name="more-horizontal" size={18} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </>
           ) : item.isPending ? (
@@ -519,7 +580,7 @@ export default function FriendsScreen() {
               <>
                 <View style={styles.pendingStatusContainer}>
                   <View style={[styles.statusBadge, { backgroundColor: theme.colors.textSecondary + '15' }]}>
-                    <Feather name="clock" size={14} color={theme.colors.textSecondary} />
+                    <Feather name="clock" size={12} color={theme.colors.textSecondary} />
                     <Text style={[styles.statusBadgeText, { color: theme.colors.textSecondary }]}>Pending</Text>
                   </View>
                   <TouchableOpacity
@@ -530,7 +591,7 @@ export default function FriendsScreen() {
                     }}
                     activeOpacity={0.7}
                   >
-                    <Feather name="x" size={14} color={theme.colors.textSecondary} />
+                    <Feather name="x" size={12} color={theme.colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity
@@ -547,11 +608,15 @@ export default function FriendsScreen() {
                       bio: item.bio,
                     } as User;
                     setSelectedFriend(userForMenu);
+                    setSelectedFriendPendingStatus({
+                      isPending: item.isPending,
+                      isFriend: item.isFriend,
+                    });
                     setFriendMenuVisible(true);
                   }}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Feather name="more-horizontal" size={20} color={theme.colors.textSecondary} />
+                  <Feather name="more-horizontal" size={18} color={theme.colors.textSecondary} />
                 </TouchableOpacity>
               </>
             ) : item.pendingRequestId ? (
@@ -566,7 +631,7 @@ export default function FriendsScreen() {
                     }}
                     activeOpacity={0.7}
                   >
-                    <Feather name="check" size={18} color="#fff" />
+                    <Feather name="check" size={16} color="#fff" />
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={[styles.rejectButton, { borderColor: theme.colors.textSecondary + '40' }]}
@@ -576,7 +641,7 @@ export default function FriendsScreen() {
                     }}
                     activeOpacity={0.7}
                   >
-                    <Feather name="x" size={18} color={theme.colors.textPrimary} />
+                    <Feather name="x" size={16} color={theme.colors.textPrimary} />
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity
@@ -593,11 +658,15 @@ export default function FriendsScreen() {
                       bio: item.bio,
                     } as User;
                     setSelectedFriend(userForMenu);
+                    setSelectedFriendPendingStatus({
+                      isPending: item.isPending,
+                      isFriend: item.isFriend,
+                    });
                     setFriendMenuVisible(true);
                   }}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Feather name="more-horizontal" size={20} color={theme.colors.textSecondary} />
+                  <Feather name="more-horizontal" size={18} color={theme.colors.textSecondary} />
                 </TouchableOpacity>
               </>
             ) : (
@@ -621,11 +690,15 @@ export default function FriendsScreen() {
                       bio: item.bio,
                     } as User;
                     setSelectedFriend(userForMenu);
+                    setSelectedFriendPendingStatus({
+                      isPending: item.isPending,
+                      isFriend: item.isFriend,
+                    });
                     setFriendMenuVisible(true);
                   }}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Feather name="more-horizontal" size={20} color={theme.colors.textSecondary} />
+                  <Feather name="more-horizontal" size={18} color={theme.colors.textSecondary} />
                 </TouchableOpacity>
               </>
             )
@@ -659,11 +732,15 @@ export default function FriendsScreen() {
                     isBlockedByMe: item.isBlockedByMe,
                     isBlockedByThem: item.isBlockedByThem,
                   });
+                  setSelectedFriendPendingStatus({
+                    isPending: item.isPending,
+                    isFriend: item.isFriend,
+                  });
                   setFriendMenuVisible(true);
                 }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Feather name="more-horizontal" size={20} color={theme.colors.textSecondary} />
+                <Feather name="more-horizontal" size={18} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </>
           )}
@@ -809,8 +886,8 @@ export default function FriendsScreen() {
       {/* Pending friend requests section */}
       {!isLoading && pendingRequests.length > 0 && (
         <View style={styles.pendingSection}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>Pending Requests</Text>
-          {pendingRequests.map((request, index) => (
+          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>Pending Requests ({pendingRequests.length})</Text>
+          {pendingRequests.slice(0, 3).map((request, index) => (
             <View key={request.id}>
               <TouchableOpacity
                 onPress={() => handleViewProfile(request.user.id)}
@@ -838,7 +915,7 @@ export default function FriendsScreen() {
                       handleAcceptRequest(request.id);
                     }}
                   >
-                    <Feather name="check" size={18} color="#fff" />
+                    <Feather name="check" size={16} color="#fff" />
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={[styles.rejectButton, { borderColor: theme.colors.textSecondary + '40' }]}
@@ -847,34 +924,48 @@ export default function FriendsScreen() {
                       handleRejectRequest(request.id);
                     }}
                   >
-                    <Feather name="x" size={18} color={theme.colors.textPrimary} />
+                    <Feather name="x" size={16} color={theme.colors.textPrimary} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.menuButton}
                     onPress={(e: any) => {
                       e.stopPropagation();
                       setSelectedFriend(request.user);
+                      setSelectedFriendPendingStatus({
+                        isPending: true,
+                        isFriend: false,
+                      });
                       setFriendMenuVisible(true);
                     }}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <Feather name="more-horizontal" size={20} color={theme.colors.textSecondary} />
+                    <Feather name="more-horizontal" size={18} color={theme.colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
-              {index < pendingRequests.length - 1 && (
+              {index < Math.min(pendingRequests.length, 3) - 1 && (
                 <View style={[styles.divider, { backgroundColor: theme.colors.textPrimary + '30' }]} />
               )}
             </View>
           ))}
+          {pendingRequests.length > 3 && (
+            <TouchableOpacity
+              style={styles.seeMoreButton}
+              onPress={() => router.push("/friends/pending-requests")}
+            >
+              <Text style={[styles.seeMoreText, { color: theme.colors.primary }]}>
+                See All Pending Requests
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
       {/* Sent friend requests section */}
       {!isLoading && sentRequests.length > 0 && (
         <View style={styles.pendingSection}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Sent Requests</Text>
-          {sentRequests.map((request, index) => (
+          <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Sent Requests ({sentRequests.length})</Text>
+          {sentRequests.slice(0, 3).map((request, index) => (
             <View key={request.id}>
               <TouchableOpacity
                 onPress={() => handleViewProfile(request.friend.id)}
@@ -896,7 +987,7 @@ export default function FriendsScreen() {
                 </View>
                 <View style={styles.sentRequestActions}>
                   <View style={[styles.statusBadge, { backgroundColor: theme.colors.textSecondary + '15' }]}>
-                    <Feather name="clock" size={14} color={theme.colors.textSecondary} />
+                    <Feather name="clock" size={12} color={theme.colors.textSecondary} />
                     <Text style={[styles.statusBadgeText, { color: theme.colors.textSecondary }]}>Pending</Text>
                   </View>
                   <TouchableOpacity
@@ -907,7 +998,7 @@ export default function FriendsScreen() {
                     }}
                     activeOpacity={0.7}
                   >
-                    <Feather name="x" size={14} color={theme.colors.textSecondary} />
+                    <Feather name="x" size={12} color={theme.colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.menuButton}
@@ -915,64 +1006,209 @@ export default function FriendsScreen() {
                       e.stopPropagation();
                       setSelectedFriend(request.friend);
                       setSelectedFriendBlockStatus({}); // Reset block status for sent requests
+                      setSelectedFriendPendingStatus({
+                        isPending: true,
+                        isFriend: false,
+                      });
                       setFriendMenuVisible(true);
                     }}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <Feather name="more-horizontal" size={20} color={theme.colors.textSecondary} />
+                    <Feather name="more-horizontal" size={18} color={theme.colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
-              {index < sentRequests.length - 1 && (
+              {index < Math.min(sentRequests.length, 3) - 1 && (
                 <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '30' }]} />
               )}
             </View>
           ))}
+          {sentRequests.length > 3 && (
+            <TouchableOpacity
+              style={styles.seeMoreButton}
+              onPress={() => router.push("/friends/sent-requests")}
+            >
+              <Text style={[styles.seeMoreText, { color: theme.colors.primary }]}>
+                See All Sent Requests
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
-      {/* Active Events Section */}
+      {/* Reserved Items Section */}
       {!isLoading && (
-        <View style={styles.eventsSection}>
+        <View style={styles.reservedItemsSection}>
           <View style={styles.sectionHeaderRow}>
             <View style={styles.sectionHeaderLeft}>
-              <Feather name="gift" size={20} color={theme.colors.primary} />
-              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Active Events</Text>
+              <Feather name="bookmark" size={16} color={theme.colors.primary} />
+              <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
+                Reserved Items ({reservedItems.length})
+              </Text>
             </View>
           </View>
-          <View style={styles.eventsContainer}>
-            {/* Secret Santa Quick Action */}
-            <TouchableOpacity
-              style={[styles.eventCard, { backgroundColor: theme.colors.primary }]}
-              onPress={() => {
-                // TODO: Navigate to Secret Santa creation/management
-                console.log("Create Secret Santa");
-              }}
-            >
-              <View style={styles.eventCardContent}>
-                <Feather name="gift" size={20} color="#FFFFFF" />
-                <View style={styles.eventCardText}>
-                  <Text style={[styles.eventCardTitle, { color: "#FFFFFF" }]}>Secret Santa</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
 
-            {/* Group Gift Quick Action */}
+          {/* Tabs */}
+          <View style={styles.tabContainer}>
             <TouchableOpacity
-              style={[styles.eventCard, { backgroundColor: theme.colors.primary }]}
-              onPress={() => {
-                setSelectedBirthdayFriend(null);
-                setCreateGroupGiftSheetVisible(true);
-              }}
+              style={[
+                styles.tab,
+                reservedItemsTab === "reserved" && styles.tabActive,
+                reservedItemsTab === "reserved" && { backgroundColor: theme.colors.primary + '15' }
+              ]}
+              onPress={() => setReservedItemsTab("reserved")}
             >
-              <View style={styles.eventCardContent}>
-                <Feather name="users" size={20} color="#FFFFFF" />
-                <View style={styles.eventCardText}>
-                  <Text style={[styles.eventCardTitle, { color: "#FFFFFF" }]}>Group Gift</Text>
-                </View>
-              </View>
+              <Text style={[
+                styles.tabText,
+                { color: reservedItemsTab === "reserved" ? theme.colors.primary : theme.colors.textSecondary }
+              ]}>
+                Reserved ({reservedItems.filter(i => i.status === "WANTED" || i.status === "RESERVED").length})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.tab,
+                reservedItemsTab === "purchased" && styles.tabActive,
+                reservedItemsTab === "purchased" && { backgroundColor: theme.colors.primary + '15' }
+              ]}
+              onPress={() => setReservedItemsTab("purchased")}
+            >
+              <Text style={[
+                styles.tabText,
+                { color: reservedItemsTab === "purchased" ? theme.colors.primary : theme.colors.textSecondary }
+              ]}>
+                Purchased ({reservedItems.filter(i => i.status === "PURCHASED").length})
+              </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Items List */}
+          {(() => {
+            const filteredItems = reservedItems.filter(item => 
+              reservedItemsTab === "reserved" 
+                ? (item.status === "WANTED" || item.status === "RESERVED")
+                : item.status === "PURCHASED"
+            );
+
+            if (filteredItems.length === 0) {
+              return (
+                <View style={styles.emptyStateSmall}>
+                  <Feather 
+                    name={reservedItemsTab === "reserved" ? "bookmark" : "check-circle"} 
+                    size={40} 
+                    color={theme.colors.textSecondary} 
+                  />
+                  <Text style={[styles.emptyTitleSmall, { color: theme.colors.textPrimary }]}>
+                    No {reservedItemsTab === "reserved" ? "reserved" : "purchased"} items
+                  </Text>
+                  <Text style={[styles.emptySubtitleSmall, { color: theme.colors.textSecondary }]}>
+                    {reservedItemsTab === "reserved" 
+                      ? "Items you've reserved will appear here"
+                      : "Items you've purchased will appear here"}
+                  </Text>
+                </View>
+              );
+            }
+
+            return (
+              <View style={styles.reservedItemsList}>
+                {filteredItems.map((item, index) => {
+                  const isPurchased = item.status === "PURCHASED";
+                  const wishlistTitle = item.wishlist?.title || "Unknown Wishlist";
+                  const wishlistOwner = item.wishlist?.owner?.displayName || item.wishlist?.owner?.username || "Unknown";
+                  const hasPrice = item.price !== undefined && item.price !== null && item.price > 0;
+
+                  return (
+                    <View key={item.id}>
+                      <TouchableOpacity
+                        style={[
+                          styles.reservedItemCard,
+                          { backgroundColor: theme.colors.surface, borderColor: theme.colors.textSecondary + '20' }
+                        ]}
+                        onPress={() => {
+                          if (isPurchased) {
+                            handleRestoreToReserved(item);
+                          } else {
+                            handleMarkAsPurchased(item);
+                          }
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.reservedItemContent}>
+                          {/* Item Image or Placeholder */}
+                          <View style={[styles.reservedItemImage, { backgroundColor: theme.colors.textSecondary + '10' }]}>
+                            {item.imageUrl ? (
+                              <Text style={styles.reservedItemImageText}>🖼️</Text>
+                            ) : (
+                              <Feather name="gift" size={20} color={theme.colors.textSecondary} />
+                            )}
+                          </View>
+
+                          {/* Item Details */}
+                          <View style={styles.reservedItemDetails}>
+                            <Text 
+                              style={[
+                                styles.reservedItemTitle,
+                                { color: isPurchased ? theme.colors.textSecondary : theme.colors.textPrimary }
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {item.title}
+                            </Text>
+                            <Text 
+                              style={[
+                                styles.reservedItemWishlist,
+                                { color: theme.colors.textSecondary }
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {wishlistTitle} • {wishlistOwner}
+                            </Text>
+                            {hasPrice && (
+                              <View style={styles.reservedItemPrice}>
+                                <PriceDisplay
+                                  amount={item.price!}
+                                  currency={item.currency || 'USD'}
+                                  textStyle={[
+                                    styles.reservedItemPriceText,
+                                    { 
+                                      color: isPurchased 
+                                        ? theme.colors.textSecondary + '80'
+                                        : theme.colors.textSecondary 
+                                    }
+                                  ]}
+                                />
+                                {item.quantity && item.quantity > 1 && (
+                                  <Text style={[
+                                    styles.reservedItemQuantity,
+                                    { color: theme.colors.textSecondary }
+                                  ]}>
+                                    x{item.quantity}
+                                  </Text>
+                                )}
+                              </View>
+                            )}
+                          </View>
+
+                          {/* Action Icon */}
+                          <View style={styles.reservedItemAction}>
+                            <Feather
+                              name={isPurchased ? "rotate-ccw" : "check-circle"}
+                              size={20}
+                              color={isPurchased ? theme.colors.textSecondary : theme.colors.primary}
+                            />
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                      {index < filteredItems.length - 1 && (
+                        <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '20', marginLeft: 0 }]} />
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })()}
         </View>
       )}
 
@@ -984,7 +1220,7 @@ export default function FriendsScreen() {
           <View style={[styles.eventsSection, styles.birthdaysSection]}>
             <View style={styles.sectionHeaderRow}>
               <View style={styles.sectionHeaderLeft}>
-                <Feather name="calendar" size={20} color={theme.colors.primary} />
+                <Feather name="calendar" size={16} color={theme.colors.primary} />
                 <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Upcoming Birthdays</Text>
               </View>
             </View>
@@ -1045,7 +1281,7 @@ export default function FriendsScreen() {
                           }}
                           activeOpacity={0.7}
                         >
-                          <Feather name="gift" size={14} color="#FFFFFF" />
+                          <Feather name="gift" size={12} color="#FFFFFF" />
                           <Text style={styles.birthdayActionButtonText}>Gift</Text>
                         </TouchableOpacity>
                       </View>
@@ -1085,7 +1321,7 @@ export default function FriendsScreen() {
       {!isLoading && friends.length > 0 && (
         <View style={styles.friendsListSection}>
           <View style={styles.sectionHeaderLeft}>
-            <Feather name="users" size={20} color={theme.colors.primary} />
+            <Feather name="users" size={16} color={theme.colors.primary} />
             <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>Friends ({friends.length})</Text>
           </View>
         </View>
@@ -1140,7 +1376,7 @@ export default function FriendsScreen() {
                   style={styles.menuButton}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Feather name="more-horizontal" size={20} color={theme.colors.textSecondary} />
+                  <Feather name="more-horizontal" size={18} color={theme.colors.textSecondary} />
                 </TouchableOpacity>
               </TouchableOpacity>
               {index < Math.min(friends.length, 3) - 1 && (
@@ -1171,6 +1407,7 @@ export default function FriendsScreen() {
             setFriendMenuVisible(false);
             setSelectedFriend(null);
             setSelectedFriendBlockStatus({});
+            setSelectedFriendPendingStatus({});
           }}
           onViewProfile={() => {
             setFriendMenuVisible(false);
@@ -1186,10 +1423,17 @@ export default function FriendsScreen() {
               setBirthdayGiftModalVisible(true);
             }, 200);
           }}
+          onAddFriend={!selectedFriendPendingStatus.isPending ? () => {
+            setFriendMenuVisible(false);
+            if (selectedFriend) {
+              handleSendRequest(selectedFriend.id);
+            }
+          } : undefined}
           onRemoveFriend={handleRemoveFriend}
           onBlockUser={handleBlockUser}
           onUnblockUser={handleUnblockUser}
-          areFriends={friends.some(f => f.id === selectedFriend.id)}
+          areFriends={selectedFriendPendingStatus.isFriend || friends.some(f => f.id === selectedFriend.id)}
+          isPending={selectedFriendPendingStatus.isPending}
           isBlockedByMe={selectedFriendBlockStatus.isBlockedByMe}
           isBlockedByThem={selectedFriendBlockStatus.isBlockedByThem}
         />
@@ -1313,6 +1557,14 @@ export default function FriendsScreen() {
         initialTitle={selectedBirthdayFriend ? `${selectedBirthdayFriend.name}'s Birthday` : undefined}
         initialFriendId={selectedBirthdayFriend?.id}
       />
+
+      <SuccessModal
+        visible={successModalVisible}
+        onClose={() => setSuccessModalVisible(false)}
+        message={successMessage}
+        autoDismissDelay={1200}
+        showButton={false}
+      />
     </View>
   );
 }
@@ -1324,11 +1576,11 @@ const styles = StyleSheet.create({
   pendingSection: {
     paddingLeft: 16,
     paddingRight: 16,
-    paddingTop: 10,
-    paddingBottom: 5,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1343,12 +1595,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   sectionHeaderLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   birthdaysContainer: {
     gap: 8,
@@ -1357,71 +1609,71 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 0,
   },
   birthdayLeaderboardContent: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    gap: 10,
+    gap: 8,
   },
   birthdayDaysBadge: {
     paddingHorizontal: 4,
     paddingVertical: 2,
-    width: 60,
+    width: 56,
     alignItems: "flex-start",
     justifyContent: "center",
   },
   birthdayDaysText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
   },
   birthdayAvatarSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   birthdayAvatarTextSmall: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
   },
   birthdayLeaderboardInfo: {
     flex: 1,
   },
   birthdayLeaderboardName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
-    marginBottom: 2,
+    marginBottom: 1,
   },
   birthdayLeaderboardDate: {
-    fontSize: 12,
+    fontSize: 11,
   },
   birthdayActionButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
     marginLeft: 8,
-    gap: 6,
+    gap: 5,
   },
   birthdayActionButtonText: {
     color: "#FFFFFF",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
   },
   birthdayDivider: {
     height: 1,
     width: "100%",
-    marginVertical: 4,
+    marginVertical: 3,
   },
   birthdaysSection: {
-    marginTop: 48,
+    marginTop: 32,
     paddingBottom: 0,
   },
   emptyStateSmall: {
@@ -1478,39 +1730,39 @@ const styles = StyleSheet.create({
   friendsListSection: {
     paddingLeft: 16,
     paddingRight: 16,
-    paddingTop: 48,
+    paddingTop: 32,
     paddingBottom: 8,
   },
   requestRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 0,
   },
   friendRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 12,
+    paddingVertical: 8,
     paddingLeft: 16,
     paddingRight: 16,
   },
   requestActions: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
   },
   acceptButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
   rejectButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 1.5,
     backgroundColor: "transparent",
     alignItems: "center",
@@ -1523,14 +1775,14 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   seeMoreText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
   },
   divider: {
     height: 1,
     width: "100%",
-    marginLeft: 24,
-    marginVertical: 4,
+    marginLeft: 50,
+    marginVertical: 3,
   },
   emptyState: {
     flex: 1,
@@ -1563,28 +1815,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: 10,
   },
   avatarText: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
   },
   friendDetails: {
     flex: 1,
   },
   friendName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
-    marginBottom: 1, // Decreased spacing
+    marginBottom: 1,
   },
   friendUsername: {
-    fontSize: 14,
+    fontSize: 13,
   },
   sentRequestHeader: {
     flexDirection: "row",
@@ -1595,27 +1847,27 @@ const styles = StyleSheet.create({
   sentRequestActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 3,
   },
   statusBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
   },
   cancelButton: {
     padding: 8,
   },
   cancelButtonBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1781,5 +2033,85 @@ const styles = StyleSheet.create({
   birthdayGiftOptionDescription: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  reservedItemsSection: {
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingTop: 32,
+    paddingBottom: 8,
+  },
+  tabContainer: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabActive: {
+    // Background color applied inline
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  reservedItemsList: {
+    gap: 0,
+  },
+  reservedItemCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 0,
+  },
+  reservedItemContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  reservedItemImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reservedItemImageText: {
+    fontSize: 20,
+  },
+  reservedItemDetails: {
+    flex: 1,
+    gap: 4,
+  },
+  reservedItemTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  reservedItemWishlist: {
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  reservedItemPrice: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  reservedItemPriceText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  reservedItemQuantity: {
+    fontSize: 13,
+    marginLeft: 6,
+  },
+  reservedItemAction: {
+    padding: 4,
   },
 });

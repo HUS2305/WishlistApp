@@ -138,5 +138,10 @@ export const wishlistsService = {
     const response = await api.get(`/wishlists/${wishlistId}/collaborators`);
     return response.data;
   },
+
+  async getReservedItems(): Promise<Item[]> {
+    const response = await api.get("/items/reserved/all");
+    return response.data;
+  },
 };
 

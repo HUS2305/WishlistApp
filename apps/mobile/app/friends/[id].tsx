@@ -90,6 +90,20 @@ export default function FriendProfileScreen() {
     router.push("/(tabs)/friends");
   };
 
+  const handleSendRequest = async () => {
+    if (!id) return;
+    try {
+      setIsProcessingRequest(true);
+      await friendsService.sendFriendRequest(id);
+      refetch();
+      await refreshPendingRequestsCount();
+    } catch (error: any) {
+      console.error("Error sending friend request:", error);
+    } finally {
+      setIsProcessingRequest(false);
+    }
+  };
+
   const handleRemoveFriend = () => {
     setMenuVisible(false);
     setTimeout(() => {
@@ -113,12 +127,10 @@ export default function FriendProfileScreen() {
     try {
       setIsBlockingUser(true);
       await friendsService.blockUser(id);
-      Alert.alert("Success", "User blocked successfully");
       setBlockConfirmVisible(false);
       refetch();
     } catch (error: any) {
       console.error("Error blocking user:", error);
-      Alert.alert("Error", error.response?.data?.message || error.message || "Failed to block user");
       setBlockConfirmVisible(false);
     } finally {
       setIsBlockingUser(false);
@@ -131,11 +143,9 @@ export default function FriendProfileScreen() {
     try {
       setIsBlockingUser(true);
       await friendsService.unblockUser(id);
-      Alert.alert("Success", "User unblocked successfully");
       refetch();
     } catch (error: any) {
       console.error("Error unblocking user:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to unblock user");
     } finally {
       setIsBlockingUser(false);
     }
@@ -147,11 +157,9 @@ export default function FriendProfileScreen() {
     try {
       setIsRemovingFriend(true);
       await friendsService.removeFriend(id);
-      Alert.alert("Success", "Friend removed successfully");
       router.push("/(tabs)/friends");
     } catch (error: any) {
       console.error("Error removing friend:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to remove friend");
     } finally {
       setIsRemovingFriend(false);
       setDeleteConfirmVisible(false);
@@ -164,13 +172,11 @@ export default function FriendProfileScreen() {
     try {
       setIsProcessingRequest(true);
       await friendsService.acceptFriendRequest(profile.pendingRequestId);
-      Alert.alert("Success", "Friend request accepted!");
       refetch();
       await refreshPendingRequestsCount();
       await refreshUnreadNotificationsCount();
     } catch (error: any) {
       console.error("Error accepting friend request:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to accept friend request");
     } finally {
       setIsProcessingRequest(false);
     }
@@ -182,12 +188,10 @@ export default function FriendProfileScreen() {
     try {
       setIsProcessingRequest(true);
       await friendsService.rejectFriendRequest(profile.pendingRequestId);
-      Alert.alert("Success", "Friend request declined");
       refetch();
       await refreshPendingRequestsCount();
     } catch (error: any) {
       console.error("Error declining friend request:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to decline friend request");
     } finally {
       setIsProcessingRequest(false);
     }
@@ -199,11 +203,9 @@ export default function FriendProfileScreen() {
     try {
       setIsProcessingRequest(true);
       await friendsService.cancelFriendRequest(profile.sentRequestId);
-      Alert.alert("Success", "Friend request cancelled");
       refetch();
     } catch (error: any) {
       console.error("Error cancelling friend request:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to cancel friend request");
     } finally {
       setIsProcessingRequest(false);
     }
@@ -518,10 +520,15 @@ export default function FriendProfileScreen() {
               setBirthdayGiftModalVisible(true);
             }, 200);
           }}
+          onAddFriend={() => {
+            setMenuVisible(false);
+            handleSendRequest();
+          }}
           onRemoveFriend={profile.areFriends ? handleRemoveFriend : undefined}
           onBlockUser={handleBlockUser}
           onUnblockUser={handleUnblockUser}
           areFriends={profile.areFriends}
+          isPending={!!(profile.pendingRequestId || profile.sentRequestId)}
           isBlockedByMe={profile.isBlockedByMe}
           isBlockedByThem={profile.isBlockedByThem}
         />

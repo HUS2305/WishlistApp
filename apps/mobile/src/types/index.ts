@@ -74,5 +74,18 @@ export interface Item {
   wishlistId: string;
   addedById: string;
   addedBy?: User;
+  wishlist?: {
+    id: string;
+    title: string;
+    ownerId: string;
+    privacyLevel: PrivacyLevel;
+    owner?: {
+      id: string;
+      username?: string;
+      firstName?: string;
+      lastName?: string;
+      displayName?: string;
+    } | null;
+  };
 }
 

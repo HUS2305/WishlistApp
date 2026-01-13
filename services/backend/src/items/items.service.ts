@@ -443,6 +443,69 @@ export class ItemsService {
     return user;
   }
 
+  async findReservedItems(userId: string) {
+    const user = await this.getOrCreateUser(userId);
+
+    // Find all reservations for this user
+    const reservations = await this.prisma.itemReservation.findMany({
+      where: { userId: user.id },
+      include: {
+        item: {
+          include: {
+            wishlist: {
+              select: {
+                id: true,
+                title: true,
+                ownerId: true,
+                privacyLevel: true,
+                owner: {
+                  select: {
+                    id: true,
+                    username: true,
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
+            addedBy: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // Map reservations to items with wishlist info
+    return reservations.map(reservation => {
+      const item = reservation.item;
+      const { wishlist, addedBy, ...itemWithoutRelations } = item;
+      
+      return {
+        ...itemWithoutRelations,
+        wishlist: {
+          ...wishlist,
+          owner: wishlist.owner ? {
+            ...wishlist.owner,
+            displayName: getDisplayName(wishlist.owner.firstName, wishlist.owner.lastName),
+          } : null,
+        },
+        addedBy: addedBy ? {
+          ...addedBy,
+          displayName: getDisplayName(addedBy.firstName, addedBy.lastName),
+        } : null,
+        isReservedByCurrentUser: true, // Always true since we're fetching user's reservations
+        hasReservations: true, // At least this user has reserved it
+      };
+    });
+  }
+
   private async areFriends(userId: string, friendId: string): Promise<boolean> {
     const friendship = await this.prisma.friendship.findFirst({
       where: {

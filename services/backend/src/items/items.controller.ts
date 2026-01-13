@@ -41,6 +41,11 @@ export class ItemsController {
     return this.itemsService.parseFromUrl(body.url);
   }
 
+  @Get("reserved/all")
+  async getReservedItems(@GetUserId() userId: string) {
+    return this.itemsService.findReservedItems(userId);
+  }
+
   @Get(":id")
   async getItemById(
     @GetUserId() userId: string,

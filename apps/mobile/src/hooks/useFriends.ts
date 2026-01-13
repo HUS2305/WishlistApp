@@ -5,7 +5,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@clerk/clerk-expo';
 import { friendsService, type FriendRequest } from '@/services/friends';
-import type { User } from '@/types';
+import { wishlistsService } from '@/services/wishlists';
+import type { User, Item } from '@/types';
 
 // Query keys
 export const friendKeys = {
@@ -79,6 +80,19 @@ export function useUserProfile(userId: string) {
     queryKey: ['users', userId, 'profile'],
     queryFn: () => friendsService.getUserProfile(userId),
     enabled: !!userId && isLoaded && isSignedIn,
+    staleTime: 30 * 1000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+  });
+}
+
+// Get all reserved items
+export function useReservedItems() {
+  const { isLoaded, isSignedIn } = useAuth();
+  
+  return useQuery<Item[]>({
+    queryKey: ['items', 'reserved', 'all'],
+    queryFn: () => wishlistsService.getReservedItems(),
+    enabled: isLoaded && isSignedIn,
     staleTime: 30 * 1000, // Consider data fresh for 30 seconds
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   });

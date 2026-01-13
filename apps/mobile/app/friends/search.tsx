@@ -86,7 +86,6 @@ export default function FriendSearchScreen() {
   const handleSendRequest = async (userId: string) => {
     try {
       await friendsService.sendFriendRequest(userId);
-      Alert.alert("Success", "Friend request sent!");
       
       // Refresh search results
       if (searchQuery.trim()) {
@@ -98,7 +97,6 @@ export default function FriendSearchScreen() {
       await refreshUnreadNotificationsCount();
     } catch (error) {
       console.error("❌ Error sending friend request:", error);
-      Alert.alert("Error", "Failed to send friend request");
     }
   };
 
@@ -115,7 +113,6 @@ export default function FriendSearchScreen() {
     if (!selectedUser) return;
     try {
       await friendsService.blockUser(selectedUser.id);
-      Alert.alert("Success", "User blocked successfully");
       setSelectedUser(null);
       setBlockConfirmVisible(false);
       // Refresh search results
@@ -125,7 +122,6 @@ export default function FriendSearchScreen() {
       }
     } catch (error: any) {
       console.error("Error blocking user:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to block user");
       setBlockConfirmVisible(false);
     }
   };
@@ -135,7 +131,6 @@ export default function FriendSearchScreen() {
     
     try {
       await friendsService.unblockUser(selectedUser.id);
-      Alert.alert("Success", "User unblocked successfully");
       setFriendMenuVisible(false);
       setSelectedUser(null);
       // Refresh search results with a small delay to ensure DB is updated
@@ -151,7 +146,6 @@ export default function FriendSearchScreen() {
       }
     } catch (error: any) {
       console.error("Error unblocking user:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to unblock user");
     }
   };
 
@@ -168,7 +162,6 @@ export default function FriendSearchScreen() {
     if (!selectedUser) return;
     try {
       await friendsService.removeFriend(selectedUser.id);
-      Alert.alert("Success", "Friend removed");
       setSelectedUser(null);
       setRemoveConfirmVisible(false);
       // Refresh search results
@@ -178,7 +171,6 @@ export default function FriendSearchScreen() {
       }
     } catch (error: any) {
       console.error("Error removing friend:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to remove friend");
       setRemoveConfirmVisible(false);
     }
   };
@@ -186,7 +178,6 @@ export default function FriendSearchScreen() {
   const handleCancelRequest = async (requestId: string) => {
     try {
       await friendsService.cancelFriendRequest(requestId);
-      Alert.alert("Success", "Friend request cancelled");
       // Refresh search results
       if (searchQuery.trim()) {
         const searchResults = await friendsService.searchUsers(searchQuery.trim());
@@ -194,7 +185,6 @@ export default function FriendSearchScreen() {
       }
     } catch (error: any) {
       console.error("Error cancelling request:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to cancel friend request");
     }
   };
 
@@ -396,10 +386,15 @@ export default function FriendSearchScreen() {
             setFriendMenuVisible(false);
             router.push(`/friends/${selectedUser.id}`);
           }}
+          onAddFriend={() => {
+            setFriendMenuVisible(false);
+            handleSendRequest(selectedUser.id);
+          }}
           onRemoveFriend={handleRemoveFriend}
           onBlockUser={handleBlockUser}
           onUnblockUser={handleUnblockUser}
           areFriends={selectedUser.isFriend}
+          isPending={selectedUser.isPending}
           isBlockedByMe={selectedUser.isBlockedByMe}
           isBlockedByThem={selectedUser.isBlockedByThem}
         />

@@ -14,10 +14,12 @@ interface FriendMenuProps {
   onClose: () => void;
   onViewProfile?: () => void;
   onGift?: () => void;
+  onAddFriend?: () => void;
   onRemoveFriend?: () => void;
   onBlockUser?: () => void;
   onUnblockUser?: () => void;
   areFriends?: boolean;
+  isPending?: boolean;
   isBlockedByMe?: boolean;
   isBlockedByThem?: boolean;
 }
@@ -27,10 +29,12 @@ export function FriendMenu({
   onClose, 
   onViewProfile,
   onGift,
+  onAddFriend,
   onRemoveFriend,
   onBlockUser,
   onUnblockUser,
   areFriends = false,
+  isPending = false,
   isBlockedByMe,
   isBlockedByThem,
 }: FriendMenuProps) {
@@ -48,6 +52,13 @@ export function FriendMenu({
     onClose();
     setTimeout(() => {
       onGift();
+    }, 100);
+  };
+
+  const handleAddFriend = () => {
+    onClose();
+    setTimeout(() => {
+      onAddFriend?.();
     }, 100);
   };
 
@@ -109,6 +120,41 @@ export function FriendMenu({
                   ]}
                 >
                   View Profile
+                </Text>
+              </View>
+              <Feather
+                name="chevron-right"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
+
+          {!areFriends && !isPending && !isBlockedByMe && !isBlockedByThem && onAddFriend && (
+            <TouchableOpacity
+              style={[
+                styles.optionRow,
+                {
+                  borderBottomColor: theme.colors.textSecondary + '20',
+                },
+              ]}
+              onPress={handleAddFriend}
+              activeOpacity={0.7}
+            >
+              <View style={styles.optionLeft}>
+                <Feather 
+                  name="user-plus" 
+                  size={20} 
+                  color={theme.colors.textPrimary} 
+                  style={styles.optionIcon}
+                />
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Add Friend
                 </Text>
               </View>
               <Feather

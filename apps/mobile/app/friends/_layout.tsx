@@ -32,6 +32,18 @@ export default function FriendsLayout() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="pending-requests"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="sent-requests"
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }

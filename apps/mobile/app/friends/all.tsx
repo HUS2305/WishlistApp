@@ -23,6 +23,7 @@ export default function AllFriendsScreen() {
   const insets = useSafeAreaInsets();
   const { isLoaded: isClerkLoaded, userId } = useAuth();
   const { data: friends = [], isLoading, refetch, isFetching: isRefreshing } = useFriends();
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [friendMenuVisible, setFriendMenuVisible] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
   const [selectedFriendBlockStatus, setSelectedFriendBlockStatus] = useState<{ isBlockedByMe?: boolean; isBlockedByThem?: boolean }>({});
@@ -57,6 +58,13 @@ export default function AllFriendsScreen() {
   }, [isSearchActive]);
 
 
+  // Track if we've loaded at least once
+  useEffect(() => {
+    if (!isLoading && friends.length >= 0) {
+      setHasLoadedOnce(true);
+    }
+  }, [isLoading, friends.length]);
+
   // React Query handles fetching automatically when enabled
   const onRefresh = () => {
     refetch();
@@ -76,14 +84,12 @@ export default function AllFriendsScreen() {
     if (!selectedFriend) return;
     try {
       await friendsService.removeFriend(selectedFriend.id);
-      Alert.alert("Success", "Friend removed");
       setSelectedFriend(null);
       setSelectedFriendBlockStatus({});
       setRemoveConfirmVisible(false);
       refetch();
     } catch (error: any) {
       console.error("Error removing friend:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to remove friend");
       setRemoveConfirmVisible(false);
     }
   };
@@ -100,14 +106,12 @@ export default function AllFriendsScreen() {
     if (!selectedFriend) return;
     try {
       await friendsService.blockUser(selectedFriend.id);
-      Alert.alert("Success", "User blocked successfully");
       setSelectedFriend(null);
       setSelectedFriendBlockStatus({});
       setBlockConfirmVisible(false);
       refetch();
     } catch (error: any) {
       console.error("Error blocking user:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to block user");
       setBlockConfirmVisible(false);
     }
   };
@@ -116,14 +120,12 @@ export default function AllFriendsScreen() {
     if (!selectedFriend) return;
     try {
       await friendsService.unblockUser(selectedFriend.id);
-      Alert.alert("Success", "User unblocked successfully");
       setFriendMenuVisible(false);
       setSelectedFriend(null);
       setSelectedFriendBlockStatus({});
       refetch();
     } catch (error: any) {
       console.error("Error unblocking user:", error);
-      Alert.alert("Error", error.response?.data?.message || "Failed to unblock user");
     }
   };
 
@@ -229,7 +231,6 @@ export default function AllFriendsScreen() {
   const handleSendRequest = async (userId: string) => {
     try {
       await friendsService.sendFriendRequest(userId);
-      Alert.alert("Success", "Friend request sent!");
       // Refresh friends list after sending request
       refetch();
       // Re-run search if there's a search query
@@ -238,7 +239,6 @@ export default function AllFriendsScreen() {
       }
     } catch (error) {
       console.error("❌ Error sending friend request:", error);
-      Alert.alert("Error", "Failed to send friend request");
     }
   };
 
