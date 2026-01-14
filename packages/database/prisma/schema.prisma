@@ -36,6 +36,10 @@ model User {
   notifications          Notification[]
   wishlists              Wishlist[]
   wishlistCollaborations WishlistCollaborator[]
+  secretSantaEvents      SecretSantaEvent[]        @relation("OrganizedEvents")
+  secretSantaParticipations SecretSantaParticipant[]
+  secretSantaAssignmentsAsGiver SecretSantaAssignment[] @relation("Giver")
+  secretSantaAssignmentsAsReceiver SecretSantaAssignment[] @relation("Receiver")
 }
 
 model Wishlist {
@@ -54,6 +58,7 @@ model Wishlist {
   items             Item[]
   owner             User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   collaborators     WishlistCollaborator[]
+  secretSantaEvent  SecretSantaEvent?
 }
 
 model Item {
@@ -167,6 +172,75 @@ model AffiliateClick {
   @@index([timestamp])
 }
 
+model SecretSantaEvent {
+  id              String   @id @default(cuid())
+  title           String
+  organizerId     String
+  wishlistId      String   @unique
+  drawDate        DateTime
+  exchangeDate    DateTime
+  budget          Float?
+  currency        String   @default("USD")
+  status          SecretSantaStatus @default(PENDING)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  organizer       User                   @relation("OrganizedEvents", fields: [organizerId], references: [id], onDelete: Cascade)
+  wishlist        Wishlist               @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  participants    SecretSantaParticipant[]
+  assignments     SecretSantaAssignment[]
+  
+  @@index([organizerId])
+  @@index([status])
+}
+
+model SecretSantaParticipant {
+  id              String   @id @default(cuid())
+  eventId         String
+  userId          String
+  status          ParticipantStatus @default(INVITED)
+  createdAt       DateTime @default(now())
+  
+  event           SecretSantaEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@index([status])
+}
+
+model SecretSantaAssignment {
+  id              String   @id @default(cuid())
+  eventId         String
+  giverId         String
+  receiverId      String
+  revealed        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  
+  event           SecretSantaEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  giver           User             @relation("Giver", fields: [giverId], references: [id], onDelete: Cascade)
+  receiver        User             @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  
+  @@unique([eventId, giverId])
+  @@index([eventId])
+  @@index([giverId])
+  @@index([receiverId])
+}
+
+enum SecretSantaStatus {
+  PENDING
+  DRAWN
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ParticipantStatus {
+  INVITED
+  ACCEPTED
+  DECLINED
+}
+
 enum PrivacyLevel {
   PRIVATE
   FRIENDS_ONLY
@@ -209,4 +283,8 @@ enum NotificationType {
   ITEM_RESERVED
   ITEM_PURCHASED
   COMMENT_ADDED
+  SECRET_SANTA_INVITED
+  SECRET_SANTA_ACCEPTED
+  SECRET_SANTA_DRAWN
+  SECRET_SANTA_ASSIGNMENT_REVEALED
 }

@@ -18,6 +18,8 @@ interface ItemMenuProps {
   onMarkAsPurchased?: () => void;
   onRestoreToWanted?: () => void;
   onDelete?: () => void;
+  onOpenWishlist?: () => void;
+  onUnreserve?: () => void;
   isPurchased?: boolean;
   itemUrl?: string | null;
 }
@@ -31,6 +33,8 @@ export function ItemMenu({
   onMarkAsPurchased,
   onRestoreToWanted,
   onDelete,
+  onOpenWishlist,
+  onUnreserve,
   isPurchased = false,
   itemUrl
 }: ItemMenuProps) {
@@ -74,6 +78,20 @@ export function ItemMenu({
     if (!isPurchased) {
       onClose();
     }
+  };
+
+  const handleOpenWishlist = () => {
+    onClose();
+    setTimeout(() => {
+      onOpenWishlist?.();
+    }, 100);
+  };
+
+  const handleUnreserve = () => {
+    onClose();
+    setTimeout(() => {
+      onUnreserve?.();
+    }, 100);
   };
 
   return (
@@ -193,6 +211,41 @@ export function ItemMenu({
             </TouchableOpacity>
           )}
 
+          {onOpenWishlist && (
+            <TouchableOpacity
+              style={[
+                styles.optionRow,
+                {
+                  borderBottomColor: theme.colors.textSecondary + '20',
+                },
+              ]}
+              onPress={handleOpenWishlist}
+              activeOpacity={0.7}
+            >
+              <View style={styles.optionLeft}>
+                <Feather 
+                  name="list" 
+                  size={20} 
+                  color={theme.colors.textPrimary} 
+                  style={styles.optionIcon}
+                />
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Open Wishlist
+                </Text>
+              </View>
+              <Feather
+                name="chevron-right"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
+
           {!isPurchased && onMarkAsPurchased && (
             <TouchableOpacity
               style={[
@@ -218,6 +271,41 @@ export function ItemMenu({
                   ]}
                 >
                   Mark as Purchased
+                </Text>
+              </View>
+              <Feather
+                name="chevron-right"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
+
+          {!isPurchased && onUnreserve && (
+            <TouchableOpacity
+              style={[
+                styles.optionRow,
+                {
+                  borderBottomColor: theme.colors.textSecondary + '20',
+                },
+              ]}
+              onPress={handleUnreserve}
+              activeOpacity={0.7}
+            >
+              <View style={styles.optionLeft}>
+                <Feather 
+                  name="bookmark" 
+                  size={20} 
+                  color={theme.colors.textPrimary} 
+                  style={styles.optionIcon}
+                />
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Unreserve
                 </Text>
               </View>
               <Feather

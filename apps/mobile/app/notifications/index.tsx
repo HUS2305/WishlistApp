@@ -122,7 +122,7 @@ export default function NotificationsScreen() {
                       // Refresh notifications
                       await fetchNotifications(false);
                       // Navigate to the wishlist
-                      router.push(`/wishlist/${notification.data.wishlistId}`);
+                      router.push(`/wishlist/${notification.data.wishlistId}?returnTo=notifications`);
                     } catch (error: any) {
                       console.error("Error accepting collaboration:", error);
                       Alert.alert("Error", error.response?.data?.message || "Failed to accept invitation");

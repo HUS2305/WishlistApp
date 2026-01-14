@@ -1,4 +1,4 @@
-import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList, Animated, Platform } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList, Animated, Platform, Linking } from "react-native";
 import { Text } from "@/components/Text";
 import { router, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -22,7 +22,7 @@ import { wishlistsService } from "@/services/wishlists";
 import type { Item, ItemStatus } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PriceDisplay } from "@/components/PriceDisplay";
-import { SuccessModal } from "@/components/SuccessModal";
+import { ItemMenu } from "@/components/ItemMenu";
 
 export default function FriendsScreen() {
   const { theme } = useTheme();
@@ -48,8 +48,8 @@ export default function FriendsScreen() {
   const [createWishlistSheetVisible, setCreateWishlistSheetVisible] = useState(false);
   const [createGroupGiftSheetVisible, setCreateGroupGiftSheetVisible] = useState(false);
   const [reservedItemsTab, setReservedItemsTab] = useState<"reserved" | "purchased">("reserved");
-  const [successModalVisible, setSuccessModalVisible] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const [selectedReservedItem, setSelectedReservedItem] = useState<Item | null>(null);
+  const [reservedItemMenuVisible, setReservedItemMenuVisible] = useState(false);
   
   // Search state
   const [isSearchActive, setIsSearchActive] = useState(false);
@@ -88,10 +88,11 @@ export default function FriendsScreen() {
     mutationFn: async ({ itemId, status, wishlistId }: { itemId: string; status: ItemStatus; wishlistId: string }) => {
       return wishlistsService.updateItem({ id: itemId, status, wishlistId });
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       // Invalidate reserved items query
       queryClient.invalidateQueries({ queryKey: ['items', 'reserved', 'all'] });
-      // Also invalidate the wishlist items query for the specific wishlist
+      // Also invalidate the wishlist items query for the specific wishlist to sync
+      queryClient.invalidateQueries({ queryKey: ['items', 'wishlists', variables.wishlistId] });
       queryClient.invalidateQueries({ queryKey: ['items', 'wishlists'] });
     },
   });
@@ -104,8 +105,6 @@ export default function FriendsScreen() {
         status: "PURCHASED",
         wishlistId: item.wishlistId,
       });
-      setSuccessMessage("Item marked as purchased");
-      setSuccessModalVisible(true);
       // If this was the last reserved item, switch to purchased tab
       const reservedCount = reservedItems.filter(i => i.status === "WANTED" || i.status === "RESERVED").length;
       if (reservedCount === 1) {
@@ -125,8 +124,6 @@ export default function FriendsScreen() {
         status: "WANTED",
         wishlistId: item.wishlistId,
       });
-      setSuccessMessage("Item restored to reserved list");
-      setSuccessModalVisible(true);
       // If this was the last purchased item, switch to reserved tab
       const purchasedCount = reservedItems.filter(i => i.status === "PURCHASED").length;
       if (purchasedCount === 1) {
@@ -135,6 +132,28 @@ export default function FriendsScreen() {
     } catch (error: any) {
       console.error("Error restoring item:", error);
       Alert.alert("Error", error.response?.data?.message || "Failed to restore item");
+    }
+  };
+
+  // Handler to open wishlist and scroll to item
+  const handleOpenWishlist = (item: Item) => {
+    if (!item.wishlist?.id) return;
+    const ownerId = item.wishlist.ownerId;
+    // Navigate to wishlist with itemId as query param for scrolling
+    // Include returnTo to indicate we came from reserved items section
+    router.push(`/wishlist/${item.wishlist.id}?itemId=${item.id}&returnTo=reserved${ownerId ? `&ownerId=${ownerId}` : ''}`);
+  };
+
+  // Handler to unreserve item
+  const handleUnreserveItem = async (item: Item) => {
+    try {
+      await wishlistsService.unreserveItem(item.id);
+      refetchReserved();
+      // Also invalidate wishlist items to sync
+      queryClient.invalidateQueries({ queryKey: ['items', 'wishlists'] });
+    } catch (error: any) {
+      console.error("Error unreserving item:", error);
+      Alert.alert("Error", error.response?.data?.message || "Failed to unreserve item");
     }
   };
 
@@ -1048,166 +1067,178 @@ export default function FriendsScreen() {
             </View>
           </View>
 
-          {/* Tabs */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[
-                styles.tab,
-                reservedItemsTab === "reserved" && styles.tabActive,
-                reservedItemsTab === "reserved" && { backgroundColor: theme.colors.primary + '15' }
-              ]}
-              onPress={() => setReservedItemsTab("reserved")}
-            >
-              <Text style={[
-                styles.tabText,
-                { color: reservedItemsTab === "reserved" ? theme.colors.primary : theme.colors.textSecondary }
-              ]}>
-                Reserved ({reservedItems.filter(i => i.status === "WANTED" || i.status === "RESERVED").length})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.tab,
-                reservedItemsTab === "purchased" && styles.tabActive,
-                reservedItemsTab === "purchased" && { backgroundColor: theme.colors.primary + '15' }
-              ]}
-              onPress={() => setReservedItemsTab("purchased")}
-            >
-              <Text style={[
-                styles.tabText,
-                { color: reservedItemsTab === "purchased" ? theme.colors.primary : theme.colors.textSecondary }
-              ]}>
-                Purchased ({reservedItems.filter(i => i.status === "PURCHASED").length})
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* Container Box */}
+          <View style={[
+            styles.reservedItemsContainer,
+            { backgroundColor: theme.isDark ? '#2E2E2E' : '#D9D9D9' }
+          ]}>
+            {/* Tabs */}
+            <View style={styles.tabContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.tab,
+                  reservedItemsTab === "reserved" && styles.tabActive,
+                  reservedItemsTab === "reserved" && { backgroundColor: theme.colors.primary + '15' }
+                ]}
+                onPress={() => setReservedItemsTab("reserved")}
+              >
+                <Text style={[
+                  styles.tabText,
+                  { color: reservedItemsTab === "reserved" ? theme.colors.primary : theme.colors.textSecondary }
+                ]}>
+                  Reserved ({reservedItems.filter(i => i.status === "WANTED" || i.status === "RESERVED").length})
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.tab,
+                  reservedItemsTab === "purchased" && styles.tabActive,
+                  reservedItemsTab === "purchased" && { backgroundColor: theme.colors.primary + '15' }
+                ]}
+                onPress={() => setReservedItemsTab("purchased")}
+              >
+                <Text style={[
+                  styles.tabText,
+                  { color: reservedItemsTab === "purchased" ? theme.colors.primary : theme.colors.textSecondary }
+                ]}>
+                  Purchased ({reservedItems.filter(i => i.status === "PURCHASED").length})
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-          {/* Items List */}
+            {/* Items Grid */}
+            {(() => {
+              const filteredItems = reservedItems.filter(item => 
+                reservedItemsTab === "reserved" 
+                  ? (item.status === "WANTED" || item.status === "RESERVED")
+                  : item.status === "PURCHASED"
+              );
+
+              if (filteredItems.length === 0) {
+                return (
+                  <View style={styles.emptyStateSmall}>
+                    <Feather 
+                      name={reservedItemsTab === "reserved" ? "bookmark" : "check-circle"} 
+                      size={40} 
+                      color={theme.colors.textSecondary} 
+                    />
+                    <Text style={[styles.emptyTitleSmall, { color: theme.colors.textPrimary }]}>
+                      No {reservedItemsTab === "reserved" ? "reserved" : "purchased"} items
+                    </Text>
+                    <Text style={[styles.emptySubtitleSmall, { color: theme.colors.textSecondary }]}>
+                      {reservedItemsTab === "reserved" 
+                        ? "Items you've reserved will appear here"
+                        : "Items you've purchased will appear here"}
+                    </Text>
+                  </View>
+                );
+              }
+
+              // Limit to 2 rows (6 items max)
+              const displayedItems = filteredItems.slice(0, 6);
+              const hasMoreItems = filteredItems.length > 6;
+
+              // Group items into rows of 3
+              const rows: Item[][] = [];
+              for (let i = 0; i < displayedItems.length; i += 3) {
+                rows.push(displayedItems.slice(i, i + 3));
+              }
+
+              return (
+                <>
+                  <View style={styles.reservedItemsGrid}>
+                    {rows.map((row, rowIndex) => (
+                      <View key={rowIndex} style={styles.reservedItemsRow}>
+                        {row.map((item) => {
+                          const isPurchased = item.status === "PURCHASED";
+
+                          return (
+                            <TouchableOpacity
+                              key={item.id}
+                              style={[
+                                styles.reservedItemCard,
+                                { backgroundColor: theme.isDark ? '#3A3A3A' : '#E8E8E8' }
+                              ]}
+                              onPress={() => {
+                                if (isPurchased) {
+                                  handleRestoreToReserved(item);
+                                } else {
+                                  handleMarkAsPurchased(item);
+                                }
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              {/* Item Image */}
+                              <View style={[styles.reservedItemImage, { backgroundColor: theme.colors.textSecondary + '10' }]}>
+                                {item.imageUrl ? (
+                                  <Text style={styles.reservedItemImageText}>🖼️</Text>
+                                ) : (
+                                  <Feather name="gift" size={24} color={theme.colors.textSecondary} />
+                                )}
+                              </View>
+
+                              {/* Item Title Container - Fixed height for consistent menu button position */}
+                              <View style={styles.reservedItemTitleContainer}>
+                                <Text 
+                                  style={[
+                                    styles.reservedItemTitle,
+                                    { 
+                                      color: isPurchased ? theme.colors.textSecondary : theme.colors.textPrimary 
+                                    }
+                                  ]}
+                                  numberOfLines={2}
+                                >
+                                  {item.title}
+                                </Text>
+                              </View>
+
+                              {/* Three Dot Menu Button */}
+                              <TouchableOpacity
+                                style={styles.reservedItemMenuButton}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedReservedItem(item);
+                                  setReservedItemMenuVisible(true);
+                                }}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                              >
+                                <Feather 
+                                  name="more-horizontal" 
+                                  size={18} 
+                                  color={theme.colors.textSecondary} 
+                                />
+                              </TouchableOpacity>
+                            </TouchableOpacity>
+                          );
+                        })}
+                        {/* Fill empty slots in row */}
+                        {row.length < 3 && Array.from({ length: 3 - row.length }).map((_, idx) => (
+                          <View key={`empty-${idx}`} style={styles.reservedItemCardPlaceholder} />
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                </>
+              );
+            })()}
+          </View>
           {(() => {
             const filteredItems = reservedItems.filter(item => 
               reservedItemsTab === "reserved" 
                 ? (item.status === "WANTED" || item.status === "RESERVED")
                 : item.status === "PURCHASED"
             );
-
-            if (filteredItems.length === 0) {
-              return (
-                <View style={styles.emptyStateSmall}>
-                  <Feather 
-                    name={reservedItemsTab === "reserved" ? "bookmark" : "check-circle"} 
-                    size={40} 
-                    color={theme.colors.textSecondary} 
-                  />
-                  <Text style={[styles.emptyTitleSmall, { color: theme.colors.textPrimary }]}>
-                    No {reservedItemsTab === "reserved" ? "reserved" : "purchased"} items
-                  </Text>
-                  <Text style={[styles.emptySubtitleSmall, { color: theme.colors.textSecondary }]}>
-                    {reservedItemsTab === "reserved" 
-                      ? "Items you've reserved will appear here"
-                      : "Items you've purchased will appear here"}
-                  </Text>
-                </View>
-              );
-            }
-
-            return (
-              <View style={styles.reservedItemsList}>
-                {filteredItems.map((item, index) => {
-                  const isPurchased = item.status === "PURCHASED";
-                  const wishlistTitle = item.wishlist?.title || "Unknown Wishlist";
-                  const wishlistOwner = item.wishlist?.owner?.displayName || item.wishlist?.owner?.username || "Unknown";
-                  const hasPrice = item.price !== undefined && item.price !== null && item.price > 0;
-
-                  return (
-                    <View key={item.id}>
-                      <TouchableOpacity
-                        style={[
-                          styles.reservedItemCard,
-                          { backgroundColor: theme.colors.surface, borderColor: theme.colors.textSecondary + '20' }
-                        ]}
-                        onPress={() => {
-                          if (isPurchased) {
-                            handleRestoreToReserved(item);
-                          } else {
-                            handleMarkAsPurchased(item);
-                          }
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.reservedItemContent}>
-                          {/* Item Image or Placeholder */}
-                          <View style={[styles.reservedItemImage, { backgroundColor: theme.colors.textSecondary + '10' }]}>
-                            {item.imageUrl ? (
-                              <Text style={styles.reservedItemImageText}>🖼️</Text>
-                            ) : (
-                              <Feather name="gift" size={20} color={theme.colors.textSecondary} />
-                            )}
-                          </View>
-
-                          {/* Item Details */}
-                          <View style={styles.reservedItemDetails}>
-                            <Text 
-                              style={[
-                                styles.reservedItemTitle,
-                                { color: isPurchased ? theme.colors.textSecondary : theme.colors.textPrimary }
-                              ]}
-                              numberOfLines={2}
-                            >
-                              {item.title}
-                            </Text>
-                            <Text 
-                              style={[
-                                styles.reservedItemWishlist,
-                                { color: theme.colors.textSecondary }
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {wishlistTitle} • {wishlistOwner}
-                            </Text>
-                            {hasPrice && (
-                              <View style={styles.reservedItemPrice}>
-                                <PriceDisplay
-                                  amount={item.price!}
-                                  currency={item.currency || 'USD'}
-                                  textStyle={[
-                                    styles.reservedItemPriceText,
-                                    { 
-                                      color: isPurchased 
-                                        ? theme.colors.textSecondary + '80'
-                                        : theme.colors.textSecondary 
-                                    }
-                                  ]}
-                                />
-                                {item.quantity && item.quantity > 1 && (
-                                  <Text style={[
-                                    styles.reservedItemQuantity,
-                                    { color: theme.colors.textSecondary }
-                                  ]}>
-                                    x{item.quantity}
-                                  </Text>
-                                )}
-                              </View>
-                            )}
-                          </View>
-
-                          {/* Action Icon */}
-                          <View style={styles.reservedItemAction}>
-                            <Feather
-                              name={isPurchased ? "rotate-ccw" : "check-circle"}
-                              size={20}
-                              color={isPurchased ? theme.colors.textSecondary : theme.colors.primary}
-                            />
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                      {index < filteredItems.length - 1 && (
-                        <View style={[styles.divider, { backgroundColor: theme.colors.textSecondary + '20', marginLeft: 0 }]} />
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-            );
+            const hasMoreItems = filteredItems.length > 6;
+            return hasMoreItems ? (
+              <TouchableOpacity
+                style={styles.seeMoreButton}
+                onPress={() => router.push("/friends/reserved-items")}
+              >
+                <Text style={[styles.seeMoreText, { color: theme.colors.primary }]}>
+                  See All Reserved Items
+                </Text>
+              </TouchableOpacity>
+            ) : null;
           })()}
         </View>
       )}
@@ -1558,13 +1589,51 @@ export default function FriendsScreen() {
         initialFriendId={selectedBirthdayFriend?.id}
       />
 
-      <SuccessModal
-        visible={successModalVisible}
-        onClose={() => setSuccessModalVisible(false)}
-        message={successMessage}
-        autoDismissDelay={1200}
-        showButton={false}
-      />
+      {/* Reserved Item Menu */}
+      {selectedReservedItem && (
+        <ItemMenu
+          visible={reservedItemMenuVisible}
+          onClose={() => {
+            setReservedItemMenuVisible(false);
+            setSelectedReservedItem(null);
+          }}
+          onGoToLink={selectedReservedItem.url ? async () => {
+            setReservedItemMenuVisible(false);
+            try {
+              let url = selectedReservedItem.url.trim();
+              if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+              }
+              const supported = await Linking.canOpenURL(url);
+              if (supported) {
+                await Linking.openURL(url);
+              } else {
+                Alert.alert("Error", `Cannot open URL: ${url}`);
+              }
+            } catch (error) {
+              Alert.alert("Error", "Failed to open link");
+            }
+          } : undefined}
+          onOpenWishlist={selectedReservedItem?.wishlist?.id ? () => {
+            setReservedItemMenuVisible(false);
+            handleOpenWishlist(selectedReservedItem);
+          } : undefined}
+          onMarkAsPurchased={selectedReservedItem && reservedItemsTab === "reserved" ? () => {
+            setReservedItemMenuVisible(false);
+            handleMarkAsPurchased(selectedReservedItem);
+          } : undefined}
+          onRestoreToWanted={selectedReservedItem && reservedItemsTab === "purchased" ? () => {
+            setReservedItemMenuVisible(false);
+            handleRestoreToReserved(selectedReservedItem);
+          } : undefined}
+          onUnreserve={selectedReservedItem && reservedItemsTab === "reserved" ? () => {
+            setReservedItemMenuVisible(false);
+            handleUnreserveItem(selectedReservedItem);
+          } : undefined}
+          isPurchased={selectedReservedItem.status === "PURCHASED"}
+          itemUrl={selectedReservedItem.url || null}
+        />
+      )}
     </View>
   );
 }
@@ -2040,10 +2109,14 @@ const styles = StyleSheet.create({
     paddingTop: 32,
     paddingBottom: 8,
   },
+  reservedItemsContainer: {
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+  },
   tabContainer: {
     flexDirection: "row",
     gap: 8,
-    marginTop: 12,
     marginBottom: 12,
   },
   tab: {
@@ -2061,57 +2134,53 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  reservedItemsList: {
-    gap: 0,
-  },
-  reservedItemCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
-    marginBottom: 0,
-  },
-  reservedItemContent: {
-    flexDirection: "row",
-    alignItems: "center",
+  reservedItemsGrid: {
     gap: 12,
   },
+  reservedItemsRow: {
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "flex-start",
+  },
+  reservedItemCard: {
+    width: "31%", // Approximately 33.33% minus gap spacing (12px gap * 2 / 3 = ~8px per card)
+    alignItems: "center",
+    justifyContent: "flex-start",
+    padding: 8,
+    borderRadius: 12,
+  },
+  reservedItemCardPlaceholder: {
+    width: "31%",
+  },
   reservedItemImage: {
-    width: 48,
-    height: 48,
+    width: "100%",
+    aspectRatio: 1,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 8,
   },
   reservedItemImageText: {
-    fontSize: 20,
+    fontSize: 32,
   },
-  reservedItemDetails: {
-    flex: 1,
-    gap: 4,
+  reservedItemTitleContainer: {
+    width: "100%",
+    minHeight: 36, // Fixed height to accommodate 2 lines (12px font * 1.4 line height * 2 lines ≈ 33.6px)
+    maxHeight: 36,
+    marginBottom: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
   reservedItemTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  reservedItemWishlist: {
     fontSize: 12,
-    marginBottom: 2,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 18, // 12px * 1.5 line height
   },
-  reservedItemPrice: {
-    flexDirection: "row",
+  reservedItemMenuButton: {
+    padding: 0,
     alignItems: "center",
-    marginTop: 2,
-  },
-  reservedItemPriceText: {
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  reservedItemQuantity: {
-    fontSize: 13,
-    marginLeft: 6,
-  },
-  reservedItemAction: {
-    padding: 4,
+    justifyContent: "center",
+    minHeight: 24, // Fixed height for consistent positioning
   },
 });

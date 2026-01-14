@@ -44,6 +44,12 @@ export default function FriendsLayout() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="reserved-items"
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }

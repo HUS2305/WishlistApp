@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -32,14 +32,15 @@ import { PriceDisplay } from "@/components/PriceDisplay";
 import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { HeaderButtons } from "@/lib/navigation";
 import { MembersSheet } from "@/components/MembersSheet";
-import { SuccessModal } from "@/components/SuccessModal";
 import { friendsService } from "@/services/friends";
 
 export default function WishlistDetailScreen() {
   const { theme } = useTheme();
   const { isLoaded: isAuthLoaded } = useAuth();
-  const { id, ownerId: ownerIdParam } = useLocalSearchParams<{ id: string; ownerId?: string }>();
+  const { id, ownerId: ownerIdParam, itemId: itemIdParam, returnTo: returnToParam } = useLocalSearchParams<{ id: string; ownerId?: string; itemId?: string; returnTo?: string }>();
   const wishlistId = id as string;
+  const scrollToItemId = itemIdParam as string | undefined;
+  const returnTo = returnToParam as string | undefined;
   
   const { data: wishlist, isLoading: isLoadingWishlist, refetch: refetchWishlist } = useWishlist(wishlistId);
   const { data: items = [], isLoading: isLoadingItems, refetch: refetchItems } = useWishlistItems(wishlistId);
@@ -67,9 +68,9 @@ export default function WishlistDetailScreen() {
   const [collaboratorsModalVisible, setCollaboratorsModalVisible] = useState(false);
   const [shouldAutoOpenFriendSelection, setShouldAutoOpenFriendSelection] = useState(false);
   const [leaveWishlistModalVisible, setLeaveWishlistModalVisible] = useState(false);
-  const [successModalVisible, setSuccessModalVisible] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
   const [areFriendsWithOwner, setAreFriendsWithOwner] = useState<boolean | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const itemRefs = useRef<{ [key: string]: number }>({});
 
   // Check if current user is the owner of the wishlist
   // Only determine ownership when we have both wishlist and currentUser
@@ -232,6 +233,29 @@ export default function WishlistDetailScreen() {
     }
   }) : [];
 
+  // Scroll to item when itemId is provided
+  useEffect(() => {
+    if (scrollToItemId && items.length > 0 && scrollViewRef.current) {
+      const targetItem = items.find(item => item.id === scrollToItemId);
+      if (targetItem) {
+        // Switch to correct tab if needed
+        if (targetItem.status === "PURCHASED" && sortFilter !== "purchased") {
+          setSortFilter("purchased");
+        } else if (targetItem.status !== "PURCHASED" && sortFilter !== "wanted") {
+          setSortFilter("wanted");
+        }
+        
+        // Wait for layout and scroll to item
+        setTimeout(() => {
+          const itemY = itemRefs.current[scrollToItemId];
+          if (itemY !== undefined && scrollViewRef.current) {
+            scrollViewRef.current.scrollTo({ y: Math.max(0, itemY - 100), animated: true });
+          }
+        }, 500);
+      }
+    }
+  }, [scrollToItemId, items.length, sortFilter]);
+
   // Calculate stats - only count wanted items (not purchased)
   const wantedItems = items.filter((item) => item.status !== "PURCHASED");
   const activeWishes = wantedItems.length;
@@ -276,17 +300,12 @@ export default function WishlistDetailScreen() {
       // Show success modal based on the action
       if (newStatus === "WANTED") {
         // Moving from purchased to wanted
-        setSuccessMessage("Item restored to wanted list");
-        setSuccessModalVisible(true);
-        
         // Only switch to wanted tab if this was the last purchased item
         if (isLastPurchasedItem) {
           setSortFilter("wanted");
         }
       } else {
         // Moving from wanted to purchased
-        setSuccessMessage("Item marked as purchased");
-        setSuccessModalVisible(true);
       }
     } catch (error) {
       console.error("Error updating item status:", error);
@@ -320,8 +339,6 @@ export default function WishlistDetailScreen() {
         wishlistId: item.wishlistId,
       });
       // Show success modal
-      setSuccessMessage("Item marked as purchased");
-      setSuccessModalVisible(true);
     } catch (error) {
       console.error("Error marking item as purchased:", error);
       Alert.alert("Error", "Failed to mark item as purchased");
@@ -612,8 +629,6 @@ export default function WishlistDetailScreen() {
       }
       
       // Show success modal
-      setSuccessMessage("Item restored to wanted list");
-      setSuccessModalVisible(true);
     } catch (error) {
       console.error("Error restoring item:", error);
       Alert.alert("Error", "Failed to restore item");
@@ -1508,11 +1523,39 @@ export default function WishlistDetailScreen() {
         title={wishlist.title}
         backButton={true}
         onBack={() => {
-          // If we have ownerId param or we're viewing another user's wishlist, go to their profile
-          if (ownerIdParam || (isOwner === false && wishlist.ownerId)) {
+          // Handle navigation based on returnTo parameter (priority order)
+          if (returnTo === "reserved") {
+            // Came from reserved items section on friends page
+            router.push("/(tabs)/friends");
+            return;
+          }
+          if (returnTo === "wishlists") {
+            // Came from main wishlists page
+            router.push("/(tabs)/");
+            return;
+          }
+          if (returnTo === "profile" && ownerIdParam) {
+            // Came from a user's profile page - use the ownerId from the param
+            router.push(`/friends/${ownerIdParam}`);
+            return;
+          }
+          if (returnTo === "notifications") {
+            // Came from notifications page
+            router.push("/notifications");
+            return;
+          }
+          if (returnTo === "discover") {
+            // Came from discover page
+            router.push("/(tabs)/discover");
+            return;
+          }
+          // Fallback: If we have ownerId param or we're viewing another user's wishlist, go to their profile
+          // Only use this if returnTo is not set, to avoid going to wrong user's profile
+          if (!returnTo && (ownerIdParam || (isOwner === false && wishlist.ownerId))) {
             const ownerId = ownerIdParam || wishlist.ownerId;
             router.push(`/friends/${ownerId}`);
           } else {
+            // Default: go to main wishlists page
             router.push("/(tabs)/");
           }
         }}
@@ -1523,6 +1566,7 @@ export default function WishlistDetailScreen() {
 
       {/* Scrollable Content */}
       <ScrollView
+        ref={scrollViewRef}
         style={{ flex: 1 }}
         contentContainerStyle={{ 
           flexGrow: 1,
@@ -1704,7 +1748,14 @@ export default function WishlistDetailScreen() {
           ) : (
             <View style={styles.listContent}>
               {filteredItems.map((item, index) => (
-                <View key={item.id}>
+                <View 
+                  key={item.id}
+                  onLayout={(event) => {
+                    event.target.measureInWindow((_x, y) => {
+                      itemRefs.current[item.id] = y;
+                    });
+                  }}
+                >
                   {renderItem({ item, index })}
                 </View>
               ))}
@@ -1894,13 +1945,6 @@ export default function WishlistDetailScreen() {
       />
 
       {/* Success Modal */}
-      <SuccessModal
-        visible={successModalVisible}
-        onClose={() => setSuccessModalVisible(false)}
-        message={successMessage}
-        autoDismissDelay={1200}
-        showButton={false}
-      />
 
       {/* Delete confirmation only for wanted items - purchased items delete directly */}
       {sortFilter === "wanted" && (

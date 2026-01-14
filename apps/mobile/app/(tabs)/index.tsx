@@ -187,7 +187,7 @@ export default function WishlistsScreen() {
                 return (
                   <View key={item.id}>
                     <TouchableOpacity
-                      onPress={() => router.push(`/wishlist/${item.id}`)}
+                      onPress={() => router.push(`/wishlist/${item.id}?returnTo=wishlists`)}
                       activeOpacity={0.7}
                       style={styles.card}
                     >
@@ -261,7 +261,7 @@ export default function WishlistsScreen() {
                 return (
                   <View key={item.id}>
                     <TouchableOpacity
-                      onPress={() => router.push(`/wishlist/${item.id}`)}
+                      onPress={() => router.push(`/wishlist/${item.id}?returnTo=wishlists`)}
                       activeOpacity={0.7}
                       style={styles.card}
                     >

@@ -89,3 +89,45 @@ export interface Item {
   };
 }
 
+// Secret Santa Types
+export type SecretSantaStatus = "PENDING" | "DRAWN" | "IN_PROGRESS" | "COMPLETED";
+export type ParticipantStatus = "INVITED" | "ACCEPTED" | "DECLINED";
+
+export interface SecretSantaEvent {
+  id: string;
+  title: string;
+  organizerId: string;
+  wishlistId: string;
+  drawDate: string;
+  exchangeDate: string;
+  budget?: number;
+  currency: string;
+  status: SecretSantaStatus;
+  createdAt: string;
+  updatedAt: string;
+  organizer?: User;
+  wishlist?: Wishlist;
+  participants?: SecretSantaParticipant[];
+  assignments?: SecretSantaAssignment[];
+}
+
+export interface SecretSantaParticipant {
+  id: string;
+  eventId: string;
+  userId: string;
+  status: ParticipantStatus;
+  createdAt: string;
+  user?: User;
+}
+
+export interface SecretSantaAssignment {
+  id: string;
+  eventId: string;
+  giverId: string;
+  receiverId: string;
+  revealed: boolean;
+  createdAt: string;
+  giver?: User;
+  receiver?: User;
+}
+

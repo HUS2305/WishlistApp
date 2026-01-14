@@ -105,9 +105,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="discover"
         options={{
-          title: "Discover",
+          title: "Secret Santa",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="compass" size={size} color={color} />
+            <Feather name="gift" size={size} color={color} />
           ),
         }}
       />
