@@ -27,6 +27,7 @@ model User {
   language               String?
   timezone               String?
   birthday               DateTime?
+  pushToken              String?                // Expo push token for notifications
   affiliateClicks        AffiliateClick[]
   comments               Comment[]
   friendOf               Friendship[]           @relation("FriendOf")

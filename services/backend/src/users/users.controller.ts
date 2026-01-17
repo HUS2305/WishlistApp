@@ -1,12 +1,16 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, BadRequestException } from "@nestjs/common";
 import { UsersService } from "./users.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { GetUserId } from "../auth/get-user.decorator";
+import { PushService } from "../notifications/push.service";
 
 @Controller("users")
 @UseGuards(AuthGuard) // 🔒 All user endpoints require authentication
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly pushService: PushService
+  ) {}
 
   @Get("me")
   async getCurrentUser(@GetUserId() userId: string) {
@@ -44,6 +48,36 @@ export class UsersController {
   @Delete("me")
   async deleteCurrentUser(@GetUserId() userId: string) {
     return this.usersService.deleteByClerkId(userId);
+  }
+
+  @Post("me/push-token")
+  async registerPushToken(
+    @GetUserId() clerkUserId: string,
+    @Body() body: { pushToken: string }
+  ) {
+    if (!body.pushToken) {
+      throw new BadRequestException("Push token is required");
+    }
+    
+    // Get the user by clerk ID to get the database user ID
+    const user = await this.usersService.findByClerkId(clerkUserId);
+    if (!user) {
+      throw new BadRequestException("User not found");
+    }
+    
+    await this.pushService.registerPushToken(user.id, body.pushToken);
+    return { success: true };
+  }
+
+  @Delete("me/push-token")
+  async unregisterPushToken(@GetUserId() clerkUserId: string) {
+    const user = await this.usersService.findByClerkId(clerkUserId);
+    if (!user) {
+      throw new BadRequestException("User not found");
+    }
+    
+    await this.pushService.unregisterPushToken(user.id);
+    return { success: true };
   }
 
   @Get("search")

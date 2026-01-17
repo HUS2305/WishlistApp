@@ -1,11 +1,15 @@
 import { Injectable, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { PushService } from "../notifications/push.service";
 import { CreateWishlistDto } from "../common/dto/create-wishlist.dto";
 import { getDisplayName } from "../common/utils";
 
 @Injectable()
 export class WishlistsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private pushService: PushService
+  ) {}
 
   async findAll(clerkUserId: string, _query: any) {
     // Get or create user first
@@ -458,18 +462,33 @@ export class WishlistsService {
 
     // Create notification for invitation
     const ownerDisplayName = getDisplayName(user.firstName, user.lastName) || user.username || "Someone";
+    const notificationTitle = "Group Gift Invitation";
+    const notificationBody = `${ownerDisplayName} invited you to collaborate on "${wishlist.title}"`;
+    
     await this.prisma.notification.create({
       data: {
         userId: invitee.id,
         type: "WISHLIST_SHARED",
-        title: "Group Gift Invitation",
-        body: `${ownerDisplayName} invited you to collaborate on "${wishlist.title}"`,
+        title: notificationTitle,
+        body: notificationBody,
         data: {
           wishlistId,
           fromUserId: user.id,
           type: "COLLABORATOR_INVITATION",
         },
         read: false,
+      },
+    });
+
+    // Send push notification
+    await this.pushService.sendPushNotification({
+      userId: invitee.id,
+      title: notificationTitle,
+      body: notificationBody,
+      data: {
+        type: "WISHLIST_SHARED",
+        wishlistId,
+        fromUserId: user.id,
       },
     });
 

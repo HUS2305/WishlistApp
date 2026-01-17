@@ -13,6 +13,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 // Get the publishable key from environment variables
 // In Expo, environment variables are available at build time
@@ -56,6 +57,18 @@ function AppWithAuth() {
     Poppins_600SemiBold,
     Poppins_700Bold,
   });
+
+  // Initialize push notifications
+  const { expoPushToken, error: pushError } = usePushNotifications();
+
+  useEffect(() => {
+    if (expoPushToken) {
+      console.log("📱 Push notifications initialized with token");
+    }
+    if (pushError) {
+      console.warn("⚠️ Push notification error:", pushError);
+    }
+  }, [expoPushToken, pushError]);
 
   useEffect(() => {
     // Set timeout for Clerk initialization

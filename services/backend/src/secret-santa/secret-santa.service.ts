@@ -1,5 +1,6 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { PushService } from "../notifications/push.service";
 import { getDisplayName } from "../common/utils";
 
 interface CreateEventDto {
@@ -21,7 +22,10 @@ interface UpdateEventDto {
 
 @Injectable()
 export class SecretSantaService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private pushService: PushService
+  ) {}
 
   /**
    * Get all Secret Santa events where user is organizer or participant
@@ -189,6 +193,21 @@ export class SecretSantaService {
       return newEvent;
     });
 
+    // Send push notifications to all invited participants (after transaction)
+    const organizerDisplayName = getDisplayName(user.firstName, user.lastName) || user.username || "Someone";
+    for (const participantId of data.participantIds) {
+      await this.pushService.sendPushNotification({
+        userId: participantId,
+        title: "Secret Santa Invitation",
+        body: `${organizerDisplayName} invited you to join "${data.title}"`,
+        data: {
+          type: "SECRET_SANTA_INVITED",
+          eventId: event.id,
+          fromUserId: user.id,
+        },
+      });
+    }
+
     // Return the full event with includes
     return this.findById(clerkUserId, event.id);
   }
@@ -332,6 +351,19 @@ export class SecretSantaService {
       });
     });
 
+    // Send push notification (after transaction)
+    const inviterDisplayName = getDisplayName(user.firstName, user.lastName) || user.username || "Someone";
+    await this.pushService.sendPushNotification({
+      userId: inviteeUserId,
+      title: "Secret Santa Invitation",
+      body: `${inviterDisplayName} invited you to join "${event.title}"`,
+      data: {
+        type: "SECRET_SANTA_INVITED",
+        eventId,
+        fromUserId: user.id,
+      },
+    });
+
     return { message: "Invitation sent" };
   }
 
@@ -379,6 +411,9 @@ export class SecretSantaService {
         },
       });
     });
+
+    // Note: Not sending push for "accepted" as it's less critical
+    // Push notifications are reserved for important user-facing actions
 
     return { message: "Invitation accepted" };
   }
@@ -584,6 +619,18 @@ export class SecretSantaService {
         });
       }
     });
+
+    // Send push notifications to all participants (after transaction)
+    const participantUserIds = acceptedParticipants.map(p => p.userId);
+    await this.pushService.sendPushNotifications(
+      participantUserIds,
+      "Names Drawn! 🎄",
+      `Names have been drawn for "${event.title}". Check who you're buying for!`,
+      {
+        type: "SECRET_SANTA_DRAWN",
+        eventId,
+      }
+    );
 
     return { message: "Names drawn successfully" };
   }

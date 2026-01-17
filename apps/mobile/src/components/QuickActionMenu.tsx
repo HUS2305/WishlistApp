@@ -11,6 +11,7 @@ import {
 import { Text } from "./Text";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useTheme } from "@/contexts/ThemeContext";
 
 interface QuickActionMenuProps {
   visible: boolean;
@@ -29,6 +30,7 @@ interface ActionButton {
 }
 
 export function QuickActionMenu({ visible, onClose, onCreateWishlist, onAddItem, disableAddItem = false }: QuickActionMenuProps) {
+  const { theme } = useTheme();
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const scaleAnim = React.useRef(new Animated.Value(0.8)).current;
 
@@ -142,13 +144,13 @@ export function QuickActionMenu({ visible, onClose, onCreateWishlist, onAddItem,
                 <TouchableOpacity
                   onPress={action.onPress}
                   activeOpacity={0.8}
-                  style={[styles.actionButton, action.disabled && styles.actionButtonDisabled]}
+                  style={[styles.actionButton, { backgroundColor: theme.colors.surface }, action.disabled && styles.actionButtonDisabled]}
                   disabled={action.disabled}
                 >
                   <View style={[styles.iconContainer, { backgroundColor: action.disabled ? "#CCCCCC" : action.color }]}>
                     <Feather name={action.icon} size={24} color="#fff" />
                   </View>
-                  <Text style={[styles.actionLabel, action.disabled && styles.actionLabelDisabled]}>{action.label}</Text>
+                  <Text style={[styles.actionLabel, { color: theme.colors.textPrimary }, action.disabled && styles.actionLabelDisabled]}>{action.label}</Text>
                 </TouchableOpacity>
               </Animated.View>
             ))}
@@ -181,7 +183,6 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
     // Use boxShadow for web compatibility, shadow* props for native
@@ -205,13 +206,12 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     fontSize: 16,
-    color: "#333",
     flex: 1,
   },
   actionButtonDisabled: {
     opacity: 0.5,
   },
   actionLabelDisabled: {
-    color: "#999",
+    opacity: 0.6,
   },
 });

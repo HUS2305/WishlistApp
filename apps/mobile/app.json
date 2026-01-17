@@ -15,10 +15,22 @@
     "android": {
       "package": "com.wishlistapp.mobile"
     },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#C41E68",
+      "androidMode": "default",
+      "androidCollapsedTitle": "WishlistApp"
+    },
     "plugins": [
       "expo-dev-client",
       "expo-router",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#C41E68"
+        }
+      ],
       "@react-native-community/datetimepicker",
       "expo-secure-store",
       "expo-web-browser",
@@ -27,8 +39,10 @@
     "scheme": "wishlistapp",
     "extra": {
       "eas": {
-        "projectId": ""
-      }
-    }
+        "projectId": "e0041232-b612-43a3-b917-2a78c40c023b"
+      },
+      "router": {}
+    },
+    "owner": "huss0194"
   }
 }

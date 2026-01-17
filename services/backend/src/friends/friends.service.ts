@@ -1,10 +1,14 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { PushService } from "../notifications/push.service";
 import { getDisplayName } from "../common/utils";
 
 @Injectable()
 export class FriendsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private pushService: PushService
+  ) {}
 
   async findAll(clerkUserId: string) {
     const user = await this.getOrCreateUser(clerkUserId);
@@ -155,6 +159,19 @@ export class FriendsService {
           friendshipId: friendship.id,
         },
         read: false,
+      },
+    });
+
+    // Send push notification
+    console.log(`🔔 Attempting to send push notification to friend ${friend.id} for friend request from ${user.id}`);
+    await this.pushService.sendPushNotification({
+      userId: friend.id,
+      title: "New Friend Request",
+      body: `${senderDisplayName} sent you a friend request`,
+      data: {
+        type: "FRIEND_REQUEST",
+        fromUserId: user.id,
+        friendshipId: friendship.id,
       },
     });
 
