@@ -18,6 +18,7 @@ interface MembersSheetProps {
   currentUserId?: string;
   isOwner?: boolean;
   onOpenEditWishlist?: () => void;
+  hideManage?: boolean;
 }
 
 /**
@@ -39,6 +40,7 @@ export function MembersSheet({
   currentUserId,
   isOwner = false,
   onOpenEditWishlist,
+  hideManage = false,
 }: MembersSheetProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -65,7 +67,7 @@ export function MembersSheet({
         <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
           Members
         </Text>
-        {isOwner === true && (
+        {isOwner === true && !hideManage && (
           <TouchableOpacity
             onPress={handleManageFriends}
             activeOpacity={0.6}

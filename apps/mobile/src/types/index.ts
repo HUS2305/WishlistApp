@@ -109,6 +109,8 @@ export interface SecretSantaEvent {
   wishlist?: Wishlist;
   participants?: SecretSantaParticipant[];
   assignments?: SecretSantaAssignment[];
+  isOrganizer?: boolean;
+  myParticipantStatus?: ParticipantStatus;
 }
 
 export interface SecretSantaParticipant {

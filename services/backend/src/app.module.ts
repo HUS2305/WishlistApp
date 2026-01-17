@@ -12,6 +12,7 @@ import { FriendsModule } from "./friends/friends.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { AffiliateModule } from "./affiliate/affiliate.module";
 import { AdminModule } from "./admin/admin.module";
+import { SecretSantaModule } from "./secret-santa/secret-santa.module";
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { AdminModule } from "./admin/admin.module";
     NotificationsModule,
     AffiliateModule,
     AdminModule,
+    SecretSantaModule,
   ],
   providers: [
     {

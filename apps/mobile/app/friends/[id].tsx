@@ -50,7 +50,7 @@ export default function FriendProfileScreen() {
   const insets = useSafeAreaInsets();
   const cardBackgroundColor = theme.isDark ? '#2E2E2E' : '#D3D3D3';
   const { refreshPendingRequestsCount, refreshUnreadNotificationsCount } = useNotificationContext();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, returnTo, eventId } = useLocalSearchParams<{ id: string; returnTo?: string; eventId?: string }>();
   const { data: profileData, isLoading, refetch, isFetching: isRefreshing, error } = useUserProfile(id || "");
   const profile = profileData || null;
   const [menuVisible, setMenuVisible] = useState(false);
@@ -273,7 +273,13 @@ export default function FriendProfileScreen() {
       <StandardPageHeader
         title={displayName}
         backButton={true}
-        onBack={() => router.replace("/(tabs)/friends")}
+        onBack={() => {
+          if (returnTo === "secret-santa-event" && eventId) {
+            router.replace(`/secret-santa/${eventId}`);
+          } else {
+            router.replace("/(tabs)/friends");
+          }
+        }}
         rightActions={
           profile ? (
             <HeaderButtons

@@ -20,6 +20,12 @@ interface UpdateSecretSantaEventPayload {
 }
 
 export const secretSantaService = {
+  // Invitations
+  async getPendingInvitationsCount(): Promise<number> {
+    const response = await api.get("/secret-santa/invitations/pending/count");
+    return response.data.count;
+  },
+
   // Event operations
   async getEvents(): Promise<SecretSantaEvent[]> {
     const response = await api.get("/secret-santa/events");

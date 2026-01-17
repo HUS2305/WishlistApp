@@ -398,11 +398,16 @@ export class WishlistsService {
 
     const wishlist = await this.prisma.wishlist.findUnique({
       where: { id: wishlistId },
-      select: { ownerId: true, title: true },
+      select: { ownerId: true, title: true, secretSantaEvent: true },
     });
 
     if (!wishlist) {
       throw new NotFoundException("Wishlist not found");
+    }
+
+    // Check if wishlist is linked to a Secret Santa event
+    if (wishlist.secretSantaEvent) {
+      throw new ForbiddenException("Cannot modify members of a Secret Santa event wishlist. Manage participants through the event instead.");
     }
 
     // Only owner can invite collaborators
@@ -536,11 +541,16 @@ export class WishlistsService {
 
     const wishlist = await this.prisma.wishlist.findUnique({
       where: { id: wishlistId },
-      select: { ownerId: true, privacyLevel: true },
+      select: { ownerId: true, privacyLevel: true, secretSantaEvent: true },
     });
 
     if (!wishlist) {
       throw new NotFoundException("Wishlist not found");
+    }
+
+    // Check if wishlist is linked to a Secret Santa event
+    if (wishlist.secretSantaEvent) {
+      throw new ForbiddenException("Cannot modify members of a Secret Santa event wishlist. Manage participants through the event instead.");
     }
 
     // Only owner or the collaborator themselves can remove
@@ -586,11 +596,16 @@ export class WishlistsService {
 
     const wishlist = await this.prisma.wishlist.findUnique({
       where: { id: wishlistId },
-      select: { ownerId: true },
+      select: { ownerId: true, secretSantaEvent: true },
     });
 
     if (!wishlist) {
       throw new NotFoundException("Wishlist not found");
+    }
+
+    // Check if wishlist is linked to a Secret Santa event
+    if (wishlist.secretSantaEvent) {
+      throw new ForbiddenException("Cannot modify members of a Secret Santa event wishlist. Manage participants through the event instead.");
     }
 
     // Only owner can update roles

@@ -142,6 +142,11 @@ export default function NotificationsScreen() {
           // Navigate to specific item or wishlist
           console.log("Navigate to:", notification.data);
           break;
+        case "SECRET_SANTA_INVITED":
+          if (notification.data?.eventId) {
+            router.push(`/secret-santa/${notification.data.eventId}`);
+          }
+          break;
         default:
           console.log("Notification pressed:", notification);
       }

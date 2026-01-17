@@ -37,7 +37,7 @@ import { friendsService } from "@/services/friends";
 export default function WishlistDetailScreen() {
   const { theme } = useTheme();
   const { isLoaded: isAuthLoaded } = useAuth();
-  const { id, ownerId: ownerIdParam, itemId: itemIdParam, returnTo: returnToParam } = useLocalSearchParams<{ id: string; ownerId?: string; itemId?: string; returnTo?: string }>();
+  const { id, ownerId: ownerIdParam, itemId: itemIdParam, returnTo: returnToParam, eventId: eventIdParam } = useLocalSearchParams<{ id: string; ownerId?: string; itemId?: string; returnTo?: string; eventId?: string }>();
   const wishlistId = id as string;
   const scrollToItemId = itemIdParam as string | undefined;
   const returnTo = returnToParam as string | undefined;
@@ -1549,6 +1549,11 @@ export default function WishlistDetailScreen() {
             router.push("/(tabs)/discover");
             return;
           }
+          if (returnTo === "secret-santa-event" && eventIdParam) {
+            // Came from Secret Santa event details page
+            router.push(`/secret-santa/${eventIdParam}`);
+            return;
+          }
           // Fallback: If we have ownerId param or we're viewing another user's wishlist, go to their profile
           // Only use this if returnTo is not set, to avoid going to wrong user's profile
           if (!returnTo && (ownerIdParam || (isOwner === false && wishlist.ownerId))) {
@@ -1920,6 +1925,7 @@ export default function WishlistDetailScreen() {
         wishlist={wishlist}
         currentUserId={currentUser?.id}
         isOwner={isOwner === true}
+        hideManage={returnTo === "secret-santa-event" && !!eventIdParam}
         onOpenEditWishlist={() => {
           // Close members sheet first
           setCollaboratorsModalVisible(false);

@@ -10,7 +10,7 @@ import { Badge } from "./Badge";
 
 export function BottomMenuBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
   const { theme } = useTheme();
-  const { pendingRequestsCount } = useNotificationContext();
+  const { pendingRequestsCount, pendingSecretSantaInvitationsCount } = useNotificationContext();
 
   // Menu bar background: #0A0A0F for dark themes, white for light themes
   const menuBarBackground = theme.isDark ? "#121212" : "#FFFFFF";
@@ -63,9 +63,15 @@ export function BottomMenuBar({ state, descriptors, navigation, insets }: Bottom
               ? options.title
               : route.name;
 
-            // Check if this is the friends tab and should show a badge
+            // Check if this tab should show a badge
             const isFriendsTab = route.name === "friends";
-            const shouldShowBadge = isFriendsTab && pendingRequestsCount > 0;
+            const isSecretSantaTab = route.name === "discover";
+            const badgeCount = isFriendsTab 
+              ? pendingRequestsCount 
+              : isSecretSantaTab 
+                ? pendingSecretSantaInvitationsCount 
+                : 0;
+            const shouldShowBadge = badgeCount > 0;
 
             return (
               <TouchableOpacity
@@ -83,7 +89,7 @@ export function BottomMenuBar({ state, descriptors, navigation, insets }: Bottom
                       size: 24,
                     })}
                   {shouldShowBadge && (
-                    <Badge count={pendingRequestsCount} />
+                    <Badge count={badgeCount} />
                   )}
                 </View>
                 <Text

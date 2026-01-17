@@ -14,26 +14,25 @@ import {
 } from "@gorhom/bottom-sheet";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import { secretSantaService } from "@/services/secretSanta";
 import { useTheme } from "@/contexts/ThemeContext";
 import { BottomSheet } from "./BottomSheet";
 import { SelectFriendsSheet } from "./SelectFriendsSheet";
-import { friendsService } from "@/services/friends";
-import type { User as FriendUser } from "@/types";
-import { getDisplayName } from "@/lib/utils";
 import { useUserCurrency } from "@/hooks/useUserCurrency";
 import { getCurrencyByCode } from "@/utils/currencies";
+import { getDisplayName } from "@/lib/utils";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { SecretSantaEvent } from "@/types";
 
-interface CreateSecretSantaSheetProps {
+interface EditSecretSantaSheetProps {
   visible: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  event: SecretSantaEvent | null;
 }
 
-export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSecretSantaSheetProps) {
+export function EditSecretSantaSheet({ visible, onClose, onSuccess, event }: EditSecretSantaSheetProps) {
   const { theme } = useTheme();
   const { userCurrency } = useUserCurrency();
   const insets = useSafeAreaInsets();
@@ -44,53 +43,64 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
   const [drawDate, setDrawDate] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isTitleFocused, setIsTitleFocused] = useState(false);
-  const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
-  const [friends, setFriends] = useState<FriendUser[]>([]);
+  
+  // Participant management state
   const [showFriendSelectionModal, setShowFriendSelectionModal] = useState(false);
+  const [participantsToAdd, setParticipantsToAdd] = useState<Set<string>>(new Set());
+  const [participantsToRemove, setParticipantsToRemove] = useState<Set<string>>(new Set());
   
   // Date picker state
   const [showExchangeDatePicker, setShowExchangeDatePicker] = useState(false);
   const [showDrawDatePicker, setShowDrawDatePicker] = useState(false);
   
   // Get currency info for proper symbol display
-  const currencyInfo = getCurrencyByCode(userCurrency || "USD");
-
-  // Reset form when sheet opens/closes
-  React.useEffect(() => {
-    if (visible) {
-      loadFriends();
-      // Set default dates: exchange date = 30 days from now, draw date = 7 days before exchange
-      const defaultExchangeDate = new Date();
-      defaultExchangeDate.setDate(defaultExchangeDate.getDate() + 30);
-      const defaultDrawDate = new Date(defaultExchangeDate);
-      defaultDrawDate.setDate(defaultDrawDate.getDate() - 7);
-      setExchangeDate(defaultExchangeDate);
-      setDrawDate(defaultDrawDate);
-    } else {
-      // Reset form when closing
-      setTitle("");
-      setBudget("");
-      setSelectedFriends(new Set());
-    }
-  }, [visible]);
-
-  const loadFriends = async () => {
-    try {
-      const friendsData = await friendsService.getFriends();
-      setFriends(friendsData);
-    } catch (error) {
-      console.error("Error loading friends:", error);
-    }
-  };
+  const currencyInfo = getCurrencyByCode(event?.currency || userCurrency || "USD");
   
-  const handleCreate = async () => {
+  // Check if event is still in PENDING status (can modify participants)
+  const canModifyParticipants = event?.status === "PENDING";
+  
+  // Get current participants (excluding those marked for removal, plus those marked for addition)
+  const currentParticipantIds = React.useMemo(() => {
+    if (!event?.participants) return new Set<string>();
+    const ids = new Set(event.participants.map(p => p.userId));
+    // Remove those marked for removal
+    participantsToRemove.forEach(id => ids.delete(id));
+    // Add those marked for addition
+    participantsToAdd.forEach(id => ids.add(id));
+    return ids;
+  }, [event?.participants, participantsToRemove, participantsToAdd]);
+  
+  // Get participant display info
+  const displayParticipants = React.useMemo(() => {
+    if (!event?.participants) return [];
+    return event.participants
+      .filter(p => !participantsToRemove.has(p.userId))
+      .map(p => ({
+        id: p.userId,
+        displayName: getDisplayName(p.user?.firstName, p.user?.lastName) || p.user?.username || "Unknown",
+        isOrganizer: p.userId === event.organizerId,
+        status: p.status,
+      }));
+  }, [event?.participants, participantsToRemove, event?.organizerId]);
+
+  // Pre-fill form when sheet opens with event data
+  React.useEffect(() => {
+    if (visible && event) {
+      setTitle(event.title || "");
+      setBudget(event.budget ? String(event.budget) : "");
+      setExchangeDate(event.exchangeDate ? new Date(event.exchangeDate) : null);
+      setDrawDate(event.drawDate ? new Date(event.drawDate) : null);
+      // Reset participant changes
+      setParticipantsToAdd(new Set());
+      setParticipantsToRemove(new Set());
+    }
+  }, [visible, event]);
+
+  const handleSave = async () => {
+    if (!event) return;
+    
     if (!title.trim()) {
       Alert.alert("Error", "Please enter an event title");
-      return;
-    }
-
-    if (selectedFriends.size === 0) {
-      Alert.alert("Error", "Please select at least one participant");
       return;
     }
 
@@ -104,31 +114,49 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
       return;
     }
 
-    console.log("🎯 Creating Secret Santa event:", {
+    console.log("🎯 Updating Secret Santa event:", {
+      id: event.id,
       title: title.trim(),
       budget: budget ? parseFloat(budget) : undefined,
       exchangeDate: exchangeDate.toISOString(),
       drawDate: drawDate.toISOString(),
-      participantIds: Array.from(selectedFriends),
+      participantsToAdd: Array.from(participantsToAdd),
+      participantsToRemove: Array.from(participantsToRemove),
     });
 
     setIsLoading(true);
     try {
-      const event = await secretSantaService.createEvent({
+      // Update event details
+      await secretSantaService.updateEvent({
+        id: event.id,
         title: title.trim(),
         budget: budget ? parseFloat(budget) : undefined,
-        currency: userCurrency || "USD",
         exchangeDate: exchangeDate.toISOString(),
         drawDate: drawDate.toISOString(),
-        participantIds: Array.from(selectedFriends),
       });
 
-      console.log("✅ Secret Santa event created successfully:", event);
-      
-      // Reset form
-      setTitle("");
-      setBudget("");
-      setSelectedFriends(new Set());
+      // Handle participant changes (only if event is PENDING)
+      if (canModifyParticipants) {
+        // Remove participants
+        for (const userId of participantsToRemove) {
+          try {
+            await secretSantaService.removeParticipant(event.id, userId);
+          } catch (error) {
+            console.error("Error removing participant:", error);
+          }
+        }
+        
+        // Invite new participants
+        for (const userId of participantsToAdd) {
+          try {
+            await secretSantaService.inviteParticipant(event.id, userId);
+          } catch (error) {
+            console.error("Error inviting participant:", error);
+          }
+        }
+      }
+
+      console.log("✅ Secret Santa event updated successfully");
       
       // Close the sheet first
       onClose();
@@ -137,18 +165,12 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
       if (onSuccess) {
         onSuccess();
       }
-      
-      // Small delay to allow sheet to close
-      setTimeout(() => {
-        // Navigate to Secret Santa tab to see the new event
-        router.push("/(tabs)/discover");
-      }, 300);
     } catch (error: any) {
-      console.error("❌ Error creating Secret Santa event:", error);
+      console.error("❌ Error updating Secret Santa event:", error);
       
       const errorMessage = error.response?.data?.message 
         || error.message 
-        || "Failed to create Secret Santa event. Check console for details.";
+        || "Failed to update Secret Santa event. Check console for details.";
       
       Alert.alert("Error", errorMessage);
     } finally {
@@ -157,25 +179,48 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
   };
 
   const handleClose = () => {
-    // Reset form when closing
-    setTitle("");
-    setBudget("");
-    setSelectedFriends(new Set());
     onClose();
   };
 
   const handleFriendSelection = (selectedFriendIds: Set<string>) => {
-    setSelectedFriends(selectedFriendIds);
+    if (!event?.participants) return;
+    
+    const existingParticipantIds = new Set(event.participants.map(p => p.userId));
+    
+    // Ensure organizer is always in the selection (they can't be removed)
+    const finalSelection = new Set(selectedFriendIds);
+    finalSelection.add(event.organizerId);
+    
+    // Find new participants to add (in selection but not in existing)
+    const newToAdd = new Set<string>();
+    finalSelection.forEach(id => {
+      if (!existingParticipantIds.has(id)) {
+        newToAdd.add(id);
+      }
+    });
+    
+    // Find participants to remove (in existing but not in selection, excluding organizer)
+    const newToRemove = new Set<string>();
+    existingParticipantIds.forEach(id => {
+      if (!finalSelection.has(id) && id !== event.organizerId) {
+        newToRemove.add(id);
+      }
+    });
+    
+    setParticipantsToAdd(newToAdd);
+    setParticipantsToRemove(newToRemove);
   };
 
-  const toggleFriendSelection = (friendId: string) => {
-    const newSelection = new Set(selectedFriends);
-    if (newSelection.has(friendId)) {
-      newSelection.delete(friendId);
+  const toggleParticipantRemoval = (userId: string) => {
+    if (!event || userId === event.organizerId) return; // Can't remove organizer
+    
+    const newToRemove = new Set(participantsToRemove);
+    if (newToRemove.has(userId)) {
+      newToRemove.delete(userId);
     } else {
-      newSelection.add(friendId);
+      newToRemove.add(userId);
     }
-    setSelectedFriends(newSelection);
+    setParticipantsToRemove(newToRemove);
   };
 
   const formatDate = (date: Date | null): string => {
@@ -187,20 +232,22 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
     });
   };
 
+  if (!event) return null;
+
   return (
     <>
-      {/* Friend Selection Sheet */}
+      {/* Friend Selection Sheet for adding participants */}
       <SelectFriendsSheet
         visible={showFriendSelectionModal}
         onClose={() => setShowFriendSelectionModal(false)}
         onConfirm={handleFriendSelection}
-        initialSelection={selectedFriends}
+        initialSelection={currentParticipantIds}
       />
 
       <BottomSheet 
         visible={visible} 
         onClose={handleClose} 
-        snapPoints={['90%']}
+        snapPoints={['85%']}
         index={0}
         stackBehavior="switch"
         keyboardBehavior="extend"
@@ -209,18 +256,18 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]}>
-            Create Secret Santa
+            Edit Event
           </Text>
           <TouchableOpacity
-            onPress={handleCreate}
-            disabled={isLoading || !title.trim() || selectedFriends.size === 0}
+            onPress={handleSave}
+            disabled={isLoading || !title.trim()}
             activeOpacity={0.6}
             style={styles.headerButton}
           >
             {isLoading ? (
               <ActivityIndicator 
                 size="small" 
-                color={(!title.trim() || selectedFriends.size === 0 || isLoading)
+                color={(!title.trim() || isLoading)
                   ? theme.colors.textSecondary
                   : theme.colors.primary} 
               />
@@ -228,12 +275,12 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
               <Text style={[
                 styles.headerButtonText,
                 {
-                  color: (!title.trim() || selectedFriends.size === 0 || isLoading)
+                  color: (!title.trim() || isLoading)
                     ? theme.colors.textSecondary
                     : theme.colors.primary,
                 }
               ]}>
-                Create
+                Save
               </Text>
             )}
           </TouchableOpacity>
@@ -285,7 +332,6 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
               onChangeText={setTitle}
               onFocus={() => setIsTitleFocused(true)}
               onBlur={() => setIsTitleFocused(false)}
-              autoFocus
             />
           </View>
 
@@ -355,7 +401,7 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
                 borderColor: theme.colors.textSecondary + '20',
               }]}>
                 <Text style={[styles.currencySymbol, { color: theme.colors.textPrimary }]}>
-                  {currencyInfo?.symbol || userCurrency || "$"}
+                  {currencyInfo?.symbol || event?.currency || "$"}
                 </Text>
                 <BottomSheetTextInput
                   style={[
@@ -385,51 +431,58 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
           <View style={styles.section}>
             <View style={styles.sectionContent}>
               <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-                Participants
+                Participants ({currentParticipantIds.size})
               </Text>
               
-              {/* Selected Friends Chips */}
-              {selectedFriends.size > 0 && (
-                <View style={styles.selectedFriendsContainer}>
-                  {friends
-                    .filter(friend => selectedFriends.has(friend.id))
-                    .map((friend) => {
-                      const displayName = getDisplayName(friend.firstName, friend.lastName) || friend.username || friend.email;
-                      return (
-                        <View key={friend.id} style={[styles.friendChip, {
-                          backgroundColor: theme.isDark ? theme.colors.primary + '20' : theme.colors.primary + '15',
-                        }]}>
-                          <View style={[styles.chipAvatar, { backgroundColor: theme.colors.primary + '30' }]}>
-                            <Text style={[styles.chipAvatarText, { color: theme.colors.primary }]}>
-                              {displayName[0]?.toUpperCase() || "?"}
-                            </Text>
-                          </View>
-                          <Text style={[styles.chipText, { color: theme.colors.textPrimary }]} numberOfLines={1}>
-                            {displayName}
-                          </Text>
-                          <TouchableOpacity
-                            onPress={() => toggleFriendSelection(friend.id)}
-                            hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-                          >
-                            <Feather name="x" size={14} color={theme.colors.textSecondary} />
-                          </TouchableOpacity>
-                        </View>
-                      );
-                    })}
+              {/* Current Participants */}
+              {displayParticipants.length > 0 && (
+                <View style={styles.participantsContainer}>
+                  {displayParticipants.map((participant) => (
+                    <View key={participant.id} style={[styles.participantChip, {
+                      backgroundColor: theme.isDark ? theme.colors.primary + '20' : theme.colors.primary + '15',
+                    }]}>
+                      <View style={[styles.chipAvatar, { backgroundColor: theme.colors.primary + '30' }]}>
+                        <Text style={[styles.chipAvatarText, { color: theme.colors.primary }]}>
+                          {participant.displayName[0]?.toUpperCase() || "?"}
+                        </Text>
+                      </View>
+                      <Text style={[styles.chipText, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+                        {participant.displayName}
+                        {participant.isOrganizer && " (You)"}
+                      </Text>
+                      {!participant.isOrganizer && canModifyParticipants && (
+                        <TouchableOpacity
+                          onPress={() => toggleParticipantRemoval(participant.id)}
+                          hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+                        >
+                          <Feather name="x" size={14} color={theme.colors.textSecondary} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
                 </View>
               )}
 
-              {/* Add/Manage Friends Button */}
-              <TouchableOpacity
-                style={styles.addPersonButton}
-                onPress={() => setShowFriendSelectionModal(true)}
-                disabled={isLoading}
-              >
-                <Feather name={selectedFriends.size > 0 ? "edit-2" : "plus"} size={16} color={theme.colors.primary} />
-                <Text style={[styles.addPersonText, { color: theme.colors.primary }]}>
-                  {selectedFriends.size > 0 ? `Manage participants (${selectedFriends.size})` : `Add participants`}
-                </Text>
-              </TouchableOpacity>
+              {/* Add/Manage Participants Button - Only when PENDING */}
+              {canModifyParticipants ? (
+                <TouchableOpacity
+                  style={styles.addParticipantButton}
+                  onPress={() => setShowFriendSelectionModal(true)}
+                  disabled={isLoading}
+                >
+                  <Feather name="user-plus" size={16} color={theme.colors.primary} />
+                  <Text style={[styles.addParticipantText, { color: theme.colors.primary }]}>
+                    Manage participants
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.infoBox, { backgroundColor: theme.colors.primary + '10' }]}>
+                  <Feather name="info" size={16} color={theme.colors.primary} />
+                  <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
+                    Participants cannot be changed after names have been drawn.
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -465,17 +518,17 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
                 value={exchangeDate || new Date()}
                 mode="date"
                 display="spinner"
-                onChange={(event, selectedDate) => {
+                onChange={(pickerEvent, selectedDate) => {
                   if (selectedDate) {
                     setExchangeDate(selectedDate);
-                    // If draw date is not set or is after exchange date, adjust it
-                    if (!drawDate || drawDate >= selectedDate) {
+                    // If draw date is after exchange date, adjust it
+                    if (drawDate && drawDate >= selectedDate) {
                       const newDrawDate = new Date(selectedDate);
                       newDrawDate.setDate(newDrawDate.getDate() - 7);
                       setDrawDate(newDrawDate);
                     }
                   }
-                  if (event?.type === "dismissed") {
+                  if (pickerEvent?.type === "dismissed") {
                     setShowExchangeDatePicker(false);
                   }
                 }}
@@ -492,11 +545,11 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
             value={exchangeDate || new Date()}
             mode="date"
             display="default"
-            onChange={(event, selectedDate) => {
+            onChange={(pickerEvent, selectedDate) => {
               setShowExchangeDatePicker(false);
               if (selectedDate) {
                 setExchangeDate(selectedDate);
-                if (!drawDate || drawDate >= selectedDate) {
+                if (drawDate && drawDate >= selectedDate) {
                   const newDrawDate = new Date(selectedDate);
                   newDrawDate.setDate(newDrawDate.getDate() - 7);
                   setDrawDate(newDrawDate);
@@ -538,11 +591,11 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
                 value={drawDate || new Date()}
                 mode="date"
                 display="spinner"
-                onChange={(event, selectedDate) => {
+                onChange={(pickerEvent, selectedDate) => {
                   if (selectedDate) {
                     setDrawDate(selectedDate);
                   }
-                  if (event?.type === "dismissed") {
+                  if (pickerEvent?.type === "dismissed") {
                     setShowDrawDatePicker(false);
                   }
                 }}
@@ -560,7 +613,7 @@ export function CreateSecretSantaSheet({ visible, onClose, onSuccess }: CreateSe
             value={drawDate || new Date()}
             mode="date"
             display="default"
-            onChange={(event, selectedDate) => {
+            onChange={(pickerEvent, selectedDate) => {
               setShowDrawDatePicker(false);
               if (selectedDate) {
                 setDrawDate(selectedDate);
@@ -610,7 +663,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 0,
+    paddingBottom: 40,
   },
   imageContainer: {
     alignItems: "center",
@@ -712,6 +765,60 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: "center",
   },
+  infoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 10,
+    gap: 10,
+  },
+  infoText: {
+    fontSize: 13,
+    flex: 1,
+  },
+  participantsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 12,
+  },
+  participantChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 5,
+    maxWidth: "100%",
+  },
+  chipAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chipAvatarText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: "500",
+    flexShrink: 1,
+  },
+  addParticipantButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 0,
+  },
+  addParticipantText: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 6,
+  },
   // Date picker styles
   datePickerContainer: {
     paddingTop: 8,
@@ -746,48 +853,5 @@ const styles = StyleSheet.create({
   datePicker: {
     width: "100%",
     height: 200,
-  },
-  selectedFriendsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 12,
-  },
-  friendChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 5,
-    maxWidth: "100%",
-  },
-  chipAvatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chipAvatarText: {
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  chipText: {
-    fontSize: 13,
-    fontWeight: "500",
-    flexShrink: 1,
-  },
-  addPersonButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 0,
-  },
-  addPersonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: 6,
   },
 });
