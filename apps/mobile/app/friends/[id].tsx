@@ -33,6 +33,7 @@ interface UserProfile {
     coverImage?: string | null;
     activeWishes: number;
     totalPrice: number;
+    currency: string;
     createdAt: string;
     updatedAt: string;
   }>;
@@ -444,7 +445,7 @@ export default function FriendProfileScreen() {
             {sortedWishlists.length > 0 ? (
             sortedWishlists.map((wishlist, index) => {
               const privacyInfo = getPrivacyInfo((wishlist as any).privacyLevel);
-              const currency = (wishlist as any).currency || "USD";
+              const currency = wishlist.currency || "USD";
               
               return (
                 <View key={wishlist.id}>

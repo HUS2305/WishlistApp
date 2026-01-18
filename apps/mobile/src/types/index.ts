@@ -47,6 +47,7 @@ export interface Wishlist {
   items?: Item[];
   collaborators?: Collaborator[];
   owner?: User;
+  secretSantaEvent?: { id: string } | null; // Present if wishlist is linked to a Secret Santa event
 }
 
 export interface Item {

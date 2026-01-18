@@ -345,10 +345,13 @@ export class UsersService {
       },
       wishlists: wishlists.map((w) => {
         const items = w.items || [];
+        // Get currency from first item, or default to target user's currency, or USD
+        const currency = items.length > 0 ? items[0].currency : (targetUser.currency || "USD");
         return {
           ...w,
           activeWishes: items.length,
           totalPrice: items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0),
+          currency, // Include currency for proper conversion on frontend
           createdAt: w.createdAt.toISOString(),
           updatedAt: w.updatedAt.toISOString(),
         };

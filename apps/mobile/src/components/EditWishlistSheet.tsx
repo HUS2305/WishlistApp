@@ -359,7 +359,8 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoO
             </View>
             )}
 
-            {/* Share With Section */}
+            {/* Share With Section - Hidden for Secret Santa wishlists */}
+            {!wishlist?.secretSantaEvent && (
             <View style={styles.section}>
               <View style={styles.sectionContent}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
@@ -413,6 +414,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoO
                 </TouchableOpacity>
               </View>
             </View>
+            )}
 
             {/* Allow Reservations */}
             <View style={styles.section}>

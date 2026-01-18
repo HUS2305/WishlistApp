@@ -36,10 +36,10 @@ const languageOptions = [
   { value: "ar", label: "Arabic" },
 ];
 
-// Get comprehensive currency list
+// Get comprehensive currency list with flags
 const currencyOptions = getCurrencyOptions().map(opt => ({
   value: opt.value,
-  label: opt.label,
+  label: opt.labelWithFlag,
 }));
 
 const STEPS = ["Personal Info", "Theme"];

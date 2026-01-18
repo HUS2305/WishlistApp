@@ -267,9 +267,17 @@ export class SecretSantaService {
       throw new ForbiddenException("Only the organizer can delete this event");
     }
 
-    // Delete will cascade to participants, assignments, and wishlist
+    // Get wishlist ID before deleting event
+    const wishlistId = event.wishlistId;
+
+    // Delete event first (cascades to participants and assignments)
     await this.prisma.secretSantaEvent.delete({
       where: { id: eventId },
+    });
+
+    // Then delete the associated wishlist (cascade is Wishlist→Event, not Event→Wishlist)
+    await this.prisma.wishlist.delete({
+      where: { id: wishlistId },
     });
 
     return { message: "Event deleted successfully" };

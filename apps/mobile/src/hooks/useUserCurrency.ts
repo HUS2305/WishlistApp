@@ -10,7 +10,7 @@ import api from '@/services/api';
 export const useUserCurrency = () => {
   const { isSignedIn, isLoaded } = useAuth();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['user', 'currency'],
     queryFn: async () => {
       const response = await api.get('/users/me');
@@ -26,6 +26,6 @@ export const useUserCurrency = () => {
   // Return USD as default if loading, error, or no data
   const userCurrency = data || 'USD';
 
-  return { userCurrency, isLoading };
+  return { userCurrency, isLoading, refetch };
 };
 

@@ -45,6 +45,9 @@ export class WishlistsService {
             },
           },
         },
+        secretSantaEvent: {
+          select: { id: true },
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -83,6 +86,9 @@ export class WishlistsService {
               },
             },
           },
+        },
+        secretSantaEvent: {
+          select: { id: true },
         },
       },
       orderBy: {
@@ -154,6 +160,9 @@ export class WishlistsService {
               },
             },
           },
+        },
+        secretSantaEvent: {
+          select: { id: true },
         },
       },
     });
