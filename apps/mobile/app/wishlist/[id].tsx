@@ -11,6 +11,7 @@ import {
   Linking,
   RefreshControl,
   Dimensions,
+  Image,
 } from "react-native";
 import { Text } from "@/components/Text";
 import { router, useLocalSearchParams } from "expo-router";
@@ -747,14 +748,13 @@ export default function WishlistDetailScreen() {
                     borderColor: itemIsReserved 
                       ? theme.colors.textSecondary + '20' 
                       : theme.colors.textSecondary + '40',
+                    overflow: 'hidden',
                   }]}>
                     {hasImage ? (
-                      <Feather 
-                        name="image" 
-                        size={24} 
-                        color={itemIsReserved 
-                          ? theme.colors.textSecondary + '80' 
-                          : theme.colors.textSecondary} 
+                      <Image 
+                        source={{ uri: item.imageUrl! }} 
+                        style={{ width: 70, height: 70, opacity: itemIsReserved ? 0.5 : 1 }}
+                        resizeMode="cover"
                       />
                     ) : (
                       <Feather 
@@ -1056,15 +1056,13 @@ export default function WishlistDetailScreen() {
                   borderColor: itemIsReserved 
                     ? theme.colors.textSecondary + '20' 
                     : theme.colors.textSecondary + '40',
+                  overflow: 'hidden',
                 }]}>
                   {hasImage ? (
-                    // TODO: Display actual image when imageUrl is available
-                    <Feather 
-                      name="image" 
-                      size={32} 
-                      color={itemIsReserved 
-                        ? theme.colors.textSecondary + '80' 
-                        : theme.colors.textSecondary} 
+                    <Image 
+                      source={{ uri: item.imageUrl! }} 
+                      style={{ width: 70, height: 70, opacity: itemIsReserved ? 0.5 : 1 }}
+                      resizeMode="cover"
                     />
                   ) : (
                     <Feather 

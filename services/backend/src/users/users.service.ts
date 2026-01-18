@@ -247,6 +247,9 @@ export class UsersService {
           isSentByMe = pending.userId === requestingUser.id;
         }
 
+        // Debug: Log avatar field for search results
+        console.log(`🔍 Backend search: user ${user.username} avatar = ${user.avatar || 'NULL'}`);
+
         return {
           ...user,
           displayName: getDisplayName(user.firstName, user.lastName),

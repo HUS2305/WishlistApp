@@ -1,4 +1,4 @@
-import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Platform } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Platform, Image } from "react-native";
 import { Text } from "@/components/Text";
 import { router, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -136,9 +136,13 @@ export default function AllBirthdaysScreen() {
                       </View>
                       
                       {/* Small Avatar */}
-                      <View style={[styles.birthdayAvatarSmall, { backgroundColor: theme.colors.primary }]}>
+                      <View style={[styles.birthdayAvatarSmall, { backgroundColor: theme.colors.primary, overflow: 'hidden' }]}>
                         {birthday.friend.avatar ? (
-                          <Text style={styles.birthdayAvatarTextSmall}>🖼️</Text>
+                          <Image 
+                            source={{ uri: birthday.friend.avatar }} 
+                            style={{ width: 32, height: 32 }}
+                            resizeMode="cover"
+                          />
                         ) : (
                           <Text style={styles.birthdayAvatarTextSmall}>
                             {(getDisplayName(birthday.friend) || birthday.friend.username?.[0] || "?").toUpperCase()}

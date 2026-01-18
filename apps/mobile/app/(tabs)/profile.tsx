@@ -1,4 +1,4 @@
-import { View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Image, Alert } from "react-native";
 import { Text } from "@/components/Text";
 import { useUser, useAuth } from "@clerk/clerk-expo";
 import { Feather } from "@expo/vector-icons";
@@ -12,6 +12,9 @@ import { IdentityVerificationModal } from "@/components/IdentityVerificationModa
 import { EditProfileSheet } from "@/components/EditProfileSheet";
 import { ChangeEmailSheet } from "@/components/ChangeEmailSheet";
 import { ChangePasswordSheet } from "@/components/ChangePasswordSheet";
+import * as ImagePicker from "expo-image-picker";
+import { uploadAvatar } from "@/services/imageUpload";
+import api from "@/services/api";
 
 export default function ProfileScreen() {
   const { theme } = useTheme();
@@ -24,6 +27,81 @@ export default function ProfileScreen() {
   const [changePasswordVisible, setChangePasswordVisible] = useState(false);
   const [identityVerifyForEmailChange, setIdentityVerifyForEmailChange] = useState(false);
   const [identityVerifyForPasswordChange, setIdentityVerifyForPasswordChange] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permission needed", "Please grant photo library permissions to change your avatar");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadAndSaveAvatar(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image");
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permission needed", "Please grant camera permissions to take a photo");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadAndSaveAvatar(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo");
+    }
+  };
+
+  const uploadAndSaveAvatar = async (uri: string) => {
+    setIsUploadingAvatar(true);
+    try {
+      const uploadedUrl = await uploadAvatar(uri);
+      await api.patch("/users/me", { avatar: uploadedUrl });
+      await refetchUserProfile();
+      Alert.alert("Success", "Profile photo updated!");
+    } catch (error) {
+      console.error("Error uploading avatar:", error);
+      Alert.alert("Error", "Failed to upload profile photo. Please try again.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const showImageOptions = () => {
+    Alert.alert(
+      "Change Profile Photo",
+      "Choose an option",
+      [
+        { text: "Take Photo", onPress: handleTakePhoto },
+        { text: "Choose from Library", onPress: handlePickImage },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
+  };
 
   // If user signed out, redirect immediately (only after Clerk is loaded)
   useEffect(() => {
@@ -95,11 +173,28 @@ export default function ProfileScreen() {
         }
       >
         <View style={styles.profileInfo}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {avatarInitialUpper}
-            </Text>
-          </View>
+          <TouchableOpacity 
+            style={styles.avatarContainer} 
+            onPress={showImageOptions}
+            disabled={isUploadingAvatar}
+          >
+            {userProfile?.avatar ? (
+              <Image source={{ uri: userProfile.avatar }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatarPlaceholder, { backgroundColor: "#fff" }]}>
+                <Text style={styles.avatarText}>
+                  {avatarInitialUpper}
+                </Text>
+              </View>
+            )}
+            <View style={[styles.cameraButton, { backgroundColor: theme.colors.primary }]}>
+              {isUploadingAvatar ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Feather name="camera" size={16} color="#fff" />
+              )}
+            </View>
+          </TouchableOpacity>
           <Text style={[styles.userName, { color: theme.colors.textPrimary }]}>
             {displayName || "User"}
           </Text>
@@ -249,19 +344,40 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 24,
   },
+  avatarContainer: {
+    position: "relative",
+    width: 80,
+    height: 80,
+    marginBottom: 12,
+  },
   avatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#fff",
+  },
+  avatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
   },
   avatarText: {
     fontSize: 32,
     fontWeight: "bold",
     color: "#4A90E2",
+  },
+  cameraButton: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
   userName: {
     fontSize: 20,

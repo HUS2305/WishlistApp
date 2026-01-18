@@ -1,4 +1,4 @@
-import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList, Platform } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList, Platform, Image } from "react-native";
 import { Text } from "@/components/Text";
 import { router, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -352,9 +352,13 @@ export default function AllFriendsScreen() {
                     style={styles.friendRow}
                   >
                     <View style={styles.friendInfo}>
-                      <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
+                      <View style={[styles.avatar, { backgroundColor: theme.colors.primary, overflow: 'hidden' }]}>
                         {friend.avatar ? (
-                          <Text style={styles.avatarText}>🖼️</Text>
+                          <Image 
+                            source={{ uri: friend.avatar }} 
+                            style={{ width: 48, height: 48 }}
+                            resizeMode="cover"
+                          />
                         ) : (
                           <Text style={styles.avatarText}>
                             {(getDisplayName(friend)?.[0] || friend.username?.[0] || "?").toUpperCase()}

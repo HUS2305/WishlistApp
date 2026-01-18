@@ -1,4 +1,4 @@
-import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList, Animated, Platform, Linking } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Alert, TextInput, FlatList, Animated, Platform, Linking, Image } from "react-native";
 import { Text } from "@/components/Text";
 import { router, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -1169,9 +1169,13 @@ export default function FriendsScreen() {
                               activeOpacity={0.7}
                             >
                               {/* Item Image */}
-                              <View style={[styles.reservedItemImage, { backgroundColor: theme.colors.textSecondary + '10' }]}>
+                              <View style={[styles.reservedItemImage, { backgroundColor: theme.colors.textSecondary + '10', overflow: 'hidden' }]}>
                                 {item.imageUrl ? (
-                                  <Text style={styles.reservedItemImageText}>🖼️</Text>
+                                  <Image 
+                                    source={{ uri: item.imageUrl }} 
+                                    style={{ width: '100%', height: '100%' }}
+                                    resizeMode="cover"
+                                  />
                                 ) : (
                                   <Feather name="gift" size={24} color={theme.colors.textSecondary} />
                                 )}
@@ -1381,9 +1385,13 @@ export default function FriendsScreen() {
                 style={styles.friendRow}
               >
                 <View style={styles.friendInfo}>
-                  <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
+                  <View style={[styles.avatar, { backgroundColor: theme.colors.primary, overflow: 'hidden' }]}>
                     {friend.avatar ? (
-                      <Text style={styles.avatarText}>🖼️</Text>
+                      <Image 
+                        source={{ uri: friend.avatar }} 
+                        style={{ width: 40, height: 40 }}
+                        resizeMode="cover"
+                      />
                     ) : (
                       <Text style={styles.avatarText}>
                         {(getDisplayName(friend)?.[0] || friend.username?.[0] || "?").toUpperCase()}

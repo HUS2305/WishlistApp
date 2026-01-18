@@ -1,4 +1,4 @@
-import { View, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
+import { View, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Image, Alert } from "react-native";
 import { Text } from "@/components/Text";
 import { useState, useEffect } from "react";
 import { router } from "expo-router";
@@ -16,6 +16,8 @@ import { ThemedSwitch } from "@/components/ThemedSwitch";
 import { getCurrencyOptions } from "@/utils/currencies";
 import { BottomSheetFlatList, BottomSheetTextInput } from "@gorhom/bottom-sheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
+import { uploadAvatar } from "@/services/imageUpload";
 
 const sexOptions = [
   { value: "male", label: "Male" },
@@ -55,10 +57,70 @@ export default function CreateProfileScreen() {
 
   // Form data
   const [username, setUsername] = useState("");
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [birthdate, setBirthdate] = useState(new Date(2000, 0, 1));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [sex, setSex] = useState<string | null>(null);
   const [showSexPicker, setShowSexPicker] = useState(false);
+
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permission needed", "Please grant photo library permissions to set your profile picture");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setAvatarUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image");
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permission needed", "Please grant camera permissions to take a photo");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setAvatarUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo");
+    }
+  };
+
+  const showImageOptions = () => {
+    Alert.alert(
+      "Profile Photo",
+      "Choose an option",
+      [
+        { text: "Take Photo", onPress: handleTakePhoto },
+        { text: "Choose from Library", onPress: handlePickImage },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
+  };
   
   // Preferences (now part of step 1)
   const [language, setLanguage] = useState<string>("en");
@@ -223,12 +285,23 @@ export default function CreateProfileScreen() {
       const day = String(birthdate.getDate()).padStart(2, '0');
       const birthdayISO = `${year}-${month}-${day}`;
 
+      // Upload avatar if user selected one
+      let uploadedAvatarUrl: string | null = null;
+      if (avatarUri) {
+        try {
+          uploadedAvatarUrl = await uploadAvatar(avatarUri);
+        } catch (uploadError) {
+          console.error("Avatar upload failed:", uploadError);
+          // Continue without avatar - don't block profile creation
+        }
+      }
+
       await api.post("/users/me", {
         username: username.trim(),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: primaryEmail,
-        avatar: user?.imageUrl || null,
+        avatar: uploadedAvatarUrl || user?.imageUrl || null,
         theme: selectedTheme, // Save the selected theme to database
         language: language, // Save language preference
         currency: currency, // Save currency preference
@@ -249,24 +322,47 @@ export default function CreateProfileScreen() {
 
   const renderStep1 = () => (
     <View style={styles.stepContent}>
-      <HeroInput
-        label="Username"
-        placeholder="Choose a username (e.g., john_doe)"
-        value={username}
-        onChangeText={(text) => {
-          setUsername(text.replace(/[^a-zA-Z0-9_-]/g, ''));
-          setUsernameError("");
-        }}
-        autoCapitalize="none"
-        autoCorrect={false}
-        maxLength={20}
-        isRequired
-        isInvalid={!!usernameError}
-        errorMessage={usernameError}
-        description="Username can only contain letters, numbers, underscores, and hyphens (3-20 characters)"
-        labelPlacement="outside-top"
-        backgroundColor={theme.colors.surface}
-      />
+      {/* Avatar + Username Row */}
+      <View style={styles.avatarUsernameRow}>
+        {/* Avatar Picker */}
+        <TouchableOpacity 
+          style={styles.avatarContainer} 
+          onPress={showImageOptions}
+        >
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+          ) : (
+            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.surface, borderColor: theme.colors.textSecondary + '40' }]}>
+              <Feather name="user" size={32} color={theme.colors.textSecondary} />
+            </View>
+          )}
+          <View style={[styles.cameraButton, { backgroundColor: theme.colors.primary }]}>
+            <Feather name="camera" size={14} color="#fff" />
+          </View>
+        </TouchableOpacity>
+
+        {/* Username Field */}
+        <View style={styles.usernameContainer}>
+          <HeroInput
+            label="Username"
+            placeholder="Choose a username (e.g., john_doe)"
+            value={username}
+            onChangeText={(text) => {
+              setUsername(text.replace(/[^a-zA-Z0-9_-]/g, ''));
+              setUsernameError("");
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxLength={20}
+            isRequired
+            isInvalid={!!usernameError}
+            errorMessage={usernameError}
+            description="Username can only contain letters, numbers, underscores, and hyphens (3-20 characters)"
+            labelPlacement="outside-top"
+            backgroundColor={theme.colors.surface}
+          />
+        </View>
+      </View>
 
       {/* Birthdate Picker */}
       <View style={styles.pickerContainer}>
@@ -873,6 +969,45 @@ const styles = StyleSheet.create({
   stepContent: {
     width: "100%",
     marginBottom: 24,
+  },
+  avatarUsernameRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 16,
+    marginBottom: 30,
+  },
+  avatarContainer: {
+    position: "relative",
+    width: 80,
+    height: 80,
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  avatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+  },
+  cameraButton: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  usernameContainer: {
+    flex: 1,
   },
   pickerContainer: {
     marginBottom: 30,

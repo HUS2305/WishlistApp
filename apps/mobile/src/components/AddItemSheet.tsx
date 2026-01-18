@@ -25,6 +25,7 @@ import { useUserCurrency } from "@/hooks/useUserCurrency";
 import { getCurrencyByCode } from "@/utils/currencies";
 import { useQueryClient } from "@tanstack/react-query";
 import { wishlistEvents } from "@/utils/wishlistEvents";
+import { uploadItemImage } from "@/services/imageUpload";
 
 interface AddItemSheetProps {
   visible: boolean;
@@ -79,6 +80,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
       // Prefill mode (e.g., adding from friend's wishlist)
       setTitle(prefillItem.title || "");
       setUrl(prefillItem.url || "");
+      setImageUri(prefillItem.imageUrl || null);
       setPrice(prefillItem.price !== undefined && prefillItem.price !== null ? prefillItem.price.toString() : "");
       setCurrency(prefillItem.currency || "USD");
       setQuantity(prefillItem.quantity !== undefined && prefillItem.quantity !== null ? prefillItem.quantity.toString() : "1");
@@ -153,6 +155,27 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
 
     setIsLoading(true);
     try {
+      // Upload image if it's a local file
+      let uploadedImageUrl: string | undefined = undefined;
+      if (imageUri) {
+        if (imageUri.startsWith('file://') || imageUri.startsWith('content://')) {
+          try {
+            uploadedImageUrl = await uploadItemImage(imageUri);
+          } catch (uploadError) {
+            console.error('Image upload failed:', uploadError);
+            Alert.alert(
+              'Image Upload Failed',
+              'Failed to upload image. The item will be saved without an image.',
+              [{ text: 'OK' }]
+            );
+            // Continue without image
+          }
+        } else {
+          // Already a remote URL
+          uploadedImageUrl = imageUri;
+        }
+      }
+
       if (isEditMode && item) {
         // Update existing item - include wishlistId if it changed (to move item)
         const updatePayload: any = {
@@ -165,6 +188,8 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
           currency,
           quantity: quantity.trim() ? parseInt(quantity, 10) : null,
           priority,
+          // Include image URL if we have one (uploaded or existing)
+          imageUrl: uploadedImageUrl || null,
         };
         
         // Always include wishlistId - if it changed, it will move the item
@@ -202,6 +227,7 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
           currency,
           quantity: quantity ? parseInt(quantity, 10) : undefined,
           priority,
+          imageUrl: uploadedImageUrl,
         };
 
         // Use React Query mutation hook for proper cache invalidation
@@ -362,15 +388,14 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
                     ) : (
                       <>
                         <Feather name="image" size={32} color={theme.colors.textSecondary} />
-                        <TouchableOpacity
+                        <View
                           style={[styles.imageChangeButton, {
                             backgroundColor: theme.colors.primary,
                             borderColor: theme.colors.background,
                           }]}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
                           <Feather name="camera" size={14} color="#fff" />
-                        </TouchableOpacity>
+                        </View>
                       </>
                     )}
                   </TouchableOpacity>
@@ -453,15 +478,14 @@ export function AddItemSheet({ visible, onClose, wishlistId, item, onSuccess, pr
                     ) : (
                       <>
                         <Feather name="image" size={32} color={theme.colors.textSecondary} />
-                        <TouchableOpacity
+                        <View
                           style={[styles.imageChangeButton, {
                             backgroundColor: theme.colors.primary,
                             borderColor: theme.colors.background,
                           }]}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
                           <Feather name="camera" size={14} color="#fff" />
-                        </TouchableOpacity>
+                        </View>
                       </>
                     )}
                   </TouchableOpacity>

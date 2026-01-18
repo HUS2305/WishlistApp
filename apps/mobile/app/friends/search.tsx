@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Image,
 } from "react-native";
 import { Text } from "@/components/Text";
 import { router, useFocusEffect } from "expo-router";
@@ -45,7 +46,6 @@ export default function FriendSearchScreen() {
     try {
       const searchResults = await friendsService.searchUsers(query.trim());
       setResults(searchResults);
-      console.log("✅ Found", searchResults.length, "users");
     } catch (error) {
       console.error("❌ Error searching users:", error);
       setResults([]);
@@ -207,10 +207,18 @@ export default function FriendSearchScreen() {
         style={styles.searchResultRow}
       >
           <View style={styles.userInfo}>
-            <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
-              <Text style={styles.avatarText}>
-                {(getDisplayName(item)?.[0] || item.username?.[0] || "?").toUpperCase()}
-              </Text>
+            <View style={[styles.avatar, { backgroundColor: theme.colors.primary, overflow: 'hidden' }]}>
+              {item.avatar ? (
+                <Image 
+                  source={{ uri: item.avatar }} 
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={styles.avatarText}>
+                  {(getDisplayName(item)?.[0] || item.username?.[0] || "?").toUpperCase()}
+                </Text>
+              )}
             </View>
             <View style={styles.userDetails}>
               <Text style={[styles.userName, { color: theme.colors.textPrimary }]}>
@@ -481,6 +489,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   avatarText: {
     fontSize: 18,

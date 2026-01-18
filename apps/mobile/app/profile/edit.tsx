@@ -1,4 +1,4 @@
-import { View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, Alert } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, Alert, Image } from "react-native";
 import { Text } from "@/components/Text";
 import { useUser } from "@clerk/clerk-expo";
 import { Feather } from "@expo/vector-icons";
@@ -6,6 +6,9 @@ import { router } from "expo-router";
 import { useState, useEffect } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { StandardPageHeader } from "@/components/StandardPageHeader";
+import * as ImagePicker from "expo-image-picker";
+import { uploadAvatar } from "@/services/imageUpload";
+import api from "@/services/api";
 
 export default function EditProfileScreen() {
   const { theme } = useTheme();
@@ -14,15 +17,79 @@ export default function EditProfileScreen() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [originalAvatarUri, setOriginalAvatarUri] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (user) {
       setFirstName(user.firstName || "");
       setLastName(user.lastName || "");
       setUsername(user.username || "");
+      setAvatarUri(user.imageUrl || null);
+      setOriginalAvatarUri(user.imageUrl || null);
     }
   }, [user]);
+
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permission needed", "Please grant photo library permissions to change your avatar");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setAvatarUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image");
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permission needed", "Please grant camera permissions to take a photo");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setAvatarUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo");
+    }
+  };
+
+  const showImageOptions = () => {
+    Alert.alert(
+      "Change Profile Photo",
+      "Choose an option",
+      [
+        { text: "Take Photo", onPress: handleTakePhoto },
+        { text: "Choose from Library", onPress: handlePickImage },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
+  };
 
   const handleSave = async () => {
     if (!user) return;
@@ -30,12 +97,46 @@ export default function EditProfileScreen() {
     try {
       setIsSaving(true);
       
+      // Check if avatar changed and needs upload
+      let uploadedAvatarUrl: string | null = null;
+      const avatarChanged = avatarUri !== originalAvatarUri;
+      
+      if (avatarChanged && avatarUri) {
+        if (avatarUri.startsWith('file://') || avatarUri.startsWith('content://')) {
+          setIsUploadingAvatar(true);
+          try {
+            uploadedAvatarUrl = await uploadAvatar(avatarUri);
+          } catch (uploadError) {
+            console.error('Avatar upload failed:', uploadError);
+            Alert.alert(
+              'Upload Failed',
+              'Failed to upload profile photo. Other changes will still be saved.',
+              [{ text: 'OK' }]
+            );
+          } finally {
+            setIsUploadingAvatar(false);
+          }
+        } else {
+          uploadedAvatarUrl = avatarUri;
+        }
+      }
+      
       // Update Clerk user data
       await user.update({
         firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
         username: username.trim() || undefined,
       });
+
+      // Update avatar in backend database if changed
+      if (avatarChanged && uploadedAvatarUrl) {
+        try {
+          await api.patch("/users/me", { avatar: uploadedAvatarUrl });
+        } catch (error) {
+          console.error("Error updating avatar in database:", error);
+          // Don't fail the whole save if just the database update fails
+        }
+      }
 
       Alert.alert("Success", "Profile updated successfully!");
       router.back();
@@ -60,6 +161,13 @@ export default function EditProfileScreen() {
     );
   }
 
+  // Get initials for fallback avatar
+  const getInitials = () => {
+    const first = firstName?.charAt(0) || user.firstName?.charAt(0) || '';
+    const last = lastName?.charAt(0) || user.lastName?.charAt(0) || '';
+    return (first + last).toUpperCase() || user.username?.charAt(0)?.toUpperCase() || '?';
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <StandardPageHeader
@@ -77,6 +185,33 @@ export default function EditProfileScreen() {
       />
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        {/* Avatar Section */}
+        <View style={styles.avatarSection}>
+          <TouchableOpacity 
+            style={styles.avatarContainer} 
+            onPress={showImageOptions}
+            disabled={isSaving}
+          >
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.primary }]}>
+                <Text style={styles.avatarInitials}>{getInitials()}</Text>
+              </View>
+            )}
+            <View style={[styles.cameraButton, { backgroundColor: theme.colors.primary }]}>
+              {isUploadingAvatar ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Feather name="camera" size={16} color="#fff" />
+              )}
+            </View>
+          </TouchableOpacity>
+          <Text style={[styles.changePhotoText, { color: theme.colors.textSecondary }]}>
+            Tap to change photo
+          </Text>
+        </View>
+
         {/* First Name */}
         <View style={styles.fieldContainer}>
           <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
@@ -159,7 +294,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 16, // Changed from 20 to match spacing.md (16px) for consistency
+    padding: 16,
   },
   loadingContainer: {
     flex: 1,
@@ -169,6 +304,49 @@ const styles = StyleSheet.create({
   saveButton: {
     fontSize: 16,
     fontWeight: "600",
+  },
+  avatarSection: {
+    alignItems: "center",
+    marginBottom: 32,
+    marginTop: 8,
+  },
+  avatarContainer: {
+    position: "relative",
+    width: 120,
+    height: 120,
+  },
+  avatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  avatarPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitials: {
+    fontSize: 40,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  cameraButton: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#fff",
+  },
+  changePhotoText: {
+    marginTop: 12,
+    fontSize: 14,
   },
   fieldContainer: {
     marginBottom: 24,
@@ -191,8 +369,3 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 });
-
-
-
-
-
