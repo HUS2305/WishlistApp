@@ -215,9 +215,7 @@ export default function FriendSearchScreen() {
                   resizeMode="cover"
                 />
               ) : (
-                <Text style={styles.avatarText}>
-                  {(getDisplayName(item)?.[0] || item.username?.[0] || "?").toUpperCase()}
-                </Text>
+                <Feather name="user" size={24} color="#FFFFFF" />
               )}
             </View>
             <View style={styles.userDetails}>

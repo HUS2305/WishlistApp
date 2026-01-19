@@ -44,6 +44,7 @@ export const friendsService = {
     const response = await api.get("/users/search", {
       params: { q: query },
     });
+    console.log(`✅ Found ${response.data.length} users`);
     return response.data;
   },
 

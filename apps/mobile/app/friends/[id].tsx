@@ -239,7 +239,6 @@ export default function FriendProfileScreen() {
 
   // Calculate display values BEFORE early returns
   const displayName = profile ? (getDisplayName(profile.profile) || profile.profile.username || "User") : "User";
-  const avatarInitial = profile ? ((displayName[0] || profile.profile.username?.[0] || "U").toUpperCase()) : "U";
   const friendshipSince = profile?.friendshipSince 
     ? new Date(profile.friendshipSince).toLocaleDateString("en-US", { 
         month: "long", 
@@ -304,7 +303,7 @@ export default function FriendProfileScreen() {
               style={styles.avatarImage}
             />
           ) : (
-            <Text style={styles.avatarText}>{avatarInitial}</Text>
+            <Feather name="user" size={48} color="#FFFFFF" />
           )}
         </View>
         

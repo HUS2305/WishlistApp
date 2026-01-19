@@ -360,9 +360,7 @@ export default function AllFriendsScreen() {
                             resizeMode="cover"
                           />
                         ) : (
-                          <Text style={styles.avatarText}>
-                            {(getDisplayName(friend)?.[0] || friend.username?.[0] || "?").toUpperCase()}
-                          </Text>
+                          <Feather name="user" size={24} color="#FFFFFF" />
                         )}
                       </View>
                       <View style={styles.friendDetails}>

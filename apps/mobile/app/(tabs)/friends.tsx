@@ -510,10 +510,16 @@ export default function FriendsScreen() {
         style={styles.searchResultRow}
       >
         <View style={styles.friendInfo}>
-          <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
-            <Text style={styles.avatarText}>
-              {(getDisplayName(item)?.[0] || item.username?.[0] || "?").toUpperCase()}
-            </Text>
+          <View style={[styles.avatar, { backgroundColor: theme.colors.primary, overflow: 'hidden' }]}>
+            {item.avatar ? (
+              <Image 
+                source={{ uri: item.avatar }} 
+                style={{ width: 40, height: 40 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <Feather name="user" size={20} color="#FFFFFF" />
+            )}
           </View>
           <View style={styles.friendDetails}>
             <Text style={[styles.friendName, { color: theme.colors.textPrimary }]}>
@@ -1393,9 +1399,7 @@ export default function FriendsScreen() {
                         resizeMode="cover"
                       />
                     ) : (
-                      <Text style={styles.avatarText}>
-                        {(getDisplayName(friend)?.[0] || friend.username?.[0] || "?").toUpperCase()}
-                      </Text>
+                      <Feather name="user" size={20} color="#FFFFFF" />
                     )}
                   </View>
                   <View style={styles.friendDetails}>

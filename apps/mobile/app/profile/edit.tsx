@@ -23,13 +23,24 @@ export default function EditProfileScreen() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      setFirstName(user.firstName || "");
-      setLastName(user.lastName || "");
-      setUsername(user.username || "");
-      setAvatarUri(user.imageUrl || null);
-      setOriginalAvatarUri(user.imageUrl || null);
-    }
+    const loadProfile = async () => {
+      if (user) {
+        setFirstName(user.firstName || "");
+        setLastName(user.lastName || "");
+        setUsername(user.username || "");
+        // Fetch avatar from backend database instead of Clerk (avoids OAuth provider avatars)
+        try {
+          const response = await api.get("/users/me");
+          setAvatarUri(response.data.avatar || null);
+          setOriginalAvatarUri(response.data.avatar || null);
+        } catch (error) {
+          console.error("Error fetching profile avatar:", error);
+          setAvatarUri(null);
+          setOriginalAvatarUri(null);
+        }
+      }
+    };
+    loadProfile();
   }, [user]);
 
   const handlePickImage = async () => {

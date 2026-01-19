@@ -301,7 +301,7 @@ export default function CreateProfileScreen() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: primaryEmail,
-        avatar: uploadedAvatarUrl || user?.imageUrl || null,
+        avatar: uploadedAvatarUrl || null,
         theme: selectedTheme, // Save the selected theme to database
         language: language, // Save language preference
         currency: currency, // Save currency preference
