@@ -7,7 +7,6 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Feather } from "@expo/vector-icons";
 import api from "@/services/api";
 import { useTheme } from "@/contexts/ThemeContext";
-import { useAuth as useClerkAuth } from "@clerk/clerk-expo";
 import { HeroInput } from "@/components/ui/HeroInput";
 import { Stepper } from "@/components/Stepper";
 import { ThemeName, themes, getThemeDisplayName } from "@/lib/themes";
@@ -25,18 +24,6 @@ const sexOptions = [
   { value: "prefer_not_to_say", label: "Prefer not to say" },
 ];
 
-const languageOptions = [
-  { value: "en", label: "English" },
-  { value: "es", label: "Spanish" },
-  { value: "fr", label: "French" },
-  { value: "de", label: "German" },
-  { value: "it", label: "Italian" },
-  { value: "pt", label: "Portuguese" },
-  { value: "zh", label: "Chinese" },
-  { value: "ja", label: "Japanese" },
-  { value: "ko", label: "Korean" },
-  { value: "ar", label: "Arabic" },
-];
 
 // Get comprehensive currency list with flags
 const currencyOptions = getCurrencyOptions().map(opt => ({
@@ -123,8 +110,6 @@ export default function CreateProfileScreen() {
   };
   
   // Preferences (now part of step 1)
-  const [language, setLanguage] = useState<string>("en");
-  const [showLanguagePicker, setShowLanguagePicker] = useState(false);
   const [currency, setCurrency] = useState<string>("USD"); // Will be updated from user preference if available
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [currencySearchQuery, setCurrencySearchQuery] = useState("");
@@ -303,7 +288,6 @@ export default function CreateProfileScreen() {
         email: primaryEmail,
         avatar: uploadedAvatarUrl || null,
         theme: selectedTheme, // Save the selected theme to database
-        language: language, // Save language preference
         currency: currency, // Save currency preference
         timezone: timezone, // Save detected timezone
         birthday: birthdayISO, // Save birthday in ISO format (YYYY-MM-DD)
@@ -414,7 +398,7 @@ export default function CreateProfileScreen() {
                   if (selectedDate) {
                     setBirthdate(selectedDate);
                   }
-                  if (event?.type === "dismissed") {
+                  if (event.type === "dismissed") {
                     setShowDatePicker(false);
                   }
                 }}
@@ -432,7 +416,7 @@ export default function CreateProfileScreen() {
             value={birthdate}
             mode="date"
             display="default"
-            onChange={(event, selectedDate) => {
+            onChange={(_event, selectedDate) => {
               setShowDatePicker(false);
               if (selectedDate) {
                 setBirthdate(selectedDate);
@@ -523,59 +507,31 @@ export default function CreateProfileScreen() {
         </View>
       </BottomSheet>
 
-      {/* Language and Currency Selection - Side by Side */}
-      <View style={styles.rowContainer}>
-        <View style={[styles.pickerContainer, styles.pickerContainerRow]}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Language
+      {/* Currency Selection */}
+      <View style={styles.pickerContainer}>
+        <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
+          Currency
+        </Text>
+        <TouchableOpacity
+          style={[styles.pickerButton, { 
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.textSecondary + '40',
+          }]}
+          onPress={() => setShowCurrencyPicker(true)}
+        >
+          <Text style={[styles.pickerText, { 
+            color: currency ? theme.colors.textPrimary : theme.colors.textSecondary 
+          }]}>
+            {currency
+              ? currencyOptions.find((c) => c.value === currency)?.label || "Select currency"
+              : "Select currency"}
           </Text>
-          <TouchableOpacity
-            style={[styles.pickerButton, { 
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.textSecondary + '40',
-            }]}
-            onPress={() => setShowLanguagePicker(true)}
-          >
-            <Text style={[styles.pickerText, { 
-              color: language ? theme.colors.textPrimary : theme.colors.textSecondary 
-            }]}>
-              {language
-                ? languageOptions.find((l) => l.value === language)?.label || "Select language"
-                : "Select language"}
-            </Text>
-            <Feather
-              name="chevron-down"
-              size={20}
-              color={theme.colors.textSecondary}
-            />
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.pickerContainer, styles.pickerContainerRow]}>
-          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-            Currency
-          </Text>
-          <TouchableOpacity
-            style={[styles.pickerButton, { 
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.textSecondary + '40',
-            }]}
-            onPress={() => setShowCurrencyPicker(true)}
-          >
-            <Text style={[styles.pickerText, { 
-              color: currency ? theme.colors.textPrimary : theme.colors.textSecondary 
-            }]}>
-              {currency
-                ? currencyOptions.find((c) => c.value === currency)?.label || "Select currency"
-                : "Select currency"}
-            </Text>
-            <Feather
-              name="chevron-down"
-              size={20}
-              color={theme.colors.textSecondary}
-            />
-          </TouchableOpacity>
-        </View>
+          <Feather
+            name="chevron-down"
+            size={20}
+            color={theme.colors.textSecondary}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Notifications */}
@@ -784,58 +740,6 @@ export default function CreateProfileScreen() {
           )}
         </TouchableOpacity>
       </View>
-
-      {/* Language Picker BottomSheet */}
-      <BottomSheet visible={showLanguagePicker} onClose={() => setShowLanguagePicker(false)} autoHeight scrollable>
-        {/* Header - Using ListHeaderComponent */}
-        <BottomSheetFlatList
-          data={languageOptions}
-          keyExtractor={(item: { value: string; label: string }) => item.value}
-          ListHeaderComponent={
-            <View style={[styles.pickerSheetHeader, { backgroundColor: theme.colors.background }]}>
-              <Text style={[styles.pickerSheetHeaderTitle, { color: theme.colors.textPrimary }]}>
-                Select Language
-              </Text>
-            </View>
-          }
-          renderItem={({ item }: { item: { value: string; label: string } }) => (
-            <TouchableOpacity
-              style={[
-                styles.pickerSheetOptionRow,
-                {
-                  backgroundColor: theme.colors.background,
-                  borderBottomColor: theme.colors.textSecondary + '20',
-                },
-              ]}
-              onPress={() => {
-                setLanguage(item.value);
-                setShowLanguagePicker(false);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.pickerSheetOptionText,
-                  { color: theme.colors.textPrimary },
-                  language === item.value && { 
-                    color: theme.colors.primary,
-                    fontWeight: "600",
-                  },
-                ]}
-              >
-                {item.label}
-              </Text>
-              {language === item.value && (
-                <Feather name="check" size={20} color={theme.colors.primary} />
-              )}
-            </TouchableOpacity>
-          )}
-          contentContainerStyle={[
-            { paddingBottom: Math.max(20, Platform.OS === "ios" ? insets.bottom + 30 : 20) }
-          ]}
-          showsVerticalScrollIndicator={false}
-        />
-      </BottomSheet>
 
       {/* Currency Picker BottomSheet */}
       <BottomSheet 

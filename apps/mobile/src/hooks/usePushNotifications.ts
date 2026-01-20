@@ -99,10 +99,18 @@ export function usePushNotifications() {
     }
 
     try {
+      // First check if user profile exists
+      await api.get("/users/me");
+      // If we get here, profile exists - register the token
       await api.post("/users/me/push-token", { pushToken: token });
       tokenRegistered.current = true;
       console.log("✅ Push token registered with backend");
-    } catch (error) {
+    } catch (error: any) {
+      // Silently ignore 404 - user profile doesn't exist yet
+      if (error?.response?.status === 404) {
+        console.log("ℹ️ Push token registration skipped - user profile not created yet");
+        return;
+      }
       console.error("Failed to register push token with backend:", error);
     }
   }

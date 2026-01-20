@@ -987,7 +987,14 @@ export class SecretSantaService {
    * Get count of pending Secret Santa invitations for a user
    */
   async getPendingInvitationsCount(clerkUserId: string): Promise<number> {
-    const user = await this.getUser(clerkUserId);
+    const user = await this.prisma.user.findUnique({
+      where: { clerkId: clerkUserId },
+    });
+
+    // Return 0 for users who haven't created their profile yet
+    if (!user) {
+      return 0;
+    }
 
     const count = await this.prisma.secretSantaParticipant.count({
       where: {

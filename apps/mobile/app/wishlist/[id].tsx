@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Share,
   ActivityIndicator,
   Linking,
   RefreshControl,
@@ -156,40 +155,6 @@ export default function WishlistDetailScreen() {
     setEditWishlistSheetVisible(false);
   };
 
-  const handleShareWishlist = async () => {
-    if (!wishlist) return;
-    
-    try {
-      let shareUrl = "";
-      let shareToken = wishlist.shareToken;
-      
-      if (!shareToken) {
-        try {
-          const shareData = await wishlistsService.shareWishlist(wishlistId);
-          shareToken = shareData.shareToken;
-          shareUrl = shareData.shareUrl || "";
-        } catch (error) {
-          console.warn("Share endpoint not available, using existing token");
-        }
-      }
-      
-      if (shareToken) {
-        const { getApiUrl } = require("@/utils/apiUrl");
-        const apiUrl = getApiUrl();
-        shareUrl = shareUrl || `${apiUrl}/wishlists/public/${shareToken}`;
-      }
-      
-      await Share.share({
-        message: `Check out my wishlist: ${wishlist.title}${shareUrl ? `\n${shareUrl}` : ""}`,
-        url: shareUrl || `wishlist://share/${shareToken || wishlistId}`,
-      });
-    } catch (error: any) {
-      console.error("Error sharing wishlist:", error);
-      if (error.message !== "User did not share") {
-        Alert.alert("Error", "Failed to share wishlist. Please try again.");
-      }
-    }
-  };
 
   const handleDeleteWishlist = () => {
     if (!wishlist) return;
@@ -1456,12 +1421,6 @@ export default function WishlistDetailScreen() {
   // Build header buttons dynamically
   const headerButtons = [];
   if (wishlist && (isOwner === true || isCollaborator === true)) {
-    if (isOwner === true) {
-      headerButtons.push({
-        icon: "send" as const,
-        onPress: handleShareWishlist,
-      });
-    }
     headerButtons.push({
       icon: "more-horizontal" as const,
       onPress: () => setMenuVisible(true),

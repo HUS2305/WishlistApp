@@ -94,10 +94,12 @@ api.interceptors.response.use(
         (is500 && isUsersMeEndpoint);
       
       if (!shouldSuppressError) {
-        // Also suppress 404/500 for friends/notifications endpoints when user doesn't have profile yet
+        // Also suppress 404/500 for friends/notifications/secret-santa/push-token endpoints when user doesn't have profile yet
         const isFriendsEndpoint = error.config?.url?.includes('/friends/requests/pending');
         const isNotificationsEndpoint = error.config?.url?.includes('/notifications/unread-count');
-        const isExpectedError = (is404 || is500) && (isFriendsEndpoint || isNotificationsEndpoint);
+        const isSecretSantaEndpoint = error.config?.url?.includes('/secret-santa/invitations/pending/count');
+        const isPushTokenEndpoint = error.config?.url?.includes('/users/me/push-token');
+        const isExpectedError = (is404 || is500) && (isFriendsEndpoint || isNotificationsEndpoint || isSecretSantaEndpoint || isPushTokenEndpoint);
         
         if (!isExpectedError) {
           console.error("❌ API Error:", error.response.status, error.response.data, error.config.url);
