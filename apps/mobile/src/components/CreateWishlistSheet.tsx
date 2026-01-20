@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import {
   BottomSheetScrollView,
@@ -17,6 +18,8 @@ import { router } from "expo-router";
 import type { PrivacyLevel } from "@/types";
 import { wishlistsService } from "@/services/wishlists";
 import { useTheme } from "@/contexts/ThemeContext";
+import { WishlistCoverPicker } from "./WishlistCoverPicker";
+import { getWishlistCoverImage, type WishlistCoverId } from "@/constants/wishlistCovers";
 import { BottomSheet } from "./BottomSheet";
 import { wishlistEvents } from "@/utils/wishlistEvents";
 import { ThemedSwitch } from "./ThemedSwitch";
@@ -46,6 +49,8 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
   const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [showFriendSelectionModal, setShowFriendSelectionModal] = useState(false);
+  const [selectedCoverId, setSelectedCoverId] = useState<WishlistCoverId | null>(null);
+  const [showCoverPicker, setShowCoverPicker] = useState(false);
 
   // Pre-fill title when modal opens with initialTitle prop
   React.useEffect(() => {
@@ -91,6 +96,7 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
         allowReservations,
         allowComments: true,
         collaboratorIds: collaboratorIds.length > 0 ? collaboratorIds : undefined,
+        coverImage: selectedCoverId || undefined,
       });
 
       console.log("✅ Wishlist created successfully:", wishlist);
@@ -100,6 +106,7 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
       setPrivacyLevel("PRIVATE");
       setAllowReservations(true);
       setSelectedFriends(new Set());
+      setSelectedCoverId(null);
       
       // Close the sheet first
       onClose();
@@ -136,6 +143,7 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
     setPrivacyLevel("PRIVATE");
     setAllowReservations(true);
     setSelectedFriends(new Set());
+    setSelectedCoverId(null);
     onClose();
   };
 
@@ -153,6 +161,8 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
     setSelectedFriends(newSelection);
   };
 
+  const coverImageSource = getWishlistCoverImage(selectedCoverId);
+
   return (
     <>
       {/* Friend Selection Sheet */}
@@ -161,6 +171,14 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
         onClose={() => setShowFriendSelectionModal(false)}
         onConfirm={handleFriendSelection}
         initialSelection={selectedFriends}
+      />
+
+      {/* Cover Image Picker */}
+      <WishlistCoverPicker
+        visible={showCoverPicker}
+        onClose={() => setShowCoverPicker(false)}
+        selectedCoverId={selectedCoverId}
+        onSelect={(coverId) => setSelectedCoverId(coverId)}
       />
 
       <BottomSheet 
@@ -216,21 +234,32 @@ export function CreateWishlistSheet({ visible, onClose, onSuccess, initialTitle 
           >
             {/* Wishlist Image */}
             <View style={styles.imageContainer}>
-              <View style={[styles.imageWrapper, { 
-                backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
-                borderColor: theme.colors.textSecondary + '40',
-              }]}>
-                <Feather name="image" size={48} color={theme.colors.textSecondary} />
-                <TouchableOpacity 
-                  style={[styles.imageChangeButton, { 
+              <TouchableOpacity
+                onPress={() => setShowCoverPicker(true)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.imageWrapper, { 
+                  backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
+                  borderColor: theme.colors.textSecondary + '40',
+                  overflow: 'hidden',
+                }]}>
+                  {coverImageSource ? (
+                    <Image
+                      source={coverImageSource}
+                      style={styles.coverImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Feather name="image" size={48} color={theme.colors.textSecondary} />
+                  )}
+                  <View style={[styles.imageChangeButton, { 
                     backgroundColor: theme.colors.primary,
                     borderColor: theme.colors.background,
-                  }]}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Feather name="camera" size={16} color="#fff" />
-                </TouchableOpacity>
-              </View>
+                  }]}>
+                    <Feather name="camera" size={16} color="#fff" />
+                  </View>
+                </View>
+              </TouchableOpacity>
             </View>
 
             {/* Title Input - Centered */}
@@ -490,6 +519,10 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     alignItems: "center",
     justifyContent: "center",
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
   },
   titleContainer: {
     alignItems: "center",

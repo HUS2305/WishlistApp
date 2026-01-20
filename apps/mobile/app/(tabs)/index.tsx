@@ -1,5 +1,5 @@
 // This is now the Wishlists screen (home screen)
-import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Dimensions } from "react-native";
+import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Dimensions, Image } from "react-native";
 import { Text } from "@/components/Text";
 import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -17,6 +17,7 @@ import { wishlistEvents } from "@/utils/wishlistEvents";
 import { useUserCurrency } from "@/hooks/useUserCurrency";
 import { PriceDisplay } from "@/components/PriceDisplay";
 import { useWishlists } from "@/hooks/useWishlists";
+import { getWishlistCoverImage } from "@/constants/wishlistCovers";
 
 export default function WishlistsScreen() {
   const { theme } = useTheme();
@@ -229,8 +230,16 @@ export default function WishlistsScreen() {
                             />
                           </View>
                         </View>
-                        <View style={styles.imagePlaceholder}>
-                          <Feather name="image" size={20} color={theme.colors.textSecondary} />
+                        <View style={[styles.imagePlaceholder, { overflow: 'hidden' }]}>
+                          {item.coverImage ? (
+                            <Image
+                              source={getWishlistCoverImage(item.coverImage)}
+                              style={styles.coverImageThumbnail}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <Feather name="image" size={20} color={theme.colors.textSecondary} />
+                          )}
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -308,8 +317,16 @@ export default function WishlistsScreen() {
                             />
                           </View>
                         </View>
-                        <View style={styles.imagePlaceholder}>
-                          <Feather name="image" size={20} color={theme.colors.textSecondary} />
+                        <View style={[styles.imagePlaceholder, { overflow: 'hidden' }]}>
+                          {item.coverImage ? (
+                            <Image
+                              source={getWishlistCoverImage(item.coverImage)}
+                              style={styles.coverImageThumbnail}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <Feather name="image" size={20} color={theme.colors.textSecondary} />
+                          )}
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -443,5 +460,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#4B5563",
     alignItems: "center",
     justifyContent: "center",
+  },
+  coverImageThumbnail: {
+    width: '100%',
+    height: '100%',
   },
 });

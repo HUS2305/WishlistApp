@@ -34,6 +34,7 @@ import { StandardPageHeader } from "@/components/StandardPageHeader";
 import { HeaderButtons } from "@/lib/navigation";
 import { MembersSheet } from "@/components/MembersSheet";
 import { friendsService } from "@/services/friends";
+import { getWishlistCoverImage } from "@/constants/wishlistCovers";
 
 export default function WishlistDetailScreen() {
   const { theme } = useTheme();
@@ -1588,8 +1589,16 @@ export default function WishlistDetailScreen() {
         {/* Stats Section */}
         <View style={[styles.statsSection, { backgroundColor: theme.colors.background }]}>
           <View style={styles.statsContentColumn}>
-            <View style={[styles.imagePlaceholder, { backgroundColor: cardBackgroundColor }]}>
-              <Feather name="image" size={48} color={theme.colors.textSecondary} />
+            <View style={[styles.imagePlaceholder, { backgroundColor: cardBackgroundColor, overflow: 'hidden' }]}>
+              {wishlist?.coverImage ? (
+                <Image
+                  source={getWishlistCoverImage(wishlist.coverImage)}
+                  style={styles.coverImageDetail}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Feather name="image" size={48} color={theme.colors.textSecondary} />
+              )}
             </View>
             
             <View style={styles.statRow}>
@@ -2091,6 +2100,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
+  },
+  coverImageDetail: {
+    width: '100%',
+    height: '100%',
   },
   statsContent: {
     flex: 1,

@@ -6,6 +6,7 @@ interface CreateWishlistPayload {
   privacyLevel: PrivacyLevel;
   allowComments: boolean;
   allowReservations: boolean;
+  coverImage?: string; // Optional: identifier for wishlist cover image
   collaboratorIds?: string[]; // Optional: if provided, wishlist becomes GROUP privacy level
 }
 

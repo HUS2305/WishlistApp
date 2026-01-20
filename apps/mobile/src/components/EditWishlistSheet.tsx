@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import {
   BottomSheetScrollView,
@@ -23,6 +24,8 @@ import { BottomSheet } from "./BottomSheet";
 import { ThemedSwitch } from "./ThemedSwitch";
 import { getDisplayName } from "@/lib/utils";
 import { SelectFriendsSheet } from "./SelectFriendsSheet";
+import { WishlistCoverPicker } from "./WishlistCoverPicker";
+import { getWishlistCoverImage, type WishlistCoverId } from "@/constants/wishlistCovers";
 
 interface EditWishlistSheetProps {
   visible: boolean;
@@ -43,6 +46,8 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoO
   const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [showFriendSelectionModal, setShowFriendSelectionModal] = useState(false);
+  const [selectedCoverId, setSelectedCoverId] = useState<WishlistCoverId | string | null>(null);
+  const [showCoverPicker, setShowCoverPicker] = useState(false);
 
   // Load wishlist data when it becomes available
   useEffect(() => {
@@ -50,6 +55,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoO
       setTitle(wishlist.title || "");
       setPrivacyLevel(wishlist.privacyLevel);
       setAllowReservations(wishlist.allowReservations ?? true);
+      setSelectedCoverId(wishlist.coverImage || null);
       
       // Pre-select existing collaborators in the selection
       const existingIdsSet = new Set(wishlist.collaborators?.map(c => c.userId) || []);
@@ -107,6 +113,7 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoO
         title: title.trim(),
         privacyLevel,
         allowReservations,
+        coverImage: selectedCoverId || undefined,
       },
       {
         onSuccess: async () => {
@@ -163,6 +170,8 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoO
 
   const isLoading = updateWishlist.isPending;
 
+  const coverImageSource = getWishlistCoverImage(selectedCoverId);
+
   return (
     <>
       {/* Friend Selection Sheet */}
@@ -171,6 +180,14 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoO
         onClose={() => setShowFriendSelectionModal(false)}
         onConfirm={handleFriendSelection}
         initialSelection={selectedFriends}
+      />
+
+      {/* Cover Image Picker */}
+      <WishlistCoverPicker
+        visible={showCoverPicker}
+        onClose={() => setShowCoverPicker(false)}
+        selectedCoverId={selectedCoverId}
+        onSelect={(coverId) => setSelectedCoverId(coverId)}
       />
 
       <BottomSheet 
@@ -226,21 +243,32 @@ export function EditWishlistSheet({ visible, onClose, wishlist, onSuccess, autoO
           >
             {/* Wishlist Image */}
             <View style={styles.imageContainer}>
-              <View style={[styles.imageWrapper, { 
-                backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
-                borderColor: theme.colors.textSecondary + '40',
-              }]}>
-                <Feather name="image" size={48} color={theme.colors.textSecondary} />
-                <TouchableOpacity 
-                  style={[styles.imageChangeButton, { 
+              <TouchableOpacity
+                onPress={() => setShowCoverPicker(true)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.imageWrapper, { 
+                  backgroundColor: theme.isDark ? '#1A1A1A' : '#F9FAFB',
+                  borderColor: theme.colors.textSecondary + '40',
+                  overflow: 'hidden',
+                }]}>
+                  {coverImageSource ? (
+                    <Image
+                      source={coverImageSource}
+                      style={styles.coverImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Feather name="image" size={48} color={theme.colors.textSecondary} />
+                  )}
+                  <View style={[styles.imageChangeButton, { 
                     backgroundColor: theme.colors.primary,
                     borderColor: theme.colors.background,
-                  }]}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Feather name="camera" size={16} color="#fff" />
-                </TouchableOpacity>
-              </View>
+                  }]}>
+                    <Feather name="camera" size={16} color="#fff" />
+                  </View>
+                </View>
+              </TouchableOpacity>
             </View>
 
             {/* Title Input - Centered */}
@@ -512,6 +540,10 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     alignItems: "center",
     justifyContent: "center",
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
   },
   titleContainer: {
     alignItems: "center",

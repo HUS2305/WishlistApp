@@ -232,6 +232,7 @@ export class WishlistsService {
         privacyLevel: privacyLevel as "PRIVATE" | "FRIENDS_ONLY" | "PUBLIC" | "GROUP",
         allowComments: wishlistData.allowComments,
         allowReservations: wishlistData.allowReservations,
+        coverImage: wishlistData.coverImage || null,
         shareToken,
         ownerId: user.id,
       },

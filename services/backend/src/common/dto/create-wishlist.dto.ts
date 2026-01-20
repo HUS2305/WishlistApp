@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsBoolean, MaxLength } from 'class-validator';
+import { IsString, IsEnum, IsBoolean, MaxLength, IsOptional } from 'class-validator';
 
 export enum PrivacyLevel {
   PRIVATE = 'PRIVATE',
@@ -19,5 +19,9 @@ export class CreateWishlistDto {
 
   @IsBoolean()
   allowReservations: boolean;
+
+  @IsOptional()
+  @IsString()
+  coverImage?: string;
 }
 

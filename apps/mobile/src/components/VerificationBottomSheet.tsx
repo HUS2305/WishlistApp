@@ -183,6 +183,12 @@ export function VerificationBottomSheet({
                 errorMsg.toLowerCase().includes("pending")) {
               console.log("ℹ️ Already prepared - email should have been sent");
               // Keep hasPreparedRef as true since preparation is effectively done
+            } else if (err.status === 429 || err.code === 'too_many_requests' || err.errors?.[0]?.code === 'too_many_requests') {
+              // Rate limit - show user-friendly message
+              const retryAfter = err.retryAfter || 60;
+              const minutes = Math.ceil(retryAfter / 60);
+              hasPreparedRef.current = false;
+              setError(`Too many attempts. Please try again in ${minutes} minute${minutes > 1 ? 's' : ''}.`);
             } else {
               // Real error - reset ref and show error
               hasPreparedRef.current = false;
@@ -207,6 +213,11 @@ export function VerificationBottomSheet({
             console.log("✅ Successfully prepared email verification");
           }).catch((err: any) => {
             console.error("Error preparing email verification:", err);
+            if (err.status === 429 || err.code === 'too_many_requests' || err.errors?.[0]?.code === 'too_many_requests') {
+              const retryAfter = err.retryAfter || 60;
+              const minutes = Math.ceil(retryAfter / 60);
+              setError(`Too many attempts. Please try again in ${minutes} minute${minutes > 1 ? 's' : ''}.`);
+            }
             hasPreparedRef.current = false;
           });
         }
@@ -235,7 +246,13 @@ export function VerificationBottomSheet({
           })
           .catch((err: any) => {
             console.error(`❌ Error preparing ${strategy}:`, err);
-            setError(err.errors?.[0]?.message || "Failed to prepare verification");
+            if (err.status === 429 || err.code === 'too_many_requests' || err.errors?.[0]?.code === 'too_many_requests') {
+              const retryAfter = err.retryAfter || 60;
+              const minutes = Math.ceil(retryAfter / 60);
+              setError(`Too many attempts. Please try again in ${minutes} minute${minutes > 1 ? 's' : ''}.`);
+            } else {
+              setError(err.errors?.[0]?.message || "Failed to prepare verification");
+            }
             hasPreparedRef.current = false;
           });
       }
@@ -344,9 +361,17 @@ export function VerificationBottomSheet({
         setError("Verification failed. Please try again.");
       }
     } catch (err: any) {
-      const errorMessage = err.errors?.[0]?.message || "Invalid verification code";
-      setError(errorMessage);
-      console.error("Error verifying sign-in:", err);
+      // Handle rate limiting specifically
+      if (err.status === 429 || err.code === 'too_many_requests' || err.errors?.[0]?.code === 'too_many_requests') {
+        const retryAfter = err.retryAfter || 60;
+        const minutes = Math.ceil(retryAfter / 60);
+        setError(`Too many attempts. Please try again in ${minutes} minute${minutes > 1 ? 's' : ''}.`);
+        console.warn("Rate limit hit:", { retryAfter, minutes });
+      } else {
+        const errorMessage = err.errors?.[0]?.message || err.message || "Invalid verification code";
+        setError(errorMessage);
+        console.error("Error verifying sign-in:", err);
+      }
     } finally {
       setLoading(false);
     }
@@ -396,9 +421,17 @@ export function VerificationBottomSheet({
         }
       }
     } catch (err: any) {
-      const errorMessage = err.errors?.[0]?.message || "Failed to resend code";
-      setError(errorMessage);
-      console.error("Error resending code:", err);
+      // Handle rate limiting specifically
+      if (err.status === 429 || err.code === 'too_many_requests' || err.errors?.[0]?.code === 'too_many_requests') {
+        const retryAfter = err.retryAfter || 60;
+        const minutes = Math.ceil(retryAfter / 60);
+        setError(`Too many attempts. Please try again in ${minutes} minute${minutes > 1 ? 's' : ''}.`);
+        console.warn("Rate limit hit when resending:", { retryAfter, minutes });
+      } else {
+        const errorMessage = err.errors?.[0]?.message || err.message || "Failed to resend code";
+        setError(errorMessage);
+        console.error("Error resending code:", err);
+      }
       hasPreparedRef.current = false;
     } finally {
       setLoading(false);

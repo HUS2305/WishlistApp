@@ -128,7 +128,7 @@ export const themes: Record<ThemeName, Theme> = {
   },
 };
 
-export const defaultThemeName: ThemeName = 'modernLight';
+export const defaultThemeName: ThemeName = 'sunset';
 
 // Helper to get one theme
 export const getTheme = (name: ThemeName): Theme => themes[name];

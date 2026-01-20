@@ -1,6 +1,7 @@
 import { View, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Image, Alert, Platform } from "react-native";
 import { Text } from "@/components/Text";
 import { router, useLocalSearchParams } from "expo-router";
+import { getWishlistCoverImage } from "@/constants/wishlistCovers";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -483,12 +484,20 @@ export default function FriendProfileScreen() {
                           />
                         </View>
                       </View>
-                      <View style={styles.imagePlaceholder}>
+                      <View style={[styles.imagePlaceholder, { overflow: 'hidden' }]}>
                         {wishlist.coverImage ? (
-                          <Image
-                            source={{ uri: wishlist.coverImage }}
-                            style={styles.imagePlaceholderImage}
-                          />
+                          (() => {
+                            const coverImageSource = getWishlistCoverImage(wishlist.coverImage);
+                            return coverImageSource ? (
+                              <Image
+                                source={coverImageSource}
+                                style={styles.imagePlaceholderImage}
+                                resizeMode="cover"
+                              />
+                            ) : (
+                              <Feather name="image" size={24} color={theme.colors.textSecondary} />
+                            );
+                          })()
                         ) : (
                           <Feather name="image" size={24} color={theme.colors.textSecondary} />
                         )}
