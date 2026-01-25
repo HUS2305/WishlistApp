@@ -198,7 +198,7 @@ export default function LoginScreen() {
           <View style={styles.content}>
             <View style={styles.header}>
               <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-                Sign in to WishlistApp
+                Sign in to Wishly
               </Text>
               <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
                 Welcome back! Please sign in to continue

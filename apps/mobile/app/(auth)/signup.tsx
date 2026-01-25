@@ -140,7 +140,7 @@ export default function SignUpScreen() {
                 Create Account
               </Text>
               <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-                Join WishlistApp and start sharing your wishes
+                Join Wishly and start sharing your wishes
               </Text>
             </View>
 

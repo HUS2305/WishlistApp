@@ -17,7 +17,7 @@ interface HelpSupportSheetProps {
   onClose: () => void;
 }
 
-const SUPPORT_EMAIL = "support@wishlistapp.com"; // TODO: Update with actual support email
+const SUPPORT_EMAIL = "support@wishly.app";
 
 export function HelpSupportSheet({
   visible,

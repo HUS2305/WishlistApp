@@ -63,8 +63,8 @@ async function bootstrap() {
 
   // Swagger documentation
   const config = new DocumentBuilder()
-    .setTitle("WishlistApp API")
-    .setDescription("The WishlistApp API documentation")
+    .setTitle("Wishly API")
+    .setDescription("The Wishly API documentation")
     .setVersion("1.0")
     .addBearerAuth()
     .build();
