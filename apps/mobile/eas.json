@@ -23,7 +23,7 @@
         "resourceClass": "m-medium"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.wishly.app/api"
+        "EXPO_PUBLIC_API_URL": "https://backend-production-6a6b.up.railway.app/api"
       }
     }
   },
