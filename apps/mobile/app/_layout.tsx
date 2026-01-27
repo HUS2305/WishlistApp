@@ -19,17 +19,6 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 // In Expo, environment variables are available at build time
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || "";
 
-// Debug logging
-if (__DEV__) {
-  console.log("🔑 Clerk Key Check:");
-  console.log("  - Key exists:", !!publishableKey);
-  console.log("  - Key length:", publishableKey.length);
-  console.log("  - Key starts with pk_:", publishableKey.startsWith("pk_"));
-  if (publishableKey) {
-    console.log("  - Key preview:", `${publishableKey.substring(0, 20)}...`);
-  }
-}
-
 // Create a QueryClient instance
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -67,7 +67,6 @@ export function usePushNotifications() {
         projectId,
       });
       token = pushTokenResponse.data;
-      console.log("📱 Expo Push Token:", token);
     } catch (error: any) {
       // Don't log as error for expected simulator issues
       if (error?.message?.includes("simulator") || error?.message?.includes("projectId")) {

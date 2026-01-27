@@ -23,16 +23,17 @@
         "resourceClass": "m-medium"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://backend-production-6a6b.up.railway.app/api"
+        "EXPO_PUBLIC_API_URL": "https://backend-production-6a6b.up.railway.app/api",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
   },
   "submit": {
     "production": {
       "ios": {
-        "appleId": "YOUR_APPLE_ID@email.com",
-        "ascAppId": "YOUR_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "YOUR_TEAM_ID"
+        "appleId": "Hussainaljarrah44@gmail.com",
+        "ascAppId": "6758279346",
+        "appleTeamId": "8D59WB6T2F"
       }
     }
   }

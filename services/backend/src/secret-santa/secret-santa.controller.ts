@@ -11,6 +11,11 @@ import {
 import { SecretSantaService } from "./secret-santa.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { GetUserId } from "../auth/get-user.decorator";
+import {
+  CreateSecretSantaEventDto,
+  UpdateSecretSantaEventDto,
+  InviteParticipantDto,
+} from "../common/dto/secret-santa.dto";
 
 @Controller("secret-santa")
 @UseGuards(AuthGuard)
@@ -36,7 +41,7 @@ export class SecretSantaController {
   }
 
   @Post("events")
-  async createEvent(@GetUserId() userId: string, @Body() createData: any) {
+  async createEvent(@GetUserId() userId: string, @Body() createData: CreateSecretSantaEventDto) {
     return this.secretSantaService.create(userId, createData);
   }
 
@@ -44,7 +49,7 @@ export class SecretSantaController {
   async updateEvent(
     @GetUserId() userId: string,
     @Param("id") id: string,
-    @Body() updateData: any
+    @Body() updateData: UpdateSecretSantaEventDto
   ) {
     return this.secretSantaService.update(userId, id, updateData);
   }
@@ -65,7 +70,7 @@ export class SecretSantaController {
   async inviteParticipant(
     @GetUserId() userId: string,
     @Param("id") eventId: string,
-    @Body() body: { userId: string }
+    @Body() body: InviteParticipantDto
   ) {
     return this.secretSantaService.inviteParticipant(userId, eventId, body.userId);
   }

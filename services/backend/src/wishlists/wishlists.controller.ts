@@ -12,6 +12,13 @@ import {
 import { WishlistsService } from "./wishlists.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { GetUserId } from "../auth/get-user.decorator";
+import { CreateWishlistDto } from "../common/dto/create-wishlist.dto";
+import {
+  UpdateWishlistDto,
+  InviteCollaboratorDto,
+  UpdateCollaboratorRoleDto,
+  WishlistQueryDto,
+} from "../common/dto/update-wishlist.dto";
 
 @Controller("wishlists")
 @UseGuards(AuthGuard)
@@ -19,12 +26,12 @@ export class WishlistsController {
   constructor(private readonly wishlistsService: WishlistsService) {}
 
   @Get()
-  async getWishlists(@GetUserId() userId: string, @Query() query: any) {
+  async getWishlists(@GetUserId() userId: string, @Query() query: WishlistQueryDto) {
     return this.wishlistsService.findAll(userId, query);
   }
 
   @Post()
-  async createWishlist(@GetUserId() userId: string, @Body() createData: any) {
+  async createWishlist(@GetUserId() userId: string, @Body() createData: CreateWishlistDto) {
     return this.wishlistsService.create(userId, createData);
   }
 
@@ -40,7 +47,7 @@ export class WishlistsController {
   async updateWishlist(
     @GetUserId() userId: string,
     @Param("id") id: string,
-    @Body() updateData: any
+    @Body() updateData: UpdateWishlistDto
   ) {
     return this.wishlistsService.update(userId, id, updateData);
   }
@@ -63,7 +70,7 @@ export class WishlistsController {
   async inviteCollaborator(
     @GetUserId() userId: string,
     @Param("id") wishlistId: string,
-    @Body() body: { inviteeUserId: string }
+    @Body() body: InviteCollaboratorDto
   ) {
     return this.wishlistsService.inviteCollaborator(userId, wishlistId, body.inviteeUserId);
   }
@@ -90,7 +97,7 @@ export class WishlistsController {
     @GetUserId() userId: string,
     @Param("id") wishlistId: string,
     @Param("collaboratorId") collaboratorId: string,
-    @Body() body: { role: "VIEWER" | "EDITOR" | "ADMIN" }
+    @Body() body: UpdateCollaboratorRoleDto
   ) {
     return this.wishlistsService.updateCollaboratorRole(userId, wishlistId, collaboratorId, body.role);
   }

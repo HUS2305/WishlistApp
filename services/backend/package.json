@@ -6,7 +6,7 @@
     "schema": "../../packages/database/prisma/schema.prisma"
   },
   "scripts": {
-    "dev": "nest start --watch",
+    "dev": "NODE_TLS_REJECT_UNAUTHORIZED=0 nest start --watch",
     "build": "nest build",
     "start": "node dist/main",
     "start:prod": "node dist/main",

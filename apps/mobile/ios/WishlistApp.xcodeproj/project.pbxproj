@@ -384,7 +384,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.wishlistapp.mobile;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wishly.app.ios;
 				PRODUCT_NAME = WishlistApp;
 				SWIFT_OBJC_BRIDGING_HEADER = "WishlistApp/WishlistApp-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -415,7 +415,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.wishlistapp.mobile;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wishly.app.ios;
 				PRODUCT_NAME = WishlistApp;
 				SWIFT_OBJC_BRIDGING_HEADER = "WishlistApp/WishlistApp-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;

@@ -11,7 +11,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.wishly.app",
+      "bundleIdentifier": "com.wishly.app.ios",
       "buildNumber": "1",
       "infoPlist": {
         "UIViewControllerBasedStatusBarAppearance": false,

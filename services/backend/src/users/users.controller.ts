@@ -3,6 +3,7 @@ import { UsersService } from "./users.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { GetUserId } from "../auth/get-user.decorator";
 import { PushService } from "../notifications/push.service";
+import { CreateUserDto, UpdateUserDto, RegisterPushTokenDto } from "../common/dto/user.dto";
 
 @Controller("users")
 @UseGuards(AuthGuard) // 🔒 All user endpoints require authentication
@@ -20,19 +21,7 @@ export class UsersController {
   @Post("me")
   async createCurrentUser(
     @GetUserId() userId: string,
-    @Body() createData: {
-      username: string;
-      firstName: string;
-      lastName: string;
-      email: string;
-      phone?: string;
-      avatar?: string;
-      theme?: string;
-      language?: string;
-      currency?: string;
-      timezone?: string;
-      birthday?: string;
-    }
+    @Body() createData: CreateUserDto
   ) {
     return this.usersService.createUser(userId, createData);
   }
@@ -40,7 +29,7 @@ export class UsersController {
   @Patch("me")
   async updateCurrentUser(
     @GetUserId() userId: string,
-    @Body() updateData: any
+    @Body() updateData: UpdateUserDto
   ) {
     return this.usersService.updateByClerkId(userId, updateData);
   }
@@ -53,12 +42,8 @@ export class UsersController {
   @Post("me/push-token")
   async registerPushToken(
     @GetUserId() clerkUserId: string,
-    @Body() body: { pushToken: string }
+    @Body() body: RegisterPushTokenDto
   ) {
-    if (!body.pushToken) {
-      throw new BadRequestException("Push token is required");
-    }
-    
     // Get the user by clerk ID to get the database user ID
     const user = await this.usersService.findByClerkId(clerkUserId);
     if (!user) {

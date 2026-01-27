@@ -2,6 +2,7 @@ import { Controller, Get, Delete, Param, Query, UseGuards } from "@nestjs/common
 import { AdminService } from "./admin.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { AdminGuard } from "../auth/admin.guard";
+import { AdminQueryDto } from "../common/dto/admin.dto";
 
 @Controller("admin")
 @UseGuards(AuthGuard, AdminGuard) // 🔒 PROTECTED - Admin only!
@@ -9,12 +10,12 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get("users")
-  async getUsers(@Query() query: any) {
+  async getUsers(@Query() query: AdminQueryDto) {
     return this.adminService.getUsers(query);
   }
 
   @Get("wishlists")
-  async getWishlists(@Query() query: any) {
+  async getWishlists(@Query() query: AdminQueryDto) {
     return this.adminService.getWishlists(query);
   }
 
