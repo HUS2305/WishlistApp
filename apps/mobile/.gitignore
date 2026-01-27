@@ -4,6 +4,11 @@
 dist/
 web-build/
 
+# Local builds (development client)
+*.app/
+build-*.tar.gz
+*.ipa
+
 # Node
 node_modules/
 
