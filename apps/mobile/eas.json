@@ -24,6 +24,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://backend-production-6a6b.up.railway.app/api",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsud2lzaGx5aHEuYXBwJA",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
