@@ -139,9 +139,10 @@ export default function CreateProfileScreen() {
           router.replace("/");
         }
       } catch (error: any) {
-        // If 404, user doesn't have a profile yet - that's fine, continue
-        if (error.response?.status === 404) {
-          // User doesn't exist yet, allow them to create profile
+        // If 404 or 401, user doesn't have a profile yet - that's fine, continue
+        if (error.response?.status === 404 || error.response?.status === 401) {
+          // User doesn't exist in backend yet (just signed up with Clerk)
+          // Allow them to create profile - this is the expected flow
           return;
         }
         // For other errors, log but don't redirect (might be network issue)
@@ -199,11 +200,13 @@ export default function CreateProfileScreen() {
       }
     } catch (err: any) {
       console.error("Error checking username availability:", err);
-      // If it's a network error or the endpoint doesn't exist, we'll still allow proceeding
-      // but the backend will catch it during creation
-      if (err.response?.status === 404) {
-        // Endpoint might not exist yet, allow proceeding
-        console.warn("Username check endpoint not available, proceeding anyway");
+      // If it's a network error, 404, or 401 (user not in backend yet), we'll still allow proceeding
+      // The backend will catch duplicate usernames during actual profile creation
+      if (err.response?.status === 404 || err.response?.status === 401) {
+        // 404: Endpoint might not exist yet
+        // 401: User not in backend database yet (just signed up with Clerk)
+        // Allow proceeding - backend will validate during creation
+        console.warn("Username check skipped (status: " + err.response?.status + "), will validate during creation");
       } else {
         setUsernameError("Unable to verify username availability. Please try again.");
         setCheckingUsername(false);

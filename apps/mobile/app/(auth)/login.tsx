@@ -1,12 +1,11 @@
 import { Platform } from "react-native";
 import { SignIn } from "@clerk/clerk-expo/web";
-import { useSignIn, useOAuth } from "@clerk/clerk-expo";
+import { useSignIn } from "@clerk/clerk-expo";
 import { useState } from "react";
 import { router } from "expo-router";
 import { View, StyleSheet, KeyboardAvoidingView, TouchableOpacity, ScrollView, ActivityIndicator, TextInput } from "react-native";
 import { Text } from "@/components/Text";
 import { SafeAreaView } from "@/components/ui";
-import { SocialSignInButton } from "@/components/SocialSignInButton";
 import { VerificationBottomSheet } from "@/components/VerificationBottomSheet";
 import { SetNewPasswordBottomSheet } from "@/components/SetNewPasswordBottomSheet";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -38,59 +37,12 @@ export default function LoginScreen() {
   const { theme } = useTheme();
   const signInHook = useSignIn();
   
-  // OAuth hooks for social sign-in
-  const { startOAuthFlow: startGoogleOAuth } = useOAuth({ strategy: "oauth_google" });
-  const { startOAuthFlow: startAppleOAuth } = useOAuth({ strategy: "oauth_apple" });
-  const { startOAuthFlow: startFacebookOAuth } = useOAuth({ strategy: "oauth_facebook" });
-  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOAuthLoading] = useState<"google" | "apple" | "facebook" | null>(null);
   const [error, setError] = useState("");
   const [showVerificationSheet, setShowVerificationSheet] = useState(false);
   const [showPasswordResetSheet, setShowPasswordResetSheet] = useState(false);
-
-  // Handle OAuth sign-in
-  const handleOAuthSignIn = async (provider: "google" | "apple" | "facebook") => {
-    if (!signInHook.isLoaded) {
-      setError("Authentication is not ready. Please try again.");
-      return;
-    }
-
-    setError("");
-    setOAuthLoading(provider);
-
-    try {
-      let result;
-      if (provider === "google") {
-        result = await (startGoogleOAuth as any)();
-      } else if (provider === "apple") {
-        result = await (startAppleOAuth as any)();
-      } else if (provider === "facebook") {
-        result = await (startFacebookOAuth as any)();
-      } else {
-        throw new Error(`Unknown provider: ${provider}`);
-      }
-
-      if (!result) {
-        throw new Error(`${provider} OAuth flow failed`);
-      }
-
-      const { createdSessionId, setActive } = result;
-      
-      if (createdSessionId) {
-        await setActive({ session: createdSessionId });
-        router.replace("/");
-      }
-    } catch (err: any) {
-      const errorMessage = err.errors?.[0]?.message || `Failed to sign in with ${provider}`;
-      setError(errorMessage);
-      console.error(`Error signing in with ${provider}:`, err);
-    } finally {
-      setOAuthLoading(null);
-    }
-  };
 
   // Handle email/password sign-in
   const onSignInPress = async () => {
@@ -205,40 +157,6 @@ export default function LoginScreen() {
               </Text>
             </View>
 
-            {/* Social Sign-In Buttons */}
-            <View style={styles.socialSection}>
-              <SocialSignInButton
-                provider="google"
-                onPress={() => handleOAuthSignIn("google")}
-                loading={oauthLoading === "google"}
-                disabled={loading || oauthLoading !== null}
-                style={styles.socialButton}
-              />
-              <SocialSignInButton
-                provider="apple"
-                onPress={() => handleOAuthSignIn("apple")}
-                loading={oauthLoading === "apple"}
-                disabled={loading || oauthLoading !== null}
-                style={styles.socialButton}
-              />
-              <SocialSignInButton
-                provider="facebook"
-                onPress={() => handleOAuthSignIn("facebook")}
-                loading={oauthLoading === "facebook"}
-                disabled={loading || oauthLoading !== null}
-                style={styles.socialButton}
-              />
-            </View>
-
-            {/* Divider */}
-            <View style={styles.dividerContainer}>
-              <View style={[styles.dividerLine, { backgroundColor: theme.colors.textSecondary }]} />
-              <Text style={[styles.dividerText, { color: theme.colors.textSecondary }]}>
-                or
-              </Text>
-              <View style={[styles.dividerLine, { backgroundColor: theme.colors.textSecondary }]} />
-            </View>
-
             {/* Email/Password Form */}
             <View style={styles.form}>
               <View style={styles.inputContainer}>
@@ -315,12 +233,12 @@ export default function LoginScreen() {
 
               <TouchableOpacity
                 onPress={onSignInPress}
-                disabled={!email || !password || !signInHook.isLoaded || oauthLoading !== null || loading}
+                disabled={!email || !password || !signInHook.isLoaded || loading}
                 style={[
                   styles.signInButton,
                   {
                     backgroundColor: theme.colors.primary,
-                    opacity: (!email || !password || !signInHook.isLoaded || oauthLoading !== null || loading) ? 0.5 : 1,
+                    opacity: (!email || !password || !signInHook.isLoaded || loading) ? 0.5 : 1,
                   },
                 ]}
               >
@@ -339,7 +257,7 @@ export default function LoginScreen() {
               </Text>
               <TouchableOpacity
                 onPress={() => router.push("/(auth)/signup")}
-                disabled={loading || oauthLoading !== null}
+                disabled={loading}
               >
                 <Text style={[styles.signUpLink, { color: theme.colors.textPrimary, fontWeight: "700" }]}>
                   Sign up
@@ -399,32 +317,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
-  },
-  socialSection: {
-    marginBottom: 40,
-    gap: 10,
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  socialButton: {
-    flex: 1,
-    minWidth: "30%",
-    height: 40,
-  },
-  dividerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    opacity: 0.2,
-  },
-  dividerText: {
-    fontSize: 13,
-    marginHorizontal: 12,
-    fontWeight: "500",
   },
   form: {
     width: "100%",

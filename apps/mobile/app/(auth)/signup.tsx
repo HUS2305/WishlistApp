@@ -1,12 +1,11 @@
 import { Platform } from "react-native";
 import { SignUp } from "@clerk/clerk-expo/web";
-import { useSignUp, useOAuth } from "@clerk/clerk-expo";
+import { useSignUp } from "@clerk/clerk-expo";
 import { useState } from "react";
 import { router } from "expo-router";
 import { View, StyleSheet, KeyboardAvoidingView, TouchableOpacity, ScrollView, ActivityIndicator, TextInput } from "react-native";
 import { Text } from "@/components/Text";
 import { SafeAreaView } from "@/components/ui";
-import { SocialSignInButton } from "@/components/SocialSignInButton";
 import { SignUpVerificationBottomSheet } from "@/components/SignUpVerificationBottomSheet";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -37,61 +36,13 @@ export default function SignUpScreen() {
   const { theme } = useTheme();
   const signUpHook = useSignUp();
   
-  // OAuth hooks for social sign-up
-  const { startOAuthFlow: startGoogleOAuth } = useOAuth({ strategy: "oauth_google" });
-  const { startOAuthFlow: startAppleOAuth } = useOAuth({ strategy: "oauth_apple" });
-  const { startOAuthFlow: startFacebookOAuth } = useOAuth({ strategy: "oauth_facebook" });
-  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOAuthLoading] = useState<"google" | "apple" | "facebook" | null>(null);
   const [error, setError] = useState("");
   const [showVerificationSheet, setShowVerificationSheet] = useState(false);
-
-  // Handle OAuth sign-up (works for both sign-up and sign-in)
-  const handleOAuthSignUp = async (provider: "google" | "apple" | "facebook") => {
-    if (!signUpHook.isLoaded) {
-      setError("Authentication is not ready. Please try again.");
-      return;
-    }
-
-    setError("");
-    setOAuthLoading(provider);
-
-    try {
-      let result;
-      if (provider === "google") {
-        result = await (startGoogleOAuth as any)();
-      } else if (provider === "apple") {
-        result = await (startAppleOAuth as any)();
-      } else if (provider === "facebook") {
-        result = await (startFacebookOAuth as any)();
-      } else {
-        throw new Error(`Unknown provider: ${provider}`);
-      }
-
-      if (!result) {
-        throw new Error(`${provider} OAuth flow failed`);
-      }
-
-      const { createdSessionId, setActive } = result;
-      
-      if (createdSessionId) {
-        await setActive({ session: createdSessionId });
-        // Redirect to home - index.tsx will check if profile exists and redirect accordingly
-        router.replace("/");
-      }
-    } catch (err: any) {
-      const errorMessage = err.errors?.[0]?.message || `Failed to sign up with ${provider}`;
-      setError(errorMessage);
-      console.error(`Error signing up with ${provider}:`, err);
-    } finally {
-      setOAuthLoading(null);
-    }
-  };
 
   const onSignUpPress = async () => {
     if (!signUpHook.isLoaded) {
@@ -142,40 +93,6 @@ export default function SignUpScreen() {
               <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
                 Join Wishly and start sharing your wishes
               </Text>
-            </View>
-
-            {/* Social Sign-Up Buttons */}
-            <View style={styles.socialSection}>
-              <SocialSignInButton
-                provider="google"
-                onPress={() => handleOAuthSignUp("google")}
-                loading={oauthLoading === "google"}
-                disabled={loading || oauthLoading !== null}
-                style={styles.socialButton}
-              />
-              <SocialSignInButton
-                provider="apple"
-                onPress={() => handleOAuthSignUp("apple")}
-                loading={oauthLoading === "apple"}
-                disabled={loading || oauthLoading !== null}
-                style={styles.socialButton}
-              />
-              <SocialSignInButton
-                provider="facebook"
-                onPress={() => handleOAuthSignUp("facebook")}
-                loading={oauthLoading === "facebook"}
-                disabled={loading || oauthLoading !== null}
-                style={styles.socialButton}
-              />
-            </View>
-
-            {/* Divider */}
-            <View style={styles.dividerContainer}>
-              <View style={[styles.dividerLine, { backgroundColor: theme.colors.textSecondary }]} />
-              <Text style={[styles.dividerText, { color: theme.colors.textSecondary }]}>
-                or
-              </Text>
-              <View style={[styles.dividerLine, { backgroundColor: theme.colors.textSecondary }]} />
             </View>
 
             {/* Email/Password Form */}
@@ -287,12 +204,12 @@ export default function SignUpScreen() {
 
               <TouchableOpacity
                 onPress={onSignUpPress}
-                disabled={!email || !password || !firstName.trim() || !lastName.trim() || !signUpHook.isLoaded || oauthLoading !== null || loading}
+                disabled={!email || !password || !firstName.trim() || !lastName.trim() || !signUpHook.isLoaded || loading}
                 style={[
                   styles.signUpButton,
                   {
                     backgroundColor: theme.colors.primary,
-                    opacity: (!email || !password || !firstName.trim() || !lastName.trim() || !signUpHook.isLoaded || oauthLoading !== null || loading) ? 0.5 : 1,
+                    opacity: (!email || !password || !firstName.trim() || !lastName.trim() || !signUpHook.isLoaded || loading) ? 0.5 : 1,
                   },
                 ]}
               >
@@ -310,7 +227,7 @@ export default function SignUpScreen() {
                 </Text>
                 <TouchableOpacity
                   onPress={() => router.push("/(auth)/login")}
-                  disabled={loading || oauthLoading !== null}
+                  disabled={loading}
                 >
                   <Text style={[styles.signInLink, { color: theme.colors.textPrimary, fontWeight: "700" }]}>
                     Sign In
@@ -362,32 +279,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
-  },
-  socialSection: {
-    marginBottom: 40,
-    gap: 10,
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  socialButton: {
-    flex: 1,
-    minWidth: "30%",
-    height: 40,
-  },
-  dividerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    opacity: 0.2,
-  },
-  dividerText: {
-    fontSize: 13,
-    marginHorizontal: 12,
-    fontWeight: "500",
   },
   form: {
     width: "100%",
